@@ -546,7 +546,7 @@
                         <div class="icon-box ic-blue"><span class="material-symbols-outlined">database</span></div>
                         <h4>DataCenter</h4>
                     </a>
-                    <a href="http://192.168.1.10:8088" target="_blank" class="service-card card-teal" data-network="lan" data-keywords="data-report data report รายงาน สถิติ ข้อมูล">
+                    <a href="http://192.168.1.10:8083/reports" target="_blank" class="service-card card-teal" data-network="lan" data-keywords="data-report data report รายงาน สถิติ ข้อมูล">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-teal"><span class="material-symbols-outlined">monitoring</span></div>
                         <h4>Data-Report</h4>
