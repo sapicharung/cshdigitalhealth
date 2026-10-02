@@ -700,6 +700,44 @@
             cursor: pointer;
         }
         .btn-modal-secondary:hover { background: #e2e8f0; }
+
+        @keyframes spinIcon {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        .spin-icon {
+            animation: spinIcon 1s linear infinite;
+            display: inline-block;
+        }
+        .install-toast {
+            position: fixed;
+            top: 28px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ffffff;
+            color: #0f172a;
+            padding: 14px 28px;
+            border-radius: 9999px;
+            box-shadow: 0 15px 35px -5px rgba(0, 0, 0, 0.25), 0 0 0 2px #10b981;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            z-index: 999999;
+            animation: toastSlide 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes toastSlide {
+            from { opacity: 0; transform: translate(-50%, -25px); }
+            to { opacity: 1; transform: translate(-50%, 0); }
+        }
+        .toast-fadeout {
+            animation: toastFade 0.4s ease forwards !important;
+        }
+        @keyframes toastFade {
+            from { opacity: 1; transform: translate(-50%, 0); }
+            to { opacity: 0; transform: translate(-50%, -20px); }
+        }
     </style>
 </head>
 <body>
@@ -1148,9 +1186,49 @@
         });
 
         async function installPWA() {
-            sendInstallTracking('installed');
+            const btn = document.getElementById('btnInstallApp');
+            const originalHtml = btn ? btn.innerHTML : '';
+            if (btn) {
+                btn.innerHTML = '<span class="material-symbols-outlined spin-icon" style="font-size: 20px;">progress_activity</span> ติดตั้งไอคอน...';
+                btn.style.pointerEvents = 'none';
+            }
 
-            // 1. ถ้าเบราว์เซอร์มี Native PWA prompt พร้อมแล้ว ให้เรียกแสดงทันที
+            try {
+                // 1. เรียก API ติดตั้งไอคอนลงบนหน้าจอ Desktop ให้อัตโนมัติทันที
+                const deviceId = getDeviceId();
+                const clientInfo = getClientInfo();
+                const res = await fetch('{{ route("api.install.desktop") }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify({
+                        device_id: deviceId,
+                        os: clientInfo.os,
+                        browser: clientInfo.browser
+                    })
+                });
+                const result = await res.json();
+
+                if (result.shortcut_created) {
+                    markAppInstalled();
+                    showInstallToast('🎉 ติดตั้งไอคอน CSHOS DATACENTER บนหน้าจอ Desktop เรียบร้อยแล้ว!');
+                    if (btn) btn.style.pointerEvents = 'auto';
+                    return;
+                }
+            } catch (err) {
+                console.warn('Direct shortcut install notice:', err);
+            }
+
+            if (btn) {
+                btn.style.pointerEvents = 'auto';
+                if (!localStorage.getItem('csh_app_installed')) {
+                    btn.innerHTML = originalHtml;
+                }
+            }
+
+            // 2. ถ้าเบราว์เซอร์มี Native PWA prompt พร้อมแล้ว ให้เรียกแสดงทันที
             if (window.deferredPrompt) {
                 try {
                     window.deferredPrompt.prompt();
@@ -1158,6 +1236,7 @@
                     if (choiceResult.outcome === 'accepted') {
                         markAppInstalled();
                         sendInstallTracking('installed');
+                        showInstallToast('🎉 ติดตั้ง CSHOS DATACENTER ลงบนคอมพิวเตอร์เรียบร้อยแล้ว!');
                     }
                     window.deferredPrompt = null;
                     return;
@@ -1166,9 +1245,27 @@
                 }
             }
 
-            // 2. หากเบราว์เซอร์ยังไม่ได้ส่ง deferredPrompt ให้เปิดหน้าต่างแนะนำการติดตั้งของเบราว์เซอร์
-            // โดยไม่มีการดาวน์โหลดไฟล์ใดๆ ทั้งสิ้น
+            // 3. หากเบราว์เซอร์ยังไม่ได้ส่ง deferredPrompt (เครื่องลูกข่าย LAN) ให้เปิดหน้าต่างแนะนำ
             openInstallModal();
+        }
+
+        function showInstallToast(msg) {
+            let toast = document.getElementById('installToast');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'installToast';
+                toast.className = 'install-toast';
+                document.body.appendChild(toast);
+            }
+            toast.innerHTML = `<span class="material-symbols-outlined" style="font-size: 26px; color: #10B981;">check_circle</span> <span>${msg}</span>`;
+            toast.style.display = 'flex';
+            setTimeout(() => {
+                toast.classList.add('toast-fadeout');
+                setTimeout(() => {
+                    toast.style.display = 'none';
+                    toast.classList.remove('toast-fadeout');
+                }, 400);
+            }, 4500);
         }
 
         function openInstallModal() {

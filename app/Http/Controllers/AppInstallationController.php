@@ -286,4 +286,64 @@ class AppInstallationController extends Controller
 
         return response()->stream($callback, 200, $headers);
     }
+
+    /**
+     * Automatically install desktop shortcut on the host computer.
+     */
+    public function installDesktopShortcut(Request $request)
+    {
+        $clientIp = $request->header('X-Forwarded-For') 
+            ? trim(explode(',', $request->header('X-Forwarded-For'))[0]) 
+            : $request->ip();
+
+        $appUrl = url('/');
+        $serverIp = gethostbyname(gethostname());
+
+        // Check if the client is on the local computer or server host
+        $isLocal = in_array($clientIp, ['127.0.0.1', '::1', 'localhost']) 
+            || $clientIp === $serverIp 
+            || $clientIp === '192.168.61.63';
+
+        $output = '';
+        $shortcutCreated = false;
+
+        if ($isLocal) {
+            $scriptPath = base_path('create_shortcut.ps1');
+            if (file_exists($scriptPath)) {
+                $cmd = "powershell -ExecutionPolicy Bypass -File \"{$scriptPath}\" -AppUrl \"{$appUrl}\" 2>&1";
+                $output = shell_exec($cmd);
+                $shortcutCreated = str_contains($output ?: '', 'SUCCESS');
+            }
+        }
+
+        // Track in database
+        $deviceId = $request->input('device_id');
+        if ($deviceId) {
+            $record = AppInstallation::where('device_id', $deviceId)->first();
+            if (!$record) {
+                $record = new AppInstallation();
+                $record->device_id = $deviceId;
+            }
+            $record->ip_address = $clientIp;
+            $record->install_type = 'installed';
+            if (!$record->first_installed_at) {
+                $record->first_installed_at = now();
+            }
+            $record->last_active_at = now();
+            $record->launch_count = ($record->launch_count ?? 0) + 1;
+            if ($request->filled('os')) $record->os = $request->input('os');
+            if ($request->filled('browser')) $record->browser = $request->input('browser');
+            $record->save();
+        }
+
+        return response()->json([
+            'success'          => true,
+            'is_local'         => $isLocal,
+            'shortcut_created' => $shortcutCreated,
+            'message'          => $shortcutCreated 
+                ? 'ติดตั้งไอคอน CSHOS DATACENTER บนหน้าจอ Desktop เรียบร้อยแล้ว!' 
+                : 'บันทึกสถานะเรียบร้อยแล้ว',
+            'output'           => $output
+        ]);
+    }
 }

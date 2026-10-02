@@ -14,6 +14,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'track-install',
             'api/track-install',
+            'api/install-desktop-shortcut',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

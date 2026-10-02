@@ -39,6 +39,7 @@ Route::prefix('knowledge')->group(function () {
 // 3. ติดตามการติดตั้งแอพ (Beacon / Client tracking - Public)
 Route::post('/track-install', [AppInstallationController::class, 'track'])->name('track.install');
 Route::post('/api/track-install', [AppInstallationController::class, 'track'])->name('api.track.install');
+Route::post('/api/install-desktop-shortcut', [AppInstallationController::class, 'installDesktopShortcut'])->name('api.install.desktop');
 
 // 4. เข้าสู่ระบบผู้ดูแลระบบ (Admin Authentication)
 Route::get('/admin/login', [AdminAuthController::class, 'showLogin'])->name('login');
