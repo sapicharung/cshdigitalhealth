@@ -542,6 +542,13 @@
             font-size: 0.85rem;
         }
 
+        .table-actions-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
         .btn-action-edit {
             background: none;
             border: 1px solid var(--border);
@@ -560,6 +567,87 @@
         .btn-action-edit:hover {
             background: var(--primary-light);
             border-color: var(--primary);
+        }
+
+        .btn-action-reset {
+            background: none;
+            border: 1px solid #FDE68A;
+            padding: 0.35rem 0.6rem;
+            border-radius: 8px;
+            color: #D97706;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.8rem;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .btn-action-reset:hover {
+            background: #FEF3C7;
+            border-color: #F59E0B;
+        }
+
+        .btn-action-delete {
+            background: none;
+            border: 1px solid #FECACA;
+            padding: 0.35rem 0.5rem;
+            border-radius: 8px;
+            color: #DC2626;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .btn-action-delete:hover {
+            background: #FEE2E2;
+            border-color: #EF4444;
+        }
+
+        .btn-reset-this {
+            background: #EFF6FF;
+            border: 1px solid #BFDBFE;
+            padding: 0.55rem 1rem;
+            border-radius: 10px;
+            color: #1D4ED8;
+            font-weight: 500;
+            font-size: 0.88rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: all 0.2s;
+            text-decoration: none;
+            font-family: inherit;
+        }
+        .btn-reset-this:hover {
+            background: #DBEAFE;
+            border-color: #93C5FD;
+            transform: translateY(-1px);
+        }
+
+        .btn-reset-all {
+            background: none;
+            border: 1px solid #E2E8F0;
+            padding: 0.55rem 0.85rem;
+            border-radius: 10px;
+            color: #64748B;
+            font-weight: 500;
+            font-size: 0.88rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .btn-reset-all:hover {
+            background: #FEE2E2;
+            border-color: #FCA5A5;
+            color: #DC2626;
         }
 
         .empty-state {
@@ -886,6 +974,16 @@
                 </div>
 
                 <div class="action-buttons">
+                    <button type="button" class="btn-reset-this" onclick="resetThisDevice()" title="รีเซ็ตสถานะเครื่องปัจจุบันและกลับไปหน้าหลักเพื่อติดตั้งไอคอนใหม่">
+                        <span class="material-symbols-Outlined" style="font-size: 18px;">restart_alt</span>
+                        <span>รีเซ็ตเครื่องนี้ & ติดตั้งใหม่</span>
+                    </button>
+
+                    <button type="button" class="btn-reset-all" onclick="submitResetAll()" title="รีเซ็ตสถานะของทุกเครื่องในระบบ">
+                        <span class="material-symbols-Outlined" style="font-size: 18px;">history</span>
+                        <span>รีเซ็ตทุกเครื่อง</span>
+                    </button>
+
                     <button type="button" class="btn-refresh" onclick="location.reload()" title="รีเฟรชข้อมูล">
                         <span class="material-symbols-Outlined" style="font-size: 18px;">refresh</span>
                         <span>รีเฟรช</span>
@@ -896,6 +994,9 @@
                         <span>ส่งออก Excel/CSV</span>
                     </a>
                 </div>
+            </form>
+            <form id="resetAllForm" action="{{ route('admin.installations.reset-all') }}" method="POST" style="display: none;">
+                @csrf
             </form>
         </section>
 
@@ -977,12 +1078,28 @@
                                     </div>
                                 </td>
                                 <td style="text-align: center;">
-                                    <button type="button" class="btn-action-edit" 
-                                            onclick="openEditModal({{ json_encode($item) }})"
-                                            title="แก้ไขแผนก / ข้อมูลเครื่อง">
-                                        <span class="material-symbols-Outlined" style="font-size: 16px;">edit</span>
-                                        <span>แก้ไข</span>
-                                    </button>
+                                    <div class="table-actions-cell">
+                                        <button type="button" class="btn-action-edit" 
+                                                onclick="openEditModal({{ json_encode($item) }})"
+                                                title="แก้ไขแผนก / ข้อมูลเครื่อง">
+                                            <span class="material-symbols-Outlined" style="font-size: 16px;">edit</span>
+                                            <span>แก้ไข</span>
+                                        </button>
+                                        <form action="{{ route('admin.installations.reset', $item->id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('ต้องการรีเซ็ตสถานะการติดตั้งของเครื่อง {{ $item->hostname ?: $item->ip_address }} ใช่หรือไม่? \n(สถานะจะเปลี่ยนเป็น \'รอติดตั้งใหม่\' เพื่อให้เครื่องนี้ติดตั้งไอคอนใหม่ได้)')">
+                                            @csrf
+                                            <button type="submit" class="btn-action-reset" title="รีเซ็ตสถานะ ให้เครื่องนี้ติดตั้งใหม่ได้">
+                                                <span class="material-symbols-Outlined" style="font-size: 16px;">restart_alt</span>
+                                                <span>รีเซ็ต</span>
+                                            </button>
+                                        </form>
+                                        <form action="{{ route('admin.installations.destroy', $item->id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('ต้องการลบข้อมูลเครื่อง {{ $item->hostname ?: $item->ip_address }} ออกจากระบบใช่หรือไม่?')">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" class="btn-action-delete" title="ลบข้อมูลเครื่องนี้">
+                                                <span class="material-symbols-Outlined" style="font-size: 16px;">delete</span>
+                                            </button>
+                                        </form>
+                                    </div>
                                 </td>
                             </tr>
                         @empty
@@ -1104,6 +1221,22 @@
                 closeEditModal();
             }
         });
+
+        function resetThisDevice() {
+            if (confirm('คุณต้องการรีเซ็ตสถานะการติดตั้งของเครื่องปัจจุบันนี้ เพื่อกลับไปหน้าหลักและติดตั้งไอคอน CSHOS DATACENTER ลงหน้าจอ Desktop ใหม่อีกครั้ง ใช่หรือไม่?')) {
+                try {
+                    localStorage.removeItem('csh_app_installed');
+                    localStorage.removeItem('csh_device_uuid');
+                } catch(e) {}
+                window.location.href = '{{ route("home") }}?reset=1';
+            }
+        }
+
+        function submitResetAll() {
+            if (confirm('คำเตือน: คุณต้องการรีเซ็ตสถานะการติดตั้งของ "ทุกเครื่องในระบบ" ให้กลับเป็นสถานะ "รอติดตั้งใหม่" ใช่หรือไม่?')) {
+                document.getElementById('resetAllForm').submit();
+            }
+        }
     </script>
 </body>
 </html>

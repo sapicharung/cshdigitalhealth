@@ -1,4 +1,4 @@
-const CACHE_NAME = 'csh-health-v1';
+const CACHE_NAME = 'csh-health-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/manifest.json',

@@ -48,6 +48,8 @@ Route::post('/admin/login', [AdminAuthController::class, 'login'])->name('login.
 Route::middleware('auth')->prefix('admin')->group(function () {
     Route::get('/installations', [AppInstallationController::class, 'index'])->name('admin.installations');
     Route::put('/installations/{id}', [AppInstallationController::class, 'update'])->name('admin.installations.update');
+    Route::post('/installations/{id}/reset', [AppInstallationController::class, 'reset'])->name('admin.installations.reset');
+    Route::post('/installations/reset-all', [AppInstallationController::class, 'resetAll'])->name('admin.installations.reset-all');
     Route::delete('/installations/{id}', [AppInstallationController::class, 'destroy'])->name('admin.installations.destroy');
     Route::get('/installations/export', [AppInstallationController::class, 'exportCsv'])->name('admin.installations.export');
     Route::post('/logout', [AdminAuthController::class, 'logout'])->name('admin.logout');

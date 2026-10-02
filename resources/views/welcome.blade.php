@@ -26,22 +26,34 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="CSHOS DATACENTER">
 
-    <!-- Immediate Detection: Hide Install Button if already installed on this machine -->
+    <!-- PWA Installation Engine & ServiceWorker -->
     <script>
+        window.deferredPrompt = null;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            window.deferredPrompt = e;
+            console.log('CSHOS PWA: beforeinstallprompt ready!');
+        });
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('{{ asset("sw.js") }}', { scope: '/' })
+                .then((reg) => {
+                    console.log('CSHOS PWA ServiceWorker active, scope:', reg.scope);
+                })
+                .catch((err) => {
+                    console.warn('CSHOS PWA ServiceWorker error:', err);
+                });
+        }
+
         (function() {
             try {
-                if (window.location.search.includes('show_install=1')) {
+                if (window.location.search.includes('reset=1')) {
                     localStorage.removeItem('csh_app_installed');
-                    return;
+                    localStorage.removeItem('csh_device_uuid');
                 }
-                const isInstalledLocal = localStorage.getItem('csh_app_installed') === '1';
                 const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
-                const isInstalledServer = {{ $isInstalledOnThisIp ? 'true' : 'false' }};
-                if (isInstalledLocal || isStandalone || isInstalledServer) {
+                if (isStandalone) {
                     document.documentElement.classList.add('app-installed');
-                    if (isInstalledServer && !isInstalledLocal) {
-                        localStorage.setItem('csh_app_installed', '1');
-                    }
                 }
             } catch (e) {}
         })();
@@ -453,6 +465,241 @@
             .icon-box { width: 48px; height: 48px; }
             .category-title h3 { font-size: 1.1rem; line-height: 1.35; }
         }
+
+        /* --- Desktop Install Modal --- */
+        .install-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(6px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 99999;
+            padding: 16px;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .install-modal-overlay.active {
+            display: flex;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .install-modal-card {
+            background: #ffffff;
+            border-radius: 20px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            border: 1px solid #e2e8f0;
+            animation: slideUp 0.25s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .install-modal-header {
+            background: linear-gradient(135deg, #1e40af, #2563eb);
+            color: white;
+            padding: 18px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .install-modal-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .install-modal-title h3 {
+            margin: 0;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .install-modal-title small {
+            color: #bfdbfe;
+            font-size: 0.78rem;
+            display: block;
+        }
+
+        .install-modal-close {
+            background: rgba(255, 255, 255, 0.15);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .install-modal-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .install-modal-body {
+            padding: 22px 24px;
+            color: #334155;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+
+        .install-step-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            padding: 14px 16px;
+            margin-bottom: 12px;
+        }
+
+        .install-step-card.highlight {
+            background: #eff6ff;
+            border: 1.5px solid #60a5fa;
+        }
+
+        .install-step-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .install-step-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 700;
+            color: #1e3a8a;
+            font-size: 0.95rem;
+        }
+
+        .install-step-badge {
+            background: #2563eb;
+            color: white;
+            font-size: 0.72rem;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+        .install-step-badge.outline {
+            background: #e2e8f0;
+            color: #475569;
+        }
+
+        .install-step-desc {
+            font-size: 0.85rem;
+            color: #475569;
+            margin: 0;
+            line-height: 1.55;
+        }
+
+        .install-step-desc strong {
+            color: #1e293b;
+        }
+
+        .install-guide-steps {
+            list-style: none;
+            padding: 0;
+            margin: 8px 0 0 0;
+            font-size: 0.83rem;
+            color: #475569;
+        }
+
+        .install-guide-steps li {
+            margin-bottom: 6px;
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+        }
+
+        .install-guide-steps li .step-num {
+            background: #dbeafe;
+            color: #1d4ed8;
+            font-weight: 700;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.72rem;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .install-modal-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 18px;
+            padding-top: 14px;
+            border-top: 1px solid #e2e8f0;
+            flex-wrap: wrap;
+        }
+
+        .btn-modal-primary {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+        .btn-modal-primary:hover { background: #1d4ed8; }
+
+        .btn-modal-outline {
+            background: white;
+            color: #3b82f6;
+            border: 1px solid #cbd5e1;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+        }
+        .btn-modal-outline:hover { background: #f8fafc; border-color: #94a3b8; }
+
+        .btn-modal-secondary {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .btn-modal-secondary:hover { background: #e2e8f0; }
     </style>
 </head>
 <body>
@@ -675,7 +922,7 @@
                     <a href="http://192.168.1.10:8099/" target="_blank" class="service-card card-rose" data-network="lan" data-keywords="ntip reporting ntip reporting วัณโรค รายงาน สถิติ report">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-rose"><span class="material-symbols-outlined">query_stats</span></div>
-                        <h4>NTIP REPORTING</h4>
+                        <h4>NTIP-Report</h4>
                     </a>
                     <a href="http://192.168.1.20/kumhosnapapi" target="_blank" class="service-card card-teal" data-network="lan" data-keywords="api_nap-lab nap-lab nap lab แล็บ ชันสูตร">
                         <span class="badge-network badge-lan">LAN</span>
@@ -703,6 +950,89 @@
             </a>
         </div>
     </footer>
+
+    <!-- Desktop Install Modal (Native Browser App Installation Guide) -->
+    <div id="installDesktopModal" class="install-modal-overlay" onclick="if(event.target===this) closeInstallModal()">
+        <div class="install-modal-card">
+            <div class="install-modal-header">
+                <div class="install-modal-title">
+                    <span class="material-symbols-outlined" style="font-size: 28px; color: #93c5fd;">install_desktop</span>
+                    <div>
+                        <h3>ติดตั้ง CSHOS DATACENTER บนคอมพิวเตอร์</h3>
+                        <small>โรงพยาบาลเชียงแสน (Chiang Saen Digital Health)</small>
+                    </div>
+                </div>
+                <button type="button" class="install-modal-close" onclick="closeInstallModal()" title="ปิดหน้าต่าง">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">close</span>
+                </button>
+            </div>
+
+            <div class="install-modal-body">
+                <div class="install-step-card highlight" style="margin-bottom: 16px;">
+                    <div class="install-step-header">
+                        <div class="install-step-title">
+                            <span class="material-symbols-outlined" style="color: #2563eb; font-size: 22px;">verified</span>
+                            <span>ติดตั้งเป็นแอปพลิเคชันลงเครื่องทันที (ไม่ต้องดาวน์โหลดไฟล์)</span>
+                        </div>
+                    </div>
+                    <p class="install-step-desc">
+                        คุณสามารถติดตั้ง CSHOS DATACENTER เป็นแอปพลิเคชันลงบนหน้าจอคอมพิวเตอร์ (Desktop) ได้โดยตรงผ่านเว็บเบราว์เซอร์ โดยมีขั้นตอนง่ายๆ ดังนี้:
+                    </p>
+                </div>
+
+                <!-- Step Guide for Chrome & Edge -->
+                <div class="install-step-card" style="margin-bottom: 16px;">
+                    <div class="install-step-header">
+                        <div class="install-step-title">
+                            <span class="material-symbols-outlined" style="color: #0284c7; font-size: 20px;">laptop_chromebook</span>
+                            <span>วิธีติดตั้งผ่าน Google Chrome:</span>
+                        </div>
+                    </div>
+                    <ul class="install-guide-steps">
+                        <li>
+                            <span class="step-num">1</span>
+                            <div>มองที่ <strong>แถบที่อยู่เว็บ (Address Bar ด้านบนขวา)</strong> จะมีไอคอน <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; color: #2563eb;">install_desktop</span> <strong>"ติดตั้ง CSHOS DATACENTER"</strong> &rarr; คลิกแล้วกดปุ่ม <strong>"ติดตั้ง" (Install)</strong></div>
+                        </li>
+                        <li>
+                            <span class="step-num">2</span>
+                            <div>หรือกดปุ่มเมนูจุดสามจุด <code>⋮</code> มุมขวาบน &rarr; เลือก <strong>"บันทึกและแชร์" (Save and share)</strong> &rarr; เลือก <strong>"สร้างทางลัด..." (Create shortcut...)</strong> &rarr; ติ๊กถูกที่ช่อง <strong>"เปิดเป็นหน้าต่าง" (Open as window)</strong> &rarr; กด <strong>"สร้าง"</strong></div>
+                        </li>
+                    </ul>
+                </div>
+
+                <div class="install-step-card" style="margin-bottom: 18px;">
+                    <div class="install-step-header">
+                        <div class="install-step-title">
+                            <span class="material-symbols-outlined" style="color: #0284c7; font-size: 20px;">tab</span>
+                            <span>วิธีติดตั้งผ่าน Microsoft Edge:</span>
+                        </div>
+                    </div>
+                    <ul class="install-guide-steps">
+                        <li>
+                            <span class="step-num">1</span>
+                            <div>มองที่ <strong>แถบที่อยู่เว็บ (Address Bar ด้านบนขวา)</strong> จะมีไอคอนแอปพลิเคชัน &rarr; คลิกแล้วกดปุ่ม <strong>"ติดตั้ง" (Install)</strong></div>
+                        </li>
+                        <li>
+                            <span class="step-num">2</span>
+                            <div>หรือกดปุ่มเมนูจุดสามจุด <code>…</code> มุมขวาบน &rarr; เลือก <strong>"แอป" (Apps)</strong> &rarr; เลือก <strong>"ติดตั้งไซต์นี้เป็นแอป" (Install this site as an app)</strong> &rarr; กด <strong>"ติดตั้ง"</strong></div>
+                        </li>
+                    </ul>
+                </div>
+
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 12px 16px; font-size: 0.85rem; color: #166534; display: flex; align-items: center; gap: 8px; margin-bottom: 18px;">
+                    <span class="material-symbols-outlined" style="font-size: 20px; color: #16a34a; flex-shrink: 0;">check_circle</span>
+                    <span>เมื่อกดติดตั้งแล้ว เบราว์เซอร์จะสร้างไอคอนแอป CSHOS DATACENTER ไว้ที่หน้าจอ Desktop และ Start Menu ให้อัตโนมัติทันที</span>
+                </div>
+
+                <div class="install-modal-actions" style="border: none; padding: 0; margin: 0;">
+                    <button type="button" class="btn-modal-primary" onclick="closeInstallModal()" style="width: 100%; justify-content: center; padding: 11px 20px; font-size: 0.95rem;">
+                        <span class="material-symbols-outlined" style="font-size: 20px;">thumb_up</span>
+                        <span>เข้าใจแล้ว</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- App Scripts -->
     <script>
@@ -780,35 +1110,21 @@
             }
         }
 
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js').then((reg) => {
-                    console.log('CSH PWA ServiceWorker registered:', reg.scope);
-                }).catch((err) => {
-                    console.log('CSH PWA ServiceWorker registration failed:', err);
-                });
-            });
-        }
-
-        let deferredPrompt = null;
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-        });
-
         function markAppInstalled() {
             try {
                 localStorage.setItem('csh_app_installed', '1');
             } catch (e) {}
-            document.documentElement.classList.add('app-installed');
             const btn = document.getElementById('btnInstallApp');
-            if (btn) btn.style.display = 'none';
+            if (btn) {
+                btn.innerHTML = '<span class="material-symbols-outlined" style="font-size: 20px;">check_circle</span> ติดตั้งไอคอนแล้ว';
+                btn.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+            }
         }
 
         // Track when launched as standalone installed application
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
         if (isStandalone) {
-            markAppInstalled();
+            document.documentElement.classList.add('app-installed');
             if (!sessionStorage.getItem('csh_standalone_tracked')) {
                 sendInstallTracking('installed');
                 sessionStorage.setItem('csh_standalone_tracked', '1');
@@ -826,41 +1142,43 @@
 
         window.addEventListener('appinstalled', () => {
             console.log('CSHOS DATACENTER app was installed');
-            deferredPrompt = null;
+            window.deferredPrompt = null;
             markAppInstalled();
             sendInstallTracking('installed');
         });
 
-        function installPWA() {
-            if (deferredPrompt) {
-                // สั่งติดตั้งผ่านเบราว์เซอร์ลงคอมพิวเตอร์ทันที ไม่ต้องมีป็อปอัพอธิบาย
-                deferredPrompt.prompt();
-                deferredPrompt.userChoice.then((choiceResult) => {
+        async function installPWA() {
+            sendInstallTracking('installed');
+
+            // 1. ถ้าเบราว์เซอร์มี Native PWA prompt พร้อมแล้ว ให้เรียกแสดงทันที
+            if (window.deferredPrompt) {
+                try {
+                    window.deferredPrompt.prompt();
+                    const choiceResult = await window.deferredPrompt.userChoice;
                     if (choiceResult.outcome === 'accepted') {
                         markAppInstalled();
                         sendInstallTracking('installed');
                     }
-                    deferredPrompt = null;
-                });
-            } else {
-                // หากเบราว์เซอร์ยังไม่พร้อม ให้ดาวน์โหลด Shortcut ไอคอนลงคอมพิวเตอร์ทันที
-                markAppInstalled();
-                sendInstallTracking('installed');
-                downloadDesktopShortcut();
+                    window.deferredPrompt = null;
+                    return;
+                } catch (e) {
+                    console.warn('Native prompt call error:', e);
+                }
             }
+
+            // 2. หากเบราว์เซอร์ยังไม่ได้ส่ง deferredPrompt ให้เปิดหน้าต่างแนะนำการติดตั้งของเบราว์เซอร์
+            // โดยไม่มีการดาวน์โหลดไฟล์ใดๆ ทั้งสิ้น
+            openInstallModal();
         }
 
-        function downloadDesktopShortcut() {
-            const currentUrl = window.location.href;
-            const shortcutContent = `[InternetShortcut]\r\nURL=${currentUrl}\r\nIconIndex=0\r\nIconFile=${window.location.origin}/favicon.png\r\n`;
-            const blob = new Blob([shortcutContent], { type: 'application/x-mswinurl' });
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = 'CSHOS DATACENTER.url';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(a.href);
+        function openInstallModal() {
+            const modal = document.getElementById('installDesktopModal');
+            if (modal) modal.classList.add('active');
+        }
+
+        function closeInstallModal() {
+            const modal = document.getElementById('installDesktopModal');
+            if (modal) modal.classList.remove('active');
         }
     </script>
 

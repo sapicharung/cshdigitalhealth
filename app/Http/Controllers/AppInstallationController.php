@@ -175,6 +175,43 @@ class AppInstallationController extends Controller
     }
 
     /**
+     * Reset installation status for a device (allows re-installing).
+     */
+    public function reset(Request $request, $id)
+    {
+        $installation = AppInstallation::findOrFail($id);
+        $name = $installation->hostname ?: ($installation->device_name ?: $installation->ip_address);
+
+        $installation->install_type = 'browser';
+        $installation->first_installed_at = null;
+        $installation->save();
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'status'  => 'success',
+                'message' => "รีเซ็ตสถานะการติดตั้งของ {$name} เรียบร้อยแล้ว (สามารถติดตั้งใหม่ได้ทันที)",
+                'data'    => $installation
+            ]);
+        }
+
+        return back()->with('success', "รีเซ็ตสถานะการติดตั้งของเครื่อง {$name} เรียบร้อยแล้ว (สถานะเปลี่ยนเป็น 'รอติดตั้งใหม่')");
+    }
+
+    /**
+     * Reset all installed devices back to browser / uninstalled status.
+     */
+    public function resetAll(Request $request)
+    {
+        $count = AppInstallation::where('install_type', 'installed')->count();
+        AppInstallation::where('install_type', 'installed')->update([
+            'install_type' => 'browser',
+            'first_installed_at' => null,
+        ]);
+
+        return back()->with('success', "รีเซ็ตสถานะการติดตั้งของทั้งหมด {$count} เครื่องในระบบเรียบร้อยแล้ว");
+    }
+
+    /**
      * Delete an installation record.
      */
     public function destroy($id)
