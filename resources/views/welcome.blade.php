@@ -785,10 +785,6 @@
                 </div>
             </a>
             <div class="nav-actions">
-                <button id="btnInstallApp" class="btn-install-app" onclick="installPWA()">
-                    <span class="material-symbols-outlined" style="font-size: 20px;">install_desktop</span>
-                    ติดตั้งแอปบนคอมฯ
-                </button>
                 <a href="http://192.168.1.10:8086/knowledge" target="_blank" class="btn-knowledge">
                     <span class="material-symbols-outlined" style="font-size: 18px; color: inherit;">auto_stories</span>
                     คลังความรู้

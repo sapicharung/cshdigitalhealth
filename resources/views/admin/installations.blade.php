@@ -77,7 +77,7 @@
         .navbar {
             background: #FFFFFF;
             border-bottom: 1px solid var(--border);
-            padding: 0.85rem 2rem;
+            padding: 0.85rem 1.8%;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -121,6 +121,27 @@
             display: flex;
             align-items: center;
             gap: 1rem;
+        }
+
+        .btn-download-app {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.5rem 1rem;
+            background: linear-gradient(135deg, #10B981, #059669);
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            font-size: 0.88rem;
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+            transition: all 0.2s;
+        }
+
+        .btn-download-app:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
         }
 
         .btn-view-site {
@@ -179,10 +200,10 @@
 
         /* --- Container --- */
         .container {
-            max-width: 1400px;
-            width: 100%;
+            max-width: 1760px;
+            width: 98%;
             margin: 0 auto;
-            padding: 1.8rem 2rem;
+            padding: 1.5rem 1.25rem;
             flex: 1;
         }
 
@@ -436,6 +457,7 @@
             border-collapse: collapse;
             font-size: 0.9rem;
             text-align: left;
+            min-width: 1250px;
         }
 
         thead {
@@ -444,7 +466,7 @@
         }
 
         th {
-            padding: 0.95rem 1.1rem;
+            padding: 1rem 1.1rem;
             font-weight: 600;
             color: #475569;
             font-size: 0.82rem;
@@ -463,9 +485,10 @@
         }
 
         td {
-            padding: 0.95rem 1.1rem;
+            padding: 1rem 1.1rem;
             vertical-align: middle;
             color: #334155;
+            white-space: nowrap;
         }
 
         .badge {
@@ -605,6 +628,28 @@
         .btn-action-delete:hover {
             background: #FEE2E2;
             border-color: #EF4444;
+        }
+
+        .btn-download-toolbar {
+            background: #ECFDF5;
+            border: 1px solid #A7F3D0;
+            padding: 0.55rem 1rem;
+            border-radius: 10px;
+            color: #047857;
+            font-weight: 600;
+            font-size: 0.88rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: all 0.2s;
+            text-decoration: none;
+            font-family: inherit;
+        }
+        .btn-download-toolbar:hover {
+            background: #D1FAE5;
+            border-color: #6EE7B7;
+            transform: translateY(-1px);
         }
 
         .btn-reset-this {
@@ -859,6 +904,11 @@
         </div>
 
         <div class="nav-actions">
+            <a href="{{ route('download.shortcut.installer') }}" class="btn-download-app" title="ดาวน์โหลดตัวสร้างไอคอนสำหรับนำไปติดตั้งบนเครื่องลูกข่าย">
+                <span class="material-symbols-Outlined" style="font-size: 18px;">download</span>
+                <span>downloadตัวติดตั้งApp</span>
+            </a>
+
             <a href="{{ url('/') }}" target="_blank" class="btn-view-site">
                 <span class="material-symbols-Outlined" style="font-size: 18px;">open_in_new</span>
                 <span>เปิดหน้าหลักเว็บ</span>
@@ -974,6 +1024,11 @@
                 </div>
 
                 <div class="action-buttons">
+                    <a href="{{ route('download.shortcut.installer') }}" class="btn-download-toolbar" title="ดาวน์โหลดตัวสร้างไอคอนสำหรับนำไปติดตั้งบนเครื่องลูกข่าย">
+                        <span class="material-symbols-Outlined" style="font-size: 18px;">download</span>
+                        <span>downloadตัวติดตั้งApp</span>
+                    </a>
+
                     <button type="button" class="btn-reset-this" onclick="resetThisDevice()" title="รีเซ็ตสถานะเครื่องปัจจุบันและกลับไปหน้าหลักเพื่อติดตั้งไอคอนใหม่">
                         <span class="material-symbols-Outlined" style="font-size: 18px;">restart_alt</span>
                         <span>รีเซ็ตเครื่องนี้ & ติดตั้งใหม่</span>
