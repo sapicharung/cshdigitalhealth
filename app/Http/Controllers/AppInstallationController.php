@@ -379,20 +379,76 @@ class AppInstallationController extends Controller
             $record->save();
         }
 
+        $psScript = <<<POWERSHELL
+\$ws = New-Object -ComObject WScript.Shell
+\$desktop = [Environment]::GetFolderPath('Desktop')
+if (-not (Test-Path \$desktop)) {
+    if (Test-Path "\$env:USERPROFILE\OneDrive\Desktop") {
+        \$desktop = "\$env:USERPROFILE\OneDrive\Desktop"
+    }
+}
+\$shortcutPath = Join-Path \$desktop "{$appName}.lnk"
+\$sc = \$ws.CreateShortcut(\$shortcutPath)
+\$appUrl = '{$appUrl}'
+
+\$chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+if (-not (Test-Path \$chrome)) {
+    \$chrome = 'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe'
+}
+\$edge = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
+if (-not (Test-Path \$edge)) {
+    \$edge = 'C:\Program Files\Microsoft\Edge\Application\msedge.exe'
+}
+
+if (Test-Path \$chrome) {
+    \$sc.TargetPath = \$chrome
+    \$sc.Arguments = "--app=\$appUrl"
+} elseif (Test-Path \$edge) {
+    \$sc.TargetPath = \$edge
+    \$sc.Arguments = "--app=\$appUrl"
+} else {
+    \$sc.TargetPath = \$appUrl
+}
+
+\$appDir = "\$env:LOCALAPPDATA\CSHOS"
+if (-not (Test-Path \$appDir)) {
+    New-Item -ItemType Directory -Path \$appDir -Force | Out-Null
+}
+\$icoPath = "\$appDir\app-icon.ico"
+if (-not (Test-Path \$icoPath)) {
+    try {
+        Invoke-WebRequest -Uri '{$iconUrl}' -OutFile \$icoPath -UseBasicParsing -TimeoutSec 4 -ErrorAction SilentlyContinue
+    } catch {}
+}
+if (Test-Path \$icoPath) {
+    \$sc.IconLocation = "\$icoPath,0"
+}
+
+\$sc.Description = "{$appName} - โรงพยาบาลเชียงแสน"
+\$sc.Save()
+
+Write-Host ""
+Write-Host "====================================================" -ForegroundColor Cyan
+Write-Host "   CSHOS DATACENTER - โรงพยาบาลเชียงแสน" -ForegroundColor White
+Write-Host "   สร้างไอคอนแอปบนหน้าจอ Desktop สำเร็จ!" -ForegroundColor Green
+Write-Host "====================================================" -ForegroundColor Cyan
+Write-Host ""
+
+\$ws.Popup("ติดตั้งไอคอน {$appName} บนหน้าจอ Desktop เรียบร้อยแล้ว!", 0, "{$appName} - โรงพยาบาลเชียงแสน", 64)
+POWERSHELL;
+
+        $encodedCommand = base64_encode(mb_convert_encoding($psScript, 'UTF-16LE', 'UTF-8'));
+
         $batContent = "@echo off\r\n"
-            . "chcp 65001 >nul\r\n"
-            . "title ติดตั้ง {$appName}\r\n"
+            . "title {$appName} - Installer\r\n"
             . "echo ====================================================\r\n"
-            . "echo    {$appName} - โรงพยาบาลเชียงแสน\r\n"
-            . "echo    กำลังสร้างไอคอนแอปบนหน้าจอ Desktop...\r\n"
+            . "echo    {$appName} - Chiang Saen Hospital\r\n"
+            . "echo    Installing Desktop Shortcut...\r\n"
             . "echo ====================================================\r\n"
             . "\r\n"
-            . "powershell -NoProfile -ExecutionPolicy Bypass -Command \"\$ws = New-Object -ComObject WScript.Shell; \$desktop = [Environment]::GetFolderPath('Desktop'); if (-not (Test-Path \$desktop)) { if (Test-Path \\\"\$env:USERPROFILE\\OneDrive\\Desktop\\\") { \$desktop = \\\"\$env:USERPROFILE\\OneDrive\\Desktop\\\" } }; \$sc = \$ws.CreateShortcut(\\\"\$desktop\\{$appName}.lnk\\\"); \$appUrl = '{$appUrl}'; \$chrome = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'; if (-not (Test-Path \$chrome)) { \$chrome = 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe' }; \$edge = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'; if (-not (Test-Path \$edge)) { \$edge = 'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe' }; if (Test-Path \$chrome) { \$sc.TargetPath = \$chrome; \$sc.Arguments = \\\"--app=\$appUrl\\\"; } elseif (Test-Path \$edge) { \$sc.TargetPath = \$edge; \$sc.Arguments = \\\"--app=\$appUrl\\\"; } else { \$sc.TargetPath = \$appUrl; }; \$appDir = \\\"\$env:LOCALAPPDATA\\CSHOS\\\"; if (-not (Test-Path \$appDir)) { New-Item -ItemType Directory -Path \$appDir -Force | Out-Null }; \$icoPath = \\\"\$appDir\\app-icon.ico\\\"; if (-not (Test-Path \$icoPath)) { try { Invoke-WebRequest -Uri '{$iconUrl}' -OutFile \$icoPath -UseBasicParsing -TimeoutSec 4 -ErrorAction SilentlyContinue } catch {} }; if (Test-Path \$icoPath) { \$sc.IconLocation = \\\"\$icoPath,0\\\" }; \$sc.Description = '{$appName} - โรงพยาบาลเชียงแสน'; \$sc.Save(); Write-Host 'SUCCESS';\"\r\n"
+            . "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand {$encodedCommand}\r\n"
             . "\r\n"
-            . "echo.\r\n"
-            . "echo [✓] สร้างไอคอน {$appName} บนหน้าจอ Desktop เรียบร้อยแล้ว!\r\n"
-            . "echo.\r\n"
-            . "timeout /t 3 >nul\r\n";
+            . "timeout /t 2 >nul\r\n";
 
         return response($batContent, 200, [
             'Content-Type'        => 'application/x-bat',
