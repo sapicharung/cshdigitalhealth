@@ -682,6 +682,57 @@
         }
         .btn-modal-secondary:hover { background: #e2e8f0; }
 
+        .btn-download-shortcut {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-family: inherit;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.25s ease;
+            text-decoration: none;
+            box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+            width: 100%;
+            margin-top: 10px;
+            box-sizing: border-box;
+        }
+        .btn-download-shortcut:hover {
+            background: linear-gradient(135deg, #059669, #047857);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(16, 185, 129, 0.45);
+        }
+        .btn-download-url {
+            background: #ffffff;
+            color: #2563eb;
+            border: 1px solid #bfdbfe;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-family: inherit;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.2s;
+            text-decoration: none;
+            margin-top: 8px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        .btn-download-url:hover {
+            background: #eff6ff;
+            border-color: #93c5fd;
+        }
+
         @keyframes spinIcon {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
@@ -983,24 +1034,34 @@
             </div>
 
             <div class="install-modal-body">
-                <div class="install-step-card highlight" style="margin-bottom: 16px;">
+                <!-- Option 1: 1-Click Desktop Installer (Recommended for LAN / Hospital PCs) -->
+                <div class="install-step-card highlight" style="margin-bottom: 16px; background: #f0fdf4; border: 1.5px solid #86efac;">
                     <div class="install-step-header">
-                        <div class="install-step-title">
-                            <span class="material-symbols-outlined" style="color: #2563eb; font-size: 22px;">verified</span>
-                            <span>ติดตั้งเป็นแอปพลิเคชันลงเครื่องทันที (ไม่ต้องดาวน์โหลดไฟล์)</span>
+                        <div class="install-step-title" style="color: #166534;">
+                            <span class="material-symbols-outlined" style="color: #16a34a; font-size: 22px;">bolt</span>
+                            <span>วิธีที่ 1: ติดตั้งผ่านตัวสร้างไอคอนอัตโนมัติ (แนะนำ - เร็วที่สุด)</span>
                         </div>
+                        <span class="install-step-badge" style="background: #16a34a;">คลิกเดียว</span>
                     </div>
-                    <p class="install-step-desc">
-                        คุณสามารถติดตั้ง CSHOS DATACENTER เป็นแอปพลิเคชันลงบนหน้าจอคอมพิวเตอร์ (Desktop) ได้โดยตรงผ่านเว็บเบราว์เซอร์ โดยมีขั้นตอนง่ายๆ ดังนี้:
+                    <p class="install-step-desc" style="color: #166534; margin-bottom: 6px;">
+                        คลิกปุ่มด้านล่างเพื่อดาวน์โหลดไฟล์สร้างไอคอน แล้ว<strong>กดเปิดไฟล์ที่ดาวน์โหลดมา 1 ครั้ง</strong> ระบบจะสร้างไอคอน <strong>CSHOS DATACENTER</strong> ไว้บนหน้าจอ Desktop ให้อัตโนมัติทันที
                     </p>
+                    <button type="button" class="btn-download-shortcut" onclick="downloadShortcutInstaller()">
+                        <span class="material-symbols-outlined" style="font-size: 22px;">download</span>
+                        <span>ดาวน์โหลดตัวสร้างไอคอน Desktop (.bat)</span>
+                    </button>
+                    <button type="button" class="btn-download-url" onclick="downloadUrlShortcut()">
+                        <span class="material-symbols-outlined" style="font-size: 16px; color: #2563eb;">link</span>
+                        <span>หรือคลิกที่นี่เพื่อดาวน์โหลดไฟล์ทางลัดเว็บ (.URL)</span>
+                    </button>
                 </div>
 
                 <!-- Step Guide for Chrome & Edge -->
-                <div class="install-step-card" style="margin-bottom: 16px;">
+                <div class="install-step-card" style="margin-bottom: 14px;">
                     <div class="install-step-header">
                         <div class="install-step-title">
                             <span class="material-symbols-outlined" style="color: #0284c7; font-size: 20px;">laptop_chromebook</span>
-                            <span>วิธีติดตั้งผ่าน Google Chrome:</span>
+                            <span>วิธีที่ 2: ติดตั้งผ่านเมนู Google Chrome</span>
                         </div>
                     </div>
                     <ul class="install-guide-steps">
@@ -1015,11 +1076,11 @@
                     </ul>
                 </div>
 
-                <div class="install-step-card" style="margin-bottom: 18px;">
+                <div class="install-step-card" style="margin-bottom: 16px;">
                     <div class="install-step-header">
                         <div class="install-step-title">
                             <span class="material-symbols-outlined" style="color: #0284c7; font-size: 20px;">tab</span>
-                            <span>วิธีติดตั้งผ่าน Microsoft Edge:</span>
+                            <span>วิธีที่ 3: ติดตั้งผ่านเมนู Microsoft Edge</span>
                         </div>
                     </div>
                     <ul class="install-guide-steps">
@@ -1034,15 +1095,10 @@
                     </ul>
                 </div>
 
-                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 12px 16px; font-size: 0.85rem; color: #166534; display: flex; align-items: center; gap: 8px; margin-bottom: 18px;">
-                    <span class="material-symbols-outlined" style="font-size: 20px; color: #16a34a; flex-shrink: 0;">check_circle</span>
-                    <span>เมื่อกดติดตั้งแล้ว เบราว์เซอร์จะสร้างไอคอนแอป CSHOS DATACENTER ไว้ที่หน้าจอ Desktop และ Start Menu ให้อัตโนมัติทันที</span>
-                </div>
-
                 <div class="install-modal-actions" style="border: none; padding: 0; margin: 0;">
                     <button type="button" class="btn-modal-primary" onclick="closeInstallModal()" style="width: 100%; justify-content: center; padding: 11px 20px; font-size: 0.95rem;">
-                        <span class="material-symbols-outlined" style="font-size: 20px;">thumb_up</span>
-                        <span>เข้าใจแล้ว</span>
+                        <span class="material-symbols-outlined" style="font-size: 20px;">close</span>
+                        <span>ปิดหน้าต่าง</span>
                     </button>
                 </div>
             </div>
@@ -1253,6 +1309,41 @@
         function closeInstallModal() {
             const modal = document.getElementById('installDesktopModal');
             if (modal) modal.classList.remove('active');
+        }
+
+        function downloadShortcutInstaller() {
+            const deviceId = getDeviceId();
+            const clientInfo = getClientInfo();
+            const downloadUrl = `{{ route('download.shortcut.installer') }}?device_id=${encodeURIComponent(deviceId)}&os=${encodeURIComponent(clientInfo.os)}&browser=${encodeURIComponent(clientInfo.browser)}`;
+            
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.setAttribute('download', 'Install-CSHOS-Desktop.bat');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            markAppInstalled();
+            sendInstallTracking('installed');
+            showInstallToast('📥 กำลังดาวน์โหลดไฟล์สร้างไอคอน... กรุณาคลิกเปิดไฟล์ Install-CSHOS-Desktop.bat ที่ดาวน์โหลดมา เพื่อสร้างไอคอนบนหน้าจอ Desktop');
+            
+            setTimeout(() => {
+                closeInstallModal();
+            }, 1200);
+        }
+
+        function downloadUrlShortcut() {
+            const downloadUrl = `{{ route('download.url.shortcut') }}`;
+            const link = document.createElement('a');
+            link.href = downloadUrl;
+            link.setAttribute('download', 'CSHOS DATACENTER.url');
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            markAppInstalled();
+            sendInstallTracking('installed');
+            showInstallToast('📥 ดาวน์โหลดไฟล์ทางลัดเว็บ CSHOS DATACENTER.url เรียบร้อยแล้ว (สามารถลากไปวางไว้บนหน้าจอ Desktop ได้ทันที)');
         }
     </script>
 

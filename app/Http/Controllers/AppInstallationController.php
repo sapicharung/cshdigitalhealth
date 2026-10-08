@@ -346,4 +346,79 @@ class AppInstallationController extends Controller
             'output'           => $output
         ]);
     }
+
+    /**
+     * Download .bat 1-click shortcut installer for Windows client machines in LAN.
+     */
+    public function downloadShortcutInstaller(Request $request)
+    {
+        $appUrl = url('/');
+        $appName = "CSHOS DATACENTER";
+        $iconUrl = asset('app-icon.ico');
+        
+        $deviceId = $request->query('device_id');
+        if ($deviceId) {
+            $clientIp = $request->header('X-Forwarded-For') 
+                ? trim(explode(',', $request->header('X-Forwarded-For'))[0]) 
+                : $request->ip();
+                
+            $record = AppInstallation::where('device_id', $deviceId)->first();
+            if (!$record) {
+                $record = new AppInstallation();
+                $record->device_id = $deviceId;
+            }
+            $record->ip_address = $clientIp;
+            $record->install_type = 'installed';
+            if (!$record->first_installed_at) {
+                $record->first_installed_at = now();
+            }
+            $record->last_active_at = now();
+            $record->launch_count = ($record->launch_count ?? 0) + 1;
+            if ($request->filled('os')) $record->os = $request->query('os');
+            if ($request->filled('browser')) $record->browser = $request->query('browser');
+            $record->save();
+        }
+
+        $batContent = "@echo off\r\n"
+            . "chcp 65001 >nul\r\n"
+            . "title ติดตั้ง {$appName}\r\n"
+            . "echo ====================================================\r\n"
+            . "echo    {$appName} - โรงพยาบาลเชียงแสน\r\n"
+            . "echo    กำลังสร้างไอคอนแอปบนหน้าจอ Desktop...\r\n"
+            . "echo ====================================================\r\n"
+            . "\r\n"
+            . "powershell -NoProfile -ExecutionPolicy Bypass -Command \"\$ws = New-Object -ComObject WScript.Shell; \$desktop = [Environment]::GetFolderPath('Desktop'); if (-not (Test-Path \$desktop)) { if (Test-Path \\\"\$env:USERPROFILE\\OneDrive\\Desktop\\\") { \$desktop = \\\"\$env:USERPROFILE\\OneDrive\\Desktop\\\" } }; \$sc = \$ws.CreateShortcut(\\\"\$desktop\\{$appName}.lnk\\\"); \$appUrl = '{$appUrl}'; \$chrome = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe'; if (-not (Test-Path \$chrome)) { \$chrome = 'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe' }; \$edge = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe'; if (-not (Test-Path \$edge)) { \$edge = 'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe' }; if (Test-Path \$chrome) { \$sc.TargetPath = \$chrome; \$sc.Arguments = \\\"--app=\$appUrl\\\"; } elseif (Test-Path \$edge) { \$sc.TargetPath = \$edge; \$sc.Arguments = \\\"--app=\$appUrl\\\"; } else { \$sc.TargetPath = \$appUrl; }; \$appDir = \\\"\$env:LOCALAPPDATA\\CSHOS\\\"; if (-not (Test-Path \$appDir)) { New-Item -ItemType Directory -Path \$appDir -Force | Out-Null }; \$icoPath = \\\"\$appDir\\app-icon.ico\\\"; if (-not (Test-Path \$icoPath)) { try { Invoke-WebRequest -Uri '{$iconUrl}' -OutFile \$icoPath -UseBasicParsing -TimeoutSec 4 -ErrorAction SilentlyContinue } catch {} }; if (Test-Path \$icoPath) { \$sc.IconLocation = \\\"\$icoPath,0\\\" }; \$sc.Description = '{$appName} - โรงพยาบาลเชียงแสน'; \$sc.Save(); Write-Host 'SUCCESS';\"\r\n"
+            . "\r\n"
+            . "echo.\r\n"
+            . "echo [✓] สร้างไอคอน {$appName} บนหน้าจอ Desktop เรียบร้อยแล้ว!\r\n"
+            . "echo.\r\n"
+            . "timeout /t 3 >nul\r\n";
+
+        return response($batContent, 200, [
+            'Content-Type'        => 'application/x-bat',
+            'Content-Disposition' => 'attachment; filename="Install-CSHOS-Desktop.bat"',
+            'Cache-Control'       => 'no-cache, no-store, must-revalidate',
+        ]);
+    }
+
+    /**
+     * Download .url Internet Shortcut file.
+     */
+    public function downloadUrlShortcut(Request $request)
+    {
+        $appUrl = url('/');
+        $appName = "CSHOS DATACENTER";
+        $faviconUrl = asset('favicon.ico');
+        
+        $urlContent = "[InternetShortcut]\r\n"
+            . "URL={$appUrl}\r\n"
+            . "IconIndex=0\r\n"
+            . "IconFile={$faviconUrl}\r\n";
+
+        return response($urlContent, 200, [
+            'Content-Type'        => 'application/internet-shortcut',
+            'Content-Disposition' => 'attachment; filename="' . $appName . '.url"',
+            'Cache-Control'       => 'no-cache, no-store, must-revalidate',
+        ]);
+    }
 }

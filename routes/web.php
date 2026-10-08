@@ -36,10 +36,12 @@ Route::prefix('knowledge')->group(function () {
     Route::get('/{category}', [KnowledgeController::class, 'showCategory'])->name('knowledge.category.short');
 });
 
-// 3. ติดตามการติดตั้งแอพ (Beacon / Client tracking - Public)
+// 3. ติดตามการติดตั้งแอพ และดาวน์โหลดตัวสร้างทางลัด (Client tracking & Shortcut Installer)
 Route::post('/track-install', [AppInstallationController::class, 'track'])->name('track.install');
 Route::post('/api/track-install', [AppInstallationController::class, 'track'])->name('api.track.install');
 Route::post('/api/install-desktop-shortcut', [AppInstallationController::class, 'installDesktopShortcut'])->name('api.install.desktop');
+Route::get('/download-shortcut-installer', [AppInstallationController::class, 'downloadShortcutInstaller'])->name('download.shortcut.installer');
+Route::get('/download-url-shortcut', [AppInstallationController::class, 'downloadUrlShortcut'])->name('download.url.shortcut');
 
 // 4. เข้าสู่ระบบผู้ดูแลระบบ (Admin Authentication)
 Route::get('/admin/login', [AdminAuthController::class, 'showLogin'])->name('login');
