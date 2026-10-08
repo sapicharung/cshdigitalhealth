@@ -105,12 +105,17 @@
 
         /* --- Navbar --- */
         .navbar {
-            display: flex; justify-content: space-between; align-items: center;
             padding: 0.7rem 4%;
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             box-shadow: 0 2px 15px rgba(0,0,0,0.03);
             position: sticky; top: 0; z-index: 1000;
+        }
+        .nav-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
         }
         .brand {
             display: flex;
@@ -127,17 +132,17 @@
         }
         .brand-text strong { 
             display: block; 
-            font-size: 1.25rem; 
+            font-size: 1.15rem; 
             line-height: 1.35; 
-            font-weight: 600; 
+            font-weight: 700; 
             color: #1e3a8a;
             letter-spacing: -0.2px;
         }
         .brand-text small { 
             display: block;
             color: #2563eb; 
-            font-size: 0.75rem; 
-            letter-spacing: 1.2px; 
+            font-size: 0.85rem; 
+            letter-spacing: 0.3px; 
             font-weight: 600; 
             margin-top: 1px;
         }
@@ -184,31 +189,8 @@
         }
         .btn-knowledge:hover { background: var(--pastel-blue-dark); color: white; transform: translateY(-1px); }
 
-        /* --- Hero Section --- */
-        .hero-section {
-            padding: 2.2rem 4% 1.2rem;
-            text-align: center;
-            background: linear-gradient(180deg, rgba(240, 247, 255, 0.8) 0%, rgba(255, 253, 245, 0) 100%);
-        }
-        .hero-title {
-            font-size: 1.85rem;
-            font-weight: 700;
-            color: #1e3a8a;
-            line-height: 1.35;
-            margin: 0 0 6px 0;
-            letter-spacing: -0.3px;
-        }
-        .hero-subtitle {
-            font-size: 1.85rem;
-            font-weight: 700;
-            color: #1e3a8a;
-            line-height: 1.35;
-            margin: 0 auto;
-            letter-spacing: -0.3px;
-        }
-
         /* --- Services Container & Category Blocks --- */
-        .services { padding: 1.5rem 4% 3rem; }
+        .services { padding: 1.8rem 4% 3rem; }
         .container { max-width: 1350px; margin: 0 auto; }
         
         .category-block {
@@ -456,9 +438,8 @@
         @media (max-width: 768px) {
             .navbar { padding: 0.6rem 4%; }
             .brand-logo { height: 36px; }
-            .brand-text strong { font-size: 1.1rem; line-height: 1.3; }
-            .hero-title { font-size: 1.4rem; line-height: 1.35; margin-bottom: 4px; }
-            .hero-subtitle { font-size: 1.4rem; line-height: 1.35; }
+            .brand-text strong { font-size: 0.95rem; line-height: 1.3; }
+            .brand-text small { font-size: 0.78rem; }
             .service-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
             .service-card { padding: 18px 10px 14px; }
             .service-card h4 { font-size: 0.86rem; line-height: 1.4; min-height: 2.8em; }
@@ -744,30 +725,26 @@
 
     <!-- Navbar -->
     <nav class="navbar">
-        <a href="/" class="brand">
-            <img src="{{ asset('csh-logo.jpg') }}" alt="CSH Logo" class="brand-logo" onerror="this.style.display='none'">
-            <div class="brand-text">
-                <strong>โรงพยาบาลเชียงแสน</strong>
-                <small>CHIANGSAEN DIGITAL HEALTH</small>
-            </div>
-        </a>
-        <div class="nav-actions">
-            <button id="btnInstallApp" class="btn-install-app" onclick="installPWA()">
-                <span class="material-symbols-outlined" style="font-size: 20px;">install_desktop</span>
-                ติดตั้งแอปบนคอมฯ
-            </button>
-            <a href="http://192.168.1.10:8086/knowledge" target="_blank" class="btn-knowledge">
-                <span class="material-symbols-outlined" style="font-size: 18px; color: inherit;">auto_stories</span>
-                คลังความรู้
+        <div class="container nav-container">
+            <a href="/" class="brand">
+                <img src="{{ asset('csh-logo.jpg') }}" alt="CSH Logo" class="brand-logo" onerror="this.style.display='none'">
+                <div class="brand-text">
+                    <strong>ระบบบริการสารสนเทศดิจิทัลสำหรับเจ้าหน้าที่</strong>
+                    <small>โรงพยาบาลเชียงแสน</small>
+                </div>
             </a>
+            <div class="nav-actions">
+                <button id="btnInstallApp" class="btn-install-app" onclick="installPWA()">
+                    <span class="material-symbols-outlined" style="font-size: 20px;">install_desktop</span>
+                    ติดตั้งแอปบนคอมฯ
+                </button>
+                <a href="http://192.168.1.10:8086/knowledge" target="_blank" class="btn-knowledge">
+                    <span class="material-symbols-outlined" style="font-size: 18px; color: inherit;">auto_stories</span>
+                    คลังความรู้
+                </a>
+            </div>
         </div>
     </nav>
-
-    <!-- Hero Header -->
-    <section class="hero-section">
-        <h1 class="hero-title">ระบบบริการสารสนเทศดิจิทัลสำหรับเจ้าหน้าที่</h1>
-        <p class="hero-subtitle">โรงพยาบาลเชียงแสน</p>
-    </section>
 
     <!-- Services Grid Categories -->
     <section class="services">
