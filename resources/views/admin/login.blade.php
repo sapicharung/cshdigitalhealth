@@ -367,7 +367,7 @@
         </form>
 
         <div class="credentials-tip">
-            บัญชีเริ่มต้น: ชื่อผู้ใช้ <strong>admin</strong> | รหัสผ่าน <strong>admin1234</strong>
+            บัญชีผู้ดูแล: ชื่อผู้ใช้ <strong>admin</strong> | รหัสผ่าน <strong>12345678</strong>
         </div>
 
         <div class="back-home">

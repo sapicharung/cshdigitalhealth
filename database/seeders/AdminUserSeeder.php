@@ -17,7 +17,7 @@ class AdminUserSeeder extends Seeder
             ['email' => 'admin@csh.local'],
             [
                 'name' => 'admin',
-                'password' => Hash::make('admin1234'),
+                'password' => Hash::make('12345678'),
             ]
         );
     }

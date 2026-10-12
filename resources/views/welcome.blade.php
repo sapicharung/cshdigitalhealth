@@ -805,11 +805,11 @@
                             <span class="material-symbols-outlined">medical_services</span>
                         </div>
                         <div class="category-title">
-                            <h3>ระบบบริการการแพทย์และผู้ป่วย</h3>
+                            <h3>ระบบบริการเจ้าหน้าที่</h3>
                             <small>Clinical & Patient Care Systems</small>
                         </div>
                     </div>
-                    <span class="category-count">4 ระบบ</span>
+                    <span class="category-count">5 ระบบ</span>
                 </div>
                 <div class="service-grid">
                     <a href="https://cshos.moph.go.th/doctor_schedule/" target="_blank" class="service-card card-blue" data-network="cloud" data-keywords="ตารางเวรแพทย์ ตารางตรวจ แพทย์ หมอ doctor schedule">
@@ -820,7 +820,12 @@
                     <a href="http://192.168.1.10:8094/duty-rosters" target="_blank" class="service-card card-orange" data-network="lan" data-keywords="ตารางเวร it oncall it-oncall คอมพิวเตอร์ เวรไอที">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-orange"><span class="material-symbols-outlined">contact_phone</span></div>
-                        <h4>ตารางเวร IT-Oncall</h4>
+                        <h4>ตารางเวรIT-Oncall</h4>
+                    </a>
+                    <a href="https://cshos.moph.go.th/csherp/repairs/create?category=it" target="_blank" class="service-card card-purple" data-network="cloud" data-keywords="ระบบแจ้งซ่อมไอที แจ้งซ่อม แจ้งซ่อมคอม ซ่อมไอที คอมพิวเตอร์ it repair csherp">
+                        <span class="badge-network badge-cloud">Cloud</span>
+                        <div class="icon-box ic-purple"><span class="material-symbols-outlined">home_repair_service</span></div>
+                        <h4>ระบบแจ้งซ่อมไอที</h4>
                     </a>
                     <a href="https://script.google.com/macros/s/AKfycbwSEdngNprw6H_zdAMj6O0qtCPLiV6xHkhmdDeGQjsi1Le2V_c7lBU9u8jq6jZ-uOl0gQ/exec" target="_blank" class="service-card card-rose" data-network="cloud" data-keywords="blood bank bloodbank คลังเลือด ธนาคารเลือด เลือด">
                         <span class="badge-network badge-cloud">Cloud</span>
