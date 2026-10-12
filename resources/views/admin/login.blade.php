@@ -365,11 +365,6 @@
                 <span>เข้าสู่ระบบ</span>
             </button>
         </form>
-
-        <div class="credentials-tip">
-            บัญชีผู้ดูแล: ชื่อผู้ใช้ <strong>admin</strong> | รหัสผ่าน <strong>12345678</strong>
-        </div>
-
         <div class="back-home">
             <a href="{{ url('/') }}">
                 <span class="material-symbols-outlined" style="font-size: 18px;">arrow_back</span>
