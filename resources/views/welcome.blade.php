@@ -785,7 +785,7 @@
                 </div>
             </a>
             <div class="nav-actions">
-                <a href="http://192.168.1.10:8086/knowledge" target="_blank" class="btn-knowledge">
+                <a href="http://192.168.1.15:8086/knowledge" target="_blank" class="btn-knowledge">
                     <span class="material-symbols-outlined" style="font-size: 18px; color: inherit;">auto_stories</span>
                     คลังความรู้
                 </a>
