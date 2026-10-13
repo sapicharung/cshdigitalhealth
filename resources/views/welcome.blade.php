@@ -903,7 +903,7 @@
                         <div class="icon-box ic-teal"><span class="material-symbols-outlined">fingerprint</span></div>
                         <h4>สแกนเข้างาน</h4>
                     </a>
-                    <a href="http://192.168.1.15:8094/" target="_blank" class="service-card card-orange" data-network="lan" data-keywords="ข้อมูลบุคลากร ทะเบียนประวัติ เจ้าหน้าที่ รายชื่อ">
+                    <a href="https://cshos.moph.go.th/csherp/" target="_blank" class="service-card card-orange" data-network="lan" data-keywords="ข้อมูลบุคลากร ทะเบียนประวัติ เจ้าหน้าที่ รายชื่อ">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-orange"><span class="material-symbols-outlined">groups</span></div>
                         <h4>ระบบบริหารทรัพยากรบุคคล</h4>
