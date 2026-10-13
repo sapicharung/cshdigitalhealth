@@ -966,7 +966,7 @@
                         <div class="icon-box ic-green"><span class="material-symbols-outlined">medication</span></div>
                         <h4>DrugRefill</h4>
                     </a>
-                    <a href="http://192.168.1.10:8082/" target="_blank" class="service-card card-blue" data-network="lan" data-keywords="สารบรรณการเงิน การเงิน ฎีกา เบิกจ่าย บัญชี">
+                    <a href="http://192.168.1.15:8082/" target="_blank" class="service-card card-blue" data-network="lan" data-keywords="สารบรรณการเงิน การเงิน ฎีกา เบิกจ่าย บัญชี">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-blue"><span class="material-symbols-outlined">description</span></div>
                         <h4>สารบรรณการเงิน</h4>
