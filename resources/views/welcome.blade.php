@@ -817,7 +817,7 @@
                         <div class="icon-box ic-blue"><span class="material-symbols-outlined">calendar_month</span></div>
                         <h4>ตารางเวรแพทย์</h4>
                     </a>
-                    <a href="http://192.168.1.10:8094/duty-rosters" target="_blank" class="service-card card-orange" data-network="lan" data-keywords="ตารางเวร it oncall it-oncall คอมพิวเตอร์ เวรไอที">
+                    <a href="https://cshos.moph.go.th/csherp/duty-rosters" target="_blank" class="service-card card-orange" data-network="lan" data-keywords="ตารางเวร it oncall it-oncall คอมพิวเตอร์ เวรไอที">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-orange"><span class="material-symbols-outlined">contact_phone</span></div>
                         <h4>ตารางเวรIT-Oncall</h4>
@@ -898,12 +898,12 @@
                         <div class="icon-box ic-blue"><span class="material-symbols-outlined">corporate_fare</span></div>
                         <h4>SmartOffice</h4>
                     </a>
-                    <a href="http://192.168.1.10:8091/" target="_blank" class="service-card card-teal" data-network="lan" data-keywords="สแกนเข้างาน ลงเวลา ทำงาน เข้างาน ออกงาน นิ้ว">
+                    <a href="http://192.168.1.15:8091/" target="_blank" class="service-card card-teal" data-network="lan" data-keywords="สแกนเข้างาน ลงเวลา ทำงาน เข้างาน ออกงาน นิ้ว">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-teal"><span class="material-symbols-outlined">fingerprint</span></div>
                         <h4>สแกนเข้างาน</h4>
                     </a>
-                    <a href="http://192.168.1.10:8094/" target="_blank" class="service-card card-orange" data-network="lan" data-keywords="ข้อมูลบุคลากร ทะเบียนประวัติ เจ้าหน้าที่ รายชื่อ">
+                    <a href="http://192.168.1.15:8094/" target="_blank" class="service-card card-orange" data-network="lan" data-keywords="ข้อมูลบุคลากร ทะเบียนประวัติ เจ้าหน้าที่ รายชื่อ">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-orange"><span class="material-symbols-outlined">groups</span></div>
                         <h4>ระบบบริหารทรัพยากรบุคคล</h4>
@@ -941,12 +941,12 @@
                     <span class="category-count">12 ระบบ</span>
                 </div>
                 <div class="service-grid">
-                    <a href="http://192.168.1.10:8092/" target="_blank" class="service-card card-teal" data-network="lan" data-keywords="doctororder doctor order คำสั่งแพทย์">
+                    <a href="http://192.168.1.15:8092/" target="_blank" class="service-card card-teal" data-network="lan" data-keywords="doctororder doctor order คำสั่งแพทย์">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-teal"><span class="material-symbols-outlined">note_add</span></div>
                         <h4>DoctorOrder</h4>
                     </a>
-                    <a href="http://192.168.1.10:8097/" target="_blank" class="service-card card-orange" data-network="lan" data-keywords="คัดกรอง triage ฉุกเฉิน er opd">
+                    <a href="http://192.168.1.15:8097/" target="_blank" class="service-card card-orange" data-network="lan" data-keywords="คัดกรอง triage ฉุกเฉิน er opd">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-orange"><span class="material-symbols-outlined">medical_services</span></div>
                         <h4>คัดกรอง Triage</h4>
@@ -961,7 +961,7 @@
                         <div class="icon-box ic-rose"><span class="material-symbols-outlined">home_health</span></div>
                         <h4>HomeWard</h4>
                     </a>
-                    <a href="http://192.168.1.10:8093/" target="_blank" class="service-card card-green" data-network="lan" data-keywords="drugrefill drug refill ยา เภสัชกรรม รับยา">
+                    <a href="http://192.168.1.15:8093/" target="_blank" class="service-card card-green" data-network="lan" data-keywords="drugrefill drug refill ยา เภสัชกรรม รับยา">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-green"><span class="material-symbols-outlined">medication</span></div>
                         <h4>DrugRefill</h4>
@@ -971,22 +971,22 @@
                         <div class="icon-box ic-blue"><span class="material-symbols-outlined">description</span></div>
                         <h4>สารบรรณการเงิน</h4>
                     </a>
-                    <a href="http://192.168.1.10:8095/" target="_blank" class="service-card card-teal" data-network="lan" data-keywords="ทะเบียนลูกหนี้ชำระเงิน ลูกหนี้ การเงิน ชำระเงิน ใบเสร็จ">
+                    <a href="http://192.168.1.15:8095/" target="_blank" class="service-card card-teal" data-network="lan" data-keywords="ทะเบียนลูกหนี้ชำระเงิน ลูกหนี้ การเงิน ชำระเงิน ใบเสร็จ">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-teal"><span class="material-symbols-outlined">receipt_long</span></div>
                         <h4>ทะเบียนลูกหนี้ชำระเงิน</h4>
                     </a>
-                    <a href="http://192.168.1.10:8089/" target="_blank" class="service-card card-orange" data-network="lan" data-keywords="คลังวัสดุฯ พัสดุ คลัง เบิกพัสดุ เวชภัณฑ์">
+                    <a href="http://192.168.1.15:8089/" target="_blank" class="service-card card-orange" data-network="lan" data-keywords="คลังวัสดุฯ พัสดุ คลัง เบิกพัสดุ เวชภัณฑ์">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-orange"><span class="material-symbols-outlined">vaccines</span></div>
                         <h4>คลังวัสดุฯ</h4>
                     </a>
-                    <a href="http://192.168.1.10:8081/" target="_blank" class="service-card card-purple" data-network="lan" data-keywords="ระบบใบคดี ใบคดี ตำรวจ ชันสูตร คดีความ">
+                    <a href="http://192.168.1.15:8081/" target="_blank" class="service-card card-purple" data-network="lan" data-keywords="ระบบใบคดี ใบคดี ตำรวจ ชันสูตร คดีความ">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-purple"><span class="material-symbols-outlined">gavel</span></div>
                         <h4>ระบบใบคดี</h4>
                     </a>
-                    <a href="http://192.168.1.10:8099/" target="_blank" class="service-card card-rose" data-network="lan" data-keywords="ntip reporting ntip reporting วัณโรค รายงาน สถิติ report">
+                    <a href="http://192.168.1.15:8099/" target="_blank" class="service-card card-rose" data-network="lan" data-keywords="ntip reporting ntip reporting วัณโรค รายงาน สถิติ report">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-rose"><span class="material-symbols-outlined">query_stats</span></div>
                         <h4>NTIP-Report</h4>
