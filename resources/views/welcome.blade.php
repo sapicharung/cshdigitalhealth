@@ -855,17 +855,17 @@
                     <span class="category-count">4 ระบบ</span>
                 </div>
                 <div class="service-grid">
-                    <a href="http://192.168.1.10:8083/" target="_blank" class="service-card card-blue" data-network="lan" data-keywords="datacenter data center ศูนย์ข้อมูล ฐานข้อมูล server">
+                    <a href="http://192.168.1.15:8083/" target="_blank" class="service-card card-blue" data-network="lan" data-keywords="datacenter data center ศูนย์ข้อมูล ฐานข้อมูล server">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-blue"><span class="material-symbols-outlined">database</span></div>
                         <h4>DataCenter</h4>
                     </a>
-                    <a href="http://192.168.1.10:8083/reports" target="_blank" class="service-card card-teal" data-network="lan" data-keywords="data-report data report รายงาน สถิติ ข้อมูล">
+                    <a href="http://192.168.1.15:8083/reports" target="_blank" class="service-card card-teal" data-network="lan" data-keywords="data-report data report รายงาน สถิติ ข้อมูล">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-teal"><span class="material-symbols-outlined">monitoring</span></div>
                         <h4>Data-Report</h4>
                     </a>
-                    <a href="http://192.168.1.10:8090/" target="_blank" class="service-card card-orange" data-network="lan" data-keywords="แปลงข้อมูล hdc ส่งออก hdc 43 แฟ้ม standard">
+                    <a href="http://192.168.1.15:8090/" target="_blank" class="service-card card-orange" data-network="lan" data-keywords="แปลงข้อมูล hdc ส่งออก hdc 43 แฟ้ม standard">
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-orange"><span class="material-symbols-outlined">analytics</span></div>
                         <h4>แปลงข้อมูล HDC</h4>
