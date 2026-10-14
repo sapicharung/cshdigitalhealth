@@ -457,7 +457,7 @@
             border-collapse: collapse;
             font-size: 0.9rem;
             text-align: left;
-            min-width: 1250px;
+            min-width: 1350px;
         }
 
         thead {
@@ -547,6 +547,145 @@
             font-size: 0.8rem;
             color: var(--text-muted);
             margin-top: 0.15rem;
+        }
+
+        /* Spec list badges */
+        .spec-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            font-size: 0.78rem;
+            max-width: 280px;
+        }
+
+        .spec-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 2px 7px;
+            border-radius: 6px;
+            font-size: 0.76rem;
+            line-height: 1.35;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 100%;
+        }
+
+        .spec-cpu {
+            background: #EFF6FF;
+            color: #1E40AF;
+            border: 1px solid #BFDBFE;
+        }
+
+        .spec-ram {
+            background: #FAF5FF;
+            color: #6B21A8;
+            border: 1px solid #E9D5FF;
+        }
+
+        .spec-disk {
+            background: #F0FDF4;
+            color: #166534;
+            border: 1px solid #BBF7D0;
+        }
+
+        .spec-empty {
+            color: #94A3B8;
+            font-size: 0.78rem;
+            font-style: italic;
+        }
+
+        /* Remote Desktop actions */
+        .remote-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            min-width: 140px;
+        }
+
+        .btn-remote-rdp {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 5px 9px;
+            background: linear-gradient(135deg, #0284C7, #0369A1);
+            color: white !important;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
+            transition: all 0.15s;
+        }
+
+        .btn-remote-rdp:hover {
+            background: linear-gradient(135deg, #0369A1, #075985);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(2, 132, 199, 0.35);
+        }
+
+        .btn-remote-copy {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: #F8FAFC;
+            color: #475569;
+            border: 1px solid #CBD5E1;
+            border-radius: 7px;
+            font-size: 0.74rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn-remote-copy:hover {
+            background: #F1F5F9;
+            color: #0F172A;
+            border-color: #94A3B8;
+        }
+
+        .remote-ready-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 0.7rem;
+            color: #059669;
+            font-weight: 600;
+            background: #ECFDF5;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #A7F3D0;
+            align-self: flex-start;
+        }
+
+        /* Toast Notification */
+        .toast-notify {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #0F172A;
+            color: #FFFFFF;
+            padding: 12px 20px;
+            border-radius: 12px;
+            font-size: 0.88rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+            z-index: 9999;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+        }
+
+        .toast-notify.show {
+            opacity: 1;
+            transform: translateY(0);
         }
 
         .dept-tag {
@@ -990,7 +1129,7 @@
                 <div class="filter-inputs">
                     <div class="search-box">
                         <span class="material-symbols-Outlined">search</span>
-                        <input type="text" name="search" placeholder="ค้นหา IP, Hostname, แผนก, ชื่อเครื่อง..." 
+                        <input type="text" name="search" placeholder="ค้นหา IP, Hostname, สเปก CPU/RAM, แผนก, ชื่อเครื่อง..." 
                                value="{{ request('search') }}">
                     </div>
 
@@ -1061,15 +1200,14 @@
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 50px;">ลำดับ</th>
+                            <th style="width: 45px;">ลำดับ</th>
                             <th>สถานะ</th>
-                            <th>ที่อยู่ IP (LAN)</th>
-                            <th>ชื่อเครื่อง (Hostname)</th>
+                            <th>เครื่องคอมพิวเตอร์ & IP</th>
+                            <th>สเปกเครื่อง (CPU / RAM / DISK)</th>
+                            <th style="text-align: center;">รีโมทภายใน (Remote)</th>
                             <th>แผนก / หน่วยงาน</th>
-                            <th>ผู้ใช้ / ชื่อเครื่อง</th>
-                            <th>ระบบปฏิบัติการ & เบราว์เซอร์</th>
+                            <th>ผู้ใช้ / OS</th>
                             <th>เปิดใช้งาน</th>
-                            <th>ติดตั้งเมื่อ</th>
                             <th>ใช้งานล่าสุด</th>
                             <th style="text-align: center;">จัดการ</th>
                         </tr>
@@ -1091,11 +1229,62 @@
                                     @endif
                                 </td>
                                 <td>
-                                    <span class="ip-badge">{{ $item->ip_address }}</span>
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <span class="material-symbols-Outlined" style="font-size: 18px; color: var(--primary);">computer</span>
+                                        <strong>{{ $item->hostname ?: '-' }}</strong>
+                                    </div>
+                                    <div style="margin-top: 3px;">
+                                        <span class="ip-badge">{{ $item->ip_address ?: 'ไม่พบ IP' }}</span>
+                                    </div>
+                                    <div class="hostname-text" title="{{ $item->device_id }}">UUID: {{ Str::limit($item->device_id, 10) }}</div>
                                 </td>
                                 <td>
-                                    <strong>{{ $item->hostname ?: '-' }}</strong>
-                                    <div class="hostname-text" title="{{ $item->device_id }}">UUID: {{ Str::limit($item->device_id, 12) }}</div>
+                                    @if($item->cpu || $item->ram || $item->disk)
+                                        <div class="spec-list">
+                                            @if($item->cpu)
+                                                <span class="spec-badge spec-cpu" title="CPU: {{ $item->cpu }}">
+                                                    <span class="material-symbols-Outlined" style="font-size: 13px;">memory</span>
+                                                    <span>{{ Str::limit($item->cpu, 32) }}</span>
+                                                </span>
+                                            @endif
+                                            @if($item->ram)
+                                                <span class="spec-badge spec-ram" title="RAM: {{ $item->ram }}">
+                                                    <span class="material-symbols-Outlined" style="font-size: 13px;">developer_board</span>
+                                                    <span>RAM: {{ $item->ram }}</span>
+                                                </span>
+                                            @endif
+                                            @if($item->disk)
+                                                <span class="spec-badge spec-disk" title="DISK: {{ $item->disk }}">
+                                                    <span class="material-symbols-Outlined" style="font-size: 13px;">storage</span>
+                                                    <span>DISK: {{ $item->disk }}</span>
+                                                </span>
+                                            @endif
+                                        </div>
+                                    @else
+                                        <span class="spec-empty">รอรันตัวติดตั้งเพื่อตรวจจับสเปก</span>
+                                    @endif
+                                </td>
+                                <td style="text-align: center;">
+                                    @if($item->ip_address)
+                                        <div class="remote-actions">
+                                            <a href="{{ route('admin.installations.rdp', $item->id) }}" class="btn-remote-rdp" title="ดาวน์โหลดไฟล์ .rdp เพื่อเชื่อมต่อ Remote Desktop ไปยังเครื่องนี้ทันที">
+                                                <span class="material-symbols-Outlined" style="font-size: 14px;">desktop_windows</span>
+                                                <span>Remote (RDP)</span>
+                                            </a>
+                                            <button type="button" class="btn-remote-copy" onclick="copyMstsc('{{ $item->ip_address }}')" title="คัดลอกคำสั่ง mstsc /v:{{ $item->ip_address }}">
+                                                <span class="material-symbols-Outlined" style="font-size: 13px;">content_copy</span>
+                                                <span>mstsc /v:{{ $item->ip_address }}</span>
+                                            </button>
+                                            @if($item->remote_ready)
+                                                <div class="remote-ready-pill" title="เครื่องนี้เปิดระบบ Remote Desktop พร้อมใช้งานแล้ว">
+                                                    <span class="material-symbols-Outlined" style="font-size: 12px;">verified</span>
+                                                    <span>พร้อมรีโมท (RDP)</span>
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @else
+                                        <span class="spec-empty">ไม่พบ IP</span>
+                                    @endif
                                 </td>
                                 <td>
                                     @if($item->department)
@@ -1104,10 +1293,11 @@
                                         <span class="dept-empty">ยังไม่ระบุ</span>
                                     @endif
                                 </td>
-                                <td>{{ $item->device_name ?: '-' }}</td>
                                 <td>
-                                    <div style="font-size: 0.88rem; font-weight: 500;">{{ $item->os ?: 'Windows' }}</div>
-                                    <div style="font-size: 0.78rem; color: var(--text-muted);">{{ $item->browser ?: 'Browser' }}</div>
+                                    <div style="font-weight: 500;">{{ $item->device_name ?: '-' }}</div>
+                                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
+                                        {{ $item->os ?: 'Windows' }}
+                                    </div>
                                 </td>
                                 <td>
                                     <span style="font-weight: 600; color: var(--primary);">{{ number_format($item->launch_count) }}</span> ครั้ง
@@ -1121,15 +1311,15 @@
                                         @endif
                                     </div>
                                 </td>
-                                <td style="font-size: 0.85rem; color: var(--text-muted);">
-                                    {{ $item->first_installed_at ? $item->first_installed_at->format('d/m/Y H:i') : '-' }}
-                                </td>
                                 <td style="font-size: 0.85rem;">
                                     <div style="font-weight: 500;">
                                         {{ $item->last_active_at ? $item->last_active_at->format('d/m/Y H:i') : '-' }}
                                     </div>
                                     <div style="font-size: 0.75rem; color: var(--text-muted);">
                                         {{ $item->last_active_at ? $item->last_active_at->diffForHumans() : '' }}
+                                    </div>
+                                    <div style="font-size: 0.72rem; color: #94A3B8; margin-top: 2px;">
+                                        ติดตั้ง: {{ $item->first_installed_at ? $item->first_installed_at->format('d/m/Y H:i') : '-' }}
                                     </div>
                                 </td>
                                 <td style="text-align: center;">
@@ -1159,7 +1349,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="11">
+                                <td colspan="10">
                                     <div class="empty-state">
                                         <span class="material-symbols-Outlined">devices_off</span>
                                         <h3>ยังไม่มีข้อมูลการติดตั้งในระบบ</h3>
@@ -1209,6 +1399,12 @@
                 </div>
 
                 <div class="modal-form-group">
+                    <label>สเปกเครื่อง & สถานะ Remote Desktop</label>
+                    <div id="modalSpecsDisplay" style="font-size: 0.82rem; color: #334155; background: #F8FAFC; border: 1.5px solid var(--border); border-radius: 10px; padding: 0.65rem 0.85rem; line-height: 1.6;">
+                    </div>
+                </div>
+
+                <div class="modal-form-group">
                     <label for="modalDept">แผนก / หน่วยงาน</label>
                     <input type="text" id="modalDept" name="department" class="modal-input" placeholder="เช่น OPD, IPD, ER, ห้องยา, ห้องผ่าตัด...">
                     
@@ -1248,6 +1444,12 @@
         </div>
     </div>
 
+    <!-- Toast Notification -->
+    <div id="toastNotification" class="toast-notify">
+        <span class="material-symbols-Outlined" style="color: #34D399; font-size: 20px;">check_circle</span>
+        <span id="toastMessage">คัดลอกคำสั่งสำเร็จ!</span>
+    </div>
+
     <script>
         function openEditModal(item) {
             const modal = document.getElementById('editModal');
@@ -1258,6 +1460,18 @@
             document.getElementById('modalDept').value = item.department || '';
             document.getElementById('modalDeviceName').value = item.device_name || '';
             document.getElementById('modalNotes').value = item.notes || '';
+
+            let specs = [];
+            if (item.cpu) specs.push('<strong>CPU:</strong> ' + item.cpu);
+            if (item.ram) specs.push('<strong>RAM:</strong> ' + item.ram);
+            if (item.disk) specs.push('<strong>DISK:</strong> ' + item.disk);
+            if (item.remote_ready) {
+                specs.push('<span style="color:#059669; font-weight:600;">✓ เปิดระบบ Remote Desktop ภายใน (RDP) พร้อมใช้งาน</span>');
+            }
+            if (specs.length === 0) {
+                specs.push('<span style="color:#94A3B8; font-style:italic;">ยังไม่มีข้อมูลสเปก (ระบบจะตรวจจับอัตโนมัติเมื่อรันตัวติดตั้งบนเครื่องนี้)</span>');
+            }
+            document.getElementById('modalSpecsDisplay').innerHTML = specs.join('<br>');
 
             modal.classList.add('active');
         }
@@ -1276,6 +1490,49 @@
                 closeEditModal();
             }
         });
+
+        function copyMstsc(ip) {
+            const cmd = 'mstsc /v:' + ip;
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(cmd).then(() => {
+                    showToast('คัดลอก "' + cmd + '" แล้ว! กด Win+R แล้ววางเพื่อรีโมทได้ทันที');
+                }).catch(() => {
+                    fallbackCopy(cmd);
+                });
+            } else {
+                fallbackCopy(cmd);
+            }
+        }
+
+        function fallbackCopy(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showToast('คัดลอก "' + text + '" แล้ว! กด Win+R แล้ววางเพื่อรีโมทได้ทันที');
+            } catch (err) {
+                alert('คัดลอกคำสั่ง: ' + text);
+            }
+            document.body.removeChild(textarea);
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toastNotification');
+            const toastMsg = document.getElementById('toastMessage');
+            if (toast && toastMsg) {
+                toastMsg.textContent = msg;
+                toast.classList.add('show');
+                clearTimeout(window.toastTimer);
+                window.toastTimer = setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 4000);
+            }
+        }
 
         function resetThisDevice() {
             if (confirm('คุณต้องการรีเซ็ตสถานะการติดตั้งของเครื่องปัจจุบันนี้ เพื่อกลับไปหน้าหลักและติดตั้งไอคอน CSHOS DATACENTER ลงหน้าจอ Desktop ใหม่อีกครั้ง ใช่หรือไม่?')) {

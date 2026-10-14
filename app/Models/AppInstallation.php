@@ -14,6 +14,10 @@ class AppInstallation extends Model
         'device_name',
         'os',
         'browser',
+        'cpu',
+        'ram',
+        'disk',
+        'remote_ready',
         'user_agent',
         'install_type',
         'launch_count',
@@ -26,5 +30,6 @@ class AppInstallation extends Model
         'first_installed_at' => 'datetime',
         'last_active_at' => 'datetime',
         'launch_count' => 'integer',
+        'remote_ready' => 'boolean',
     ];
 }

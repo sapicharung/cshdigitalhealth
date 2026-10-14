@@ -55,6 +55,7 @@ Route::middleware('auth')->prefix('admin')->group(function () {
     Route::post('/installations/reset-all', [AppInstallationController::class, 'resetAll'])->name('admin.installations.reset-all');
     Route::delete('/installations/{id}', [AppInstallationController::class, 'destroy'])->name('admin.installations.destroy');
     Route::get('/installations/export', [AppInstallationController::class, 'exportCsv'])->name('admin.installations.export');
+    Route::get('/installations/{id}/rdp', [AppInstallationController::class, 'downloadRdp'])->name('admin.installations.rdp');
     Route::post('/logout', [AdminAuthController::class, 'logout'])->name('admin.logout');
 });
 

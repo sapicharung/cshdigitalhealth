@@ -61,11 +61,13 @@ class AppInstallationController extends Controller
         }
 
         $installation->ip_address = $ip;
-        if ($hostname) {
+        if (!empty($data['hostname'])) {
+            $installation->hostname = $data['hostname'];
+        } elseif ($hostname && !$installation->hostname) {
             $installation->hostname = $hostname;
         }
 
-        if (!empty($data['device_name']) && !$installation->device_name) {
+        if (!empty($data['device_name'])) {
             $installation->device_name = $data['device_name'];
         }
 
@@ -75,6 +77,22 @@ class AppInstallationController extends Controller
 
         if (!empty($data['browser'])) {
             $installation->browser = $data['browser'];
+        }
+
+        if (!empty($data['cpu'])) {
+            $installation->cpu = $data['cpu'];
+        }
+
+        if (!empty($data['ram'])) {
+            $installation->ram = $data['ram'];
+        }
+
+        if (!empty($data['disk'])) {
+            $installation->disk = $data['disk'];
+        }
+
+        if (isset($data['remote_ready'])) {
+            $installation->remote_ready = (bool) $data['remote_ready'];
         }
 
         $installation->user_agent = $request->userAgent();
@@ -87,6 +105,10 @@ class AppInstallationController extends Controller
             'device_id' => $installation->device_id,
             'ip' => $installation->ip_address,
             'hostname' => $installation->hostname,
+            'cpu' => $installation->cpu,
+            'ram' => $installation->ram,
+            'disk' => $installation->disk,
+            'remote_ready' => $installation->remote_ready,
             'last_active' => $installation->last_active_at->toDateTimeString(),
         ]);
     }
@@ -109,7 +131,10 @@ class AppInstallationController extends Controller
                   ->orWhere('device_id', 'like', "%{$search}%")
                   ->orWhere('notes', 'like', "%{$search}%")
                   ->orWhere('os', 'like', "%{$search}%")
-                  ->orWhere('browser', 'like', "%{$search}%");
+                  ->orWhere('browser', 'like', "%{$search}%")
+                  ->orWhere('cpu', 'like', "%{$search}%")
+                  ->orWhere('ram', 'like', "%{$search}%")
+                  ->orWhere('disk', 'like', "%{$search}%");
             });
         }
 
@@ -253,6 +278,10 @@ class AppInstallationController extends Controller
                 'ชื่อเครื่อง/เจ้าของ',
                 'ระบบปฏิบัติการ (OS)',
                 'เบราว์เซอร์',
+                'CPU (หน่วยประมวลผล)',
+                'RAM (หน่วยความจำ)',
+                'DISK (พื้นที่จัดเก็บข้อมูล)',
+                'Remote Desktop (RDP)',
                 'ประเภท',
                 'จำนวนครั้งที่เปิดใช้งาน',
                 'ติดตั้งครั้งแรกเมื่อ',
@@ -272,6 +301,10 @@ class AppInstallationController extends Controller
                         $item->device_name ?? '-',
                         $item->os ?? '-',
                         $item->browser ?? '-',
+                        $item->cpu ?? '-',
+                        $item->ram ?? '-',
+                        $item->disk ?? '-',
+                        $item->remote_ready ? 'พร้อม Remote' : 'ไม่ระบุ',
                         $item->install_type === 'installed' ? 'ติดตั้งลงเครื่อง' : 'เปิดผ่านเบราว์เซอร์',
                         $item->launch_count,
                         $item->first_installed_at ? $item->first_installed_at->format('Y-m-d H:i:s') : '-',
@@ -333,6 +366,25 @@ class AppInstallationController extends Controller
             $record->launch_count = ($record->launch_count ?? 0) + 1;
             if ($request->filled('os')) $record->os = $request->input('os');
             if ($request->filled('browser')) $record->browser = $request->input('browser');
+            if ($request->filled('hostname')) $record->hostname = $request->input('hostname');
+            if ($request->filled('cpu')) $record->cpu = $request->input('cpu');
+            if ($request->filled('ram')) $record->ram = $request->input('ram');
+            if ($request->filled('disk')) $record->disk = $request->input('disk');
+
+            if ($isLocal && (!$record->cpu || !$record->hostname)) {
+                $record->hostname = gethostname();
+                try {
+                    $specCmd = 'powershell -NoProfile -Command "$cpu=(Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1).Name; $ram=[math]::Round((Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory/1GB,1); $disk=Get-CimInstance Win32_LogicalDisk -Filter \"DeviceID=\'C:\'\" -ErrorAction SilentlyContinue; $free=[math]::Round($disk.FreeSpace/1GB,1); $tot=[math]::Round($disk.Size/1GB,1); Write-Output \"$cpu|||$ram GB|||C: $free/$tot GB\""';
+                    $specOut = trim(shell_exec($specCmd) ?: '');
+                    if (str_contains($specOut, '|||')) {
+                        $parts = explode('|||', $specOut);
+                        if (!empty($parts[0])) $record->cpu = trim($parts[0]);
+                        if (!empty($parts[1])) $record->ram = trim($parts[1]);
+                        if (!empty($parts[2])) $record->disk = trim($parts[2]);
+                    }
+                } catch (\Throwable $e) {}
+            }
+            $record->remote_ready = true;
             $record->save();
         }
 
@@ -427,14 +479,96 @@ if (Test-Path \$icoPath) {
 \$sc.Description = "{$appName} - โรงพยาบาลเชียงแสน"
 \$sc.Save()
 
+# --- Collect Computer Specs ---
+\$compName = \$env:COMPUTERNAME
+\$userName = \$env:USERNAME
+
+\$osInfo = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
+if (-not \$osInfo) { \$osInfo = [System.Environment]::OSVersion.VersionString }
+
+\$cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
+if (\$cpuObj -and \$cpuObj.Name) {
+    \$cpuInfo = \$cpuObj.Name.Trim()
+} else {
+    \$cpuInfo = "ไม่สามารถระบุ CPU"
+}
+
+try {
+    \$totalRam = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
+    \$ramGB = [math]::Round((\$totalRam / 1GB), 1)
+    \$ramInfo = "\$ramGB GB"
+} catch {
+    \$ramInfo = "ไม่สามารถระบุ RAM"
+}
+
+try {
+    \$diskItems = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | ForEach-Object {
+        \$dId = \$_.DeviceID
+        \$free = [math]::Round(\$_.FreeSpace / 1GB, 1)
+        \$total = [math]::Round(\$_.Size / 1GB, 1)
+        "\$dId ว่าง \$free/\$total GB"
+    }
+    \$diskInfo = \$diskItems -join ", "
+} catch {
+    \$diskInfo = "ไม่สามารถระบุ DISK"
+}
+
+# --- Enable Internal Windows Remote Desktop & Remote Assistance ---
+try {
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -ErrorAction SilentlyContinue
+    Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
+    Set-Service -Name TermService -StartupType Automatic -ErrorAction SilentlyContinue
+    Start-Service -Name TermService -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Remote Assistance' -Name "fAllowToGetHelp" -Value 1 -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Remote Assistance' -Name "fAllowFullControl" -Value 1 -ErrorAction SilentlyContinue
+} catch {}
+
+# --- Persistent Device UUID ---
+\$devIdFile = "\$appDir\device_id.txt"
+\$devId = ""
+if (Test-Path \$devIdFile) {
+    try { \$devId = (Get-Content \$devIdFile -Raw).Trim() } catch {}
+}
+if (-not \$devId) {
+    \$devId = [guid]::NewGuid().ToString()
+    try { Set-Content -Path \$devIdFile -Value \$devId -Force } catch {}
+}
+
+# --- Report Hardware Specs & Remote Status to CSHOS Server ---
+\$reportObj = @{
+    device_id    = \$devId
+    hostname     = \$compName
+    device_name  = \$userName
+    os           = \$osInfo
+    cpu          = \$cpuInfo
+    ram          = \$ramInfo
+    disk         = \$diskInfo
+    remote_ready = 1
+    install_type = 'installed'
+    browser      = 'Desktop App'
+}
+\$jsonPayload = \$reportObj | ConvertTo-Json
+
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
+    Invoke-RestMethod -Uri "{$appUrl}/api/track-install" -Method Post -Body \$jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 8 -ErrorAction SilentlyContinue | Out-Null
+} catch {}
+
 Write-Host ""
 Write-Host "====================================================" -ForegroundColor Cyan
 Write-Host "   CSHOS DATACENTER - โรงพยาบาลเชียงแสน" -ForegroundColor White
-Write-Host "   สร้างไอคอนแอปบนหน้าจอ Desktop สำเร็จ!" -ForegroundColor Green
+Write-Host "   ติดตั้งไอคอนแอป และลงทะเบียนสเปกเครื่องสำเร็จ!" -ForegroundColor Green
+Write-Host "----------------------------------------------------" -ForegroundColor DarkGray
+Write-Host "   ชื่อคอมพิวเตอร์ : \$compName (ผู้ใช้: \$userName)" -ForegroundColor Yellow
+Write-Host "   CPU             : \$cpuInfo" -ForegroundColor White
+Write-Host "   RAM             : \$ramInfo" -ForegroundColor White
+Write-Host "   DISK            : \$diskInfo" -ForegroundColor White
+Write-Host "   ระบบ Remote     : พร้อมเชื่อมต่อ (Remote Desktop)" -ForegroundColor Green
 Write-Host "====================================================" -ForegroundColor Cyan
 Write-Host ""
 
-\$ws.Popup("ติดตั้งไอคอน {$appName} บนหน้าจอ Desktop เรียบร้อยแล้ว!", 0, "{$appName} - โรงพยาบาลเชียงแสน", 64)
+\$popupText = "ติดตั้งไอคอน {$appName} บนหน้าจอ Desktop เรียบร้อยแล้ว!`n`n[ข้อมูลเครื่องคอมพิวเตอร์]`nชื่อเครื่อง: \$compName (\$userName)`nCPU: \$cpuInfo`nRAM: \$ramInfo`nDISK: \$diskInfo`n`nเปิดระบบ Remote ภายในเรียบร้อยแล้ว"
+\$ws.Popup(\$popupText, 0, "{$appName} - โรงพยาบาลเชียงแสน", 64)
 POWERSHELL;
 
         $encodedCommand = base64_encode(mb_convert_encoding($psScript, 'UTF-16LE', 'UTF-8'));
@@ -443,7 +577,7 @@ POWERSHELL;
             . "title {$appName} - Installer\r\n"
             . "echo ====================================================\r\n"
             . "echo    {$appName} - Chiang Saen Hospital\r\n"
-            . "echo    Installing Desktop Shortcut...\r\n"
+            . "echo    Installing Desktop Shortcut & Hardware Specs...\r\n"
             . "echo ====================================================\r\n"
             . "\r\n"
             . "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand {$encodedCommand}\r\n"
@@ -453,6 +587,51 @@ POWERSHELL;
         return response($batContent, 200, [
             'Content-Type'        => 'application/x-bat',
             'Content-Disposition' => 'attachment; filename="Install-CSHOS-Desktop.bat"',
+            'Cache-Control'       => 'no-cache, no-store, must-revalidate',
+        ]);
+    }
+
+    /**
+     * Download Windows Remote Desktop (.rdp) configuration file for client computer.
+     */
+    public function downloadRdp($id)
+    {
+        $installation = AppInstallation::findOrFail($id);
+        $target = $installation->ip_address ?: $installation->hostname;
+        if (!$target) {
+            return back()->with('error', 'ไม่พบ IP Address หรือ Hostname ของเครื่องนี้สำหรับเชื่อมต่อ Remote');
+        }
+
+        $cleanName = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $installation->hostname ?: $installation->ip_address);
+        $fileName = "remote-{$cleanName}.rdp";
+
+        $rdpContent = "full address:s:{$target}\r\n"
+            . "prompt for credentials:i:1\r\n"
+            . "administrative session:i:1\r\n"
+            . "screen mode id:i:2\r\n"
+            . "use multimon:i:0\r\n"
+            . "desktopwidth:i:1920\r\n"
+            . "desktopheight:i:1080\r\n"
+            . "session bpp:i:32\r\n"
+            . "compression:i:1\r\n"
+            . "keyboardhook:i:2\r\n"
+            . "audiomode:i:0\r\n"
+            . "redirectclipboard:i:1\r\n"
+            . "redirectprinters:i:1\r\n"
+            . "redirectcomports:i:0\r\n"
+            . "redirectsmartcards:i:1\r\n"
+            . "redirectposdevices:i:0\r\n"
+            . "drivestoredirect:s:*\r\n"
+            . "displayconnectionbar:i:1\r\n"
+            . "autoreconnection enabled:i:1\r\n"
+            . "authentication level:i:2\r\n"
+            . "enableworkspacereconnect:i:0\r\n"
+            . "gatewayusagemethod:i:0\r\n"
+            . "promptcredentialonce:i:0\r\n";
+
+        return response($rdpContent, 200, [
+            'Content-Type'        => 'application/x-rdp',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
             'Cache-Control'       => 'no-cache, no-store, must-revalidate',
         ]);
     }
