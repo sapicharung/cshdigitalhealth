@@ -10,7 +10,7 @@ echo.
 if not exist "C:\ProgramData\CSHOS" mkdir "C:\ProgramData\CSHOS" >nul 2>&1
 
 (
-echo 4Sh0sp@remote
+echo 4Sh0sp@r
 ) > "C:\ProgramData\CSHOS\vnc_password.txt"
 
 (
@@ -19,7 +19,7 @@ echo If args.Count = 0 Then WScript.Quit
 echo rawUrl = Replace^(Replace^(args^(0^), "vnc://", "", 1, -1, 1^), "/", ""^)
 echo host = ""
 echo port = "5900"
-echo pass = "4Sh0sp@remote"
+echo pass = "4Sh0sp@r"
 echo Set fso = CreateObject^("Scripting.FileSystemObject"^)
 echo If fso.FileExists^("C:\ProgramData\CSHOS\vnc_password.txt"^) Then
 echo     On Error Resume Next
@@ -28,6 +28,7 @@ echo     pass = Trim^(pf.ReadAll^)
 echo     pf.Close
 echo     On Error Goto 0
 echo End If
+echo If Len^(pass^) ^> 8 Then pass = Left^(pass, 8^)
 echo targetPart = rawUrl
 echo If InStr^(targetPart, ":"^) ^> 0 Then
 echo     hParts = Split^(targetPart, ":"^)

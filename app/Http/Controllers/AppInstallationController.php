@@ -621,7 +621,7 @@ $cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select
 if ($cpuObj -and $cpuObj.Name) {
     $cpuInfo = $cpuObj.Name.Trim()
 } else {
-    $cpuInfo = "ไม่สามารถระบุ CPU"
+    $cpuInfo = "Unknown CPU"
 }
 
 try {
@@ -629,7 +629,7 @@ try {
     $ramGB = [math]::Round(($totalRam / 1GB), 1)
     $ramInfo = "$ramGB GB"
 } catch {
-    $ramInfo = "ไม่สามารถระบุ RAM"
+    $ramInfo = "Unknown RAM"
 }
 
 try {
@@ -637,11 +637,11 @@ try {
         $dId = $_.DeviceID
         $free = [math]::Round($_.FreeSpace / 1GB, 1)
         $total = [math]::Round($_.Size / 1GB, 1)
-        "$dId ว่าง $free/$total GB"
+        "$dId Free $free/$total GB"
     }
     $diskInfo = $diskItems -join ", "
 } catch {
-    $diskInfo = "ไม่สามารถระบุ DISK"
+    $diskInfo = "N/A"
 }
 
 # --- Detect Target Machine IP Address (IPv4) ---
@@ -668,7 +668,7 @@ if (-not $detectedIps -or $detectedIps.Count -eq 0) {
 }
 
 $clientIp = if ($detectedIps -and $detectedIps.Count -gt 0) { $detectedIps[0] } else { "" }
-$allIpsStr = if ($detectedIps -and $detectedIps.Count -gt 0) { ($detectedIps | Select-Object -Unique) -join ", " } else { "ไม่พบ IP (DHCP)" }
+$allIpsStr = if ($detectedIps -and $detectedIps.Count -gt 0) { ($detectedIps | Select-Object -Unique) -join ", " } else { "No IP (DHCP)" }
 
 # --- Install & Configure VNC Server (TightVNC - Screen Share, No Logout) ---
 $vncInstalled = $false
@@ -982,6 +982,7 @@ If fso.FileExists("C:\ProgramData\CSHOS\vnc_password.txt") Then
     pf.Close
     On Error Goto 0
 End If
+If Len(pass) > 8 Then pass = Left(pass, 8)
 targetPart = rawUrl
 If InStr(targetPart, ":") > 0 Then
     hParts = Split(targetPart, ":")
@@ -1027,68 +1028,70 @@ $reportObj = @{
 }
 $jsonPayload = $reportObj | ConvertTo-Json
 
-$serverSyncStatus = "รอส่งข้อมูล..."
+$serverSyncStatus = "Waiting for connection..."
 try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
     $res = Invoke-RestMethod -Uri "{{APP_URL}}/api/track-install" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 8 -ErrorAction Stop
     if ($res -and $res.status -eq 'success') {
-        $serverSyncStatus = "อัปเดตข้อมูลขึ้นระบบเซิร์ฟเวอร์ CSHOS สำเร็จเรียบร้อย"
+        $serverSyncStatus = "Successfully updated client info to CSHOS Server!"
         if ($res.ip) { $allIpsStr = $res.ip }
     } else {
-        $serverSyncStatus = "เชื่อมต่อระบบเซิร์ฟเวอร์แล้ว"
+        $serverSyncStatus = "Connected to CSHOS Server"
     }
 } catch {
-    $serverSyncStatus = "บันทึกข้อมูลในเครื่องแล้ว (เซิร์ฟเวอร์ออฟไลน์หรืออยู่นอกเครือข่าย)"
+    $serverSyncStatus = "Saved locally on machine (CSHOS Server offline/unreachable)"
 }
 
 Write-Host ""
 Write-Host "========================================================================" -ForegroundColor Cyan
-Write-Host "      CSHOS DIGITAL HEALTH - โรงพยาบาลเชียงแสน" -ForegroundColor White
-Write-Host "      ติดตั้งตัวแอป และอัปเดตข้อมูลเครื่องปลายทางสำเร็จ!" -ForegroundColor Green
+Write-Host "      CSHOS DIGITAL HEALTH - CHIANG SAEN HOSPITAL" -ForegroundColor White
+Write-Host "      Desktop App Installed & Client Specs Updated Successfully!" -ForegroundColor Green
 Write-Host "========================================================================" -ForegroundColor Cyan
-Write-Host " [1] ไอคอนทางลัดโปรแกรม (Desktop Shortcut):" -ForegroundColor Yellow
-Write-Host "     • จำนวนตำแหน่งที่ติดตั้ง       : " -NoNewline -ForegroundColor Gray
-Write-Host "$installedCount ตำแหน่ง (Public Desktop + ทุกผู้ใช้งาน)" -ForegroundColor Green
-Write-Host "     • ไฟล์ไอคอนแอป               : " -NoNewline -ForegroundColor Gray
+Write-Host " [1] Desktop Shortcut:" -ForegroundColor Yellow
+Write-Host "     * Location                    : " -NoNewline -ForegroundColor Gray
+Write-Host "Public Desktop (All Users - $installedCount positions)" -ForegroundColor Green
+Write-Host "     * App Icon File               : " -NoNewline -ForegroundColor Gray
 if ($iconDownloaded -or (Test-Path $icoPath)) {
-    Write-Host "ดาวน์โหลดและติดตั้งสมบูรณ์ ($icoPath)" -ForegroundColor Green
+    Write-Host "Installed Successfully ($icoPath)" -ForegroundColor Green
 } else {
-    Write-Host "ใช้ไอคอนระบบเริ่มต้น" -ForegroundColor Yellow
+    Write-Host "Default System Icon" -ForegroundColor Yellow
 }
 Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
-Write-Host " [2] ข้อมูลเครื่องคอมพิวเตอร์ปลายทางที่ตรวจจับและอัปเดต:" -ForegroundColor Yellow
-Write-Host "     • ชื่อเครื่อง (Computer Name) : " -NoNewline -ForegroundColor Gray
+Write-Host " [2] Client Machine Specifications (Hardware & System Specs):" -ForegroundColor Yellow
+Write-Host "     * Computer Name               : " -NoNewline -ForegroundColor Gray
 Write-Host "$compName" -ForegroundColor White
-Write-Host "     • ผู้ใช้งาน (Username)       : " -NoNewline -ForegroundColor Gray
+Write-Host "     * Current User (Username)     : " -NoNewline -ForegroundColor Gray
 Write-Host "$userName" -ForegroundColor White
-Write-Host "     • หมายเลข IP Address          : " -NoNewline -ForegroundColor Gray
+Write-Host "     * IP Address                  : " -NoNewline -ForegroundColor Gray
 Write-Host "$allIpsStr" -ForegroundColor Green
-Write-Host "     • สเปก CPU                    : " -NoNewline -ForegroundColor Gray
+Write-Host "     * Processor (CPU)             : " -NoNewline -ForegroundColor Gray
 Write-Host "$cpuInfo" -ForegroundColor White
-Write-Host "     • ขนาดหน่วยความจำ RAM        : " -NoNewline -ForegroundColor Gray
+Write-Host "     * Memory (RAM)                : " -NoNewline -ForegroundColor Gray
 Write-Host "$ramInfo" -ForegroundColor White
-Write-Host "     • พื้นที่ฮาร์ดดิสก์ DISK       : " -NoNewline -ForegroundColor Gray
+Write-Host "     * Hard Disk (DISK)            : " -NoNewline -ForegroundColor Gray
 Write-Host "$diskInfo" -ForegroundColor White
-Write-Host "     • ระบบปฏิบัติการ OS           : " -NoNewline -ForegroundColor Gray
-Write-Host "$osInfo" -ForegroundColor White
+Write-Host "     * Operating System (OS)       : " -NoNewline -ForegroundColor Gray
+Write-Host "$osVerStr" -ForegroundColor White
+Write-Host "     * Microsoft Office            : " -NoNewline -ForegroundColor Gray
+Write-Host "$officeFinal" -ForegroundColor White
 Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
-Write-Host " [3] ระบบ Remote ภายใน (VNC Screen Sharing - หน้าจอไม่ดับ):" -ForegroundColor Yellow
-Write-Host "     • สถานะการเปิดระบบ            : " -NoNewline -ForegroundColor Gray
-Write-Host "พร้อมเชื่อมต่อ (TightVNC Port 5900)" -ForegroundColor Green
-Write-Host "     • รหัสผ่าน VNC                : " -NoNewline -ForegroundColor Gray
+Write-Host " [3] Internal Remote Support (TightVNC - Screen Sharing, No Logout):" -ForegroundColor Yellow
+Write-Host "     * Service Status              : " -NoNewline -ForegroundColor Gray
+Write-Host "Ready to Connect (TightVNC Port 5900)" -ForegroundColor Green
+Write-Host "     * VNC Password                : " -NoNewline -ForegroundColor Gray
 Write-Host "{{VNC_PASSWORD}}" -ForegroundColor Yellow
-Write-Host "     • โหมดทำงาน                   : เจ้าหน้าที่ไอทีสามารถดูและช่วยแก้ปัญหาหน้าจอได้พร้อมกัน" -ForegroundColor DarkCyan
+Write-Host "     * Mode                        : Screen Sharing (IT assistance without session logout)" -ForegroundColor DarkCyan
 Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
-Write-Host " [4] ระบบ Auto-Sync อัตโนมัติเมื่อเปิดเครื่อง (Auto-Sync on Reboot):" -ForegroundColor Yellow
-Write-Host "     • สถานะ                      : " -NoNewline -ForegroundColor Gray
-Write-Host "เปิดใช้งานสำเร็จ (Windows Task Scheduler)" -ForegroundColor Green
-Write-Host "     • คุณสมบัติ                   : " -NoNewline -ForegroundColor Gray
-Write-Host "ส่งข้อมูล IP และสเปกขึ้นระบบ CSHOS อัตโนมัติทุกครั้งที่เปิด/รีสตาร์ตเครื่อง" -ForegroundColor White
-Write-Host "     • ความสะดวก                  : " -NoNewline -ForegroundColor Gray
-Write-Host "ไม่ต้องติดตั้งหรือรันแอปใหม่อีกต่อไป" -ForegroundColor Green
+Write-Host " [4] Auto-Sync System on Boot / Restart (Auto-Sync on Reboot):" -ForegroundColor Yellow
+Write-Host "     * Service Status              : " -NoNewline -ForegroundColor Gray
+Write-Host "Enabled (Windows Task Scheduler & Registry)" -ForegroundColor Green
+Write-Host "     * Feature                     : " -NoNewline -ForegroundColor Gray
+Write-Host "Auto-updates IP and Specs to CSHOS Server on every system boot/logon" -ForegroundColor White
+Write-Host "     * Convenience                 : " -NoNewline -ForegroundColor Gray
+Write-Host "No need to reinstall or rerun installer again" -ForegroundColor Green
 Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
-Write-Host " [5] สถานะการซิงก์ข้อมูล (Server Sync Status):" -ForegroundColor Yellow
-Write-Host "     • $serverSyncStatus" -ForegroundColor Green
+Write-Host " [5] Server Connection & Sync Status:" -ForegroundColor Yellow
+Write-Host "     * $serverSyncStatus" -ForegroundColor Green
 Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -1102,7 +1105,8 @@ $popupText = "ติดตั้งไอคอนแอปและอัปเ
     "• สเปก CPU                 : $cpuInfo`n" +
     "• ขนาด RAM                 : $ramInfo`n" +
     "• พื้นที่ DISK              : $diskInfo`n" +
-    "• ระบบปฏิบัติการ OS        : $osInfo`n`n" +
+    "• ระบบปฏิบัติการ OS        : $osVerStr`n" +
+    "• โปรแกรม Microsoft Office  : $officeFinal`n`n" +
     "================ ระบบ Remote VNC ภายใน ================`n" +
     "• สถานะ : พร้อมเชื่อมต่อ (พอร์ต 5900)`n" +
     "• รหัสผ่าน VNC : {{VNC_PASSWORD}} (หน้าจอไม่ดับ)`n`n" +
@@ -1131,17 +1135,17 @@ POWERSHELL;
         $batContent = "@echo off\r\n"
             . "chcp 65001 >nul\r\n"
             . "cd /d \"%~dp0\"\r\n"
-            . "title {$appName} - ตัวติดตั้งและตั้งค่าระบบ Auto-Sync\r\n"
+            . "title {$appName} - Desktop Installer & Auto-Sync Setup\r\n"
             . "echo ========================================================================\r\n"
             . "echo    {$appName} - Chiang Saen Hospital\r\n"
-            . "echo    กำลังตรวจจับข้อมูลเครื่องปลายทาง ติดตั้งไอคอน และตั้งค่า Remote...\r\n"
+            . "echo    Installing desktop shortcut, detecting specs, configuring remote...\r\n"
             . "echo ========================================================================\r\n"
             . "echo.\r\n"
             . "\r\n"
-            . "REM ตรวจสอบสิทธิ์ Administrator หากยังไม่มี ให้เรียกขอสิทธิ์อัตโนมัติ\r\n"
+            . "REM Check Administrator privileges\r\n"
             . "net session >nul 2>&1\r\n"
             . "if %errorlevel% neq 0 (\r\n"
-            . "    echo กำลังร้องขอสิทธิ์ Administrator เพื่อติดตั้งระบบ...\r\n"
+            . "    echo [INFO] Requesting Administrator privileges (UAC)...\r\n"
             . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"try { Start-Process -FilePath '%~f0' -Verb RunAs } catch {}\"\r\n"
             . "    exit /b\r\n"
             . ")\r\n"
@@ -1152,7 +1156,7 @@ POWERSHELL;
             . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"\$lines = Get-Content -LiteralPath '%~f0'; \$start = \$false; \$b64 = ''; foreach (\$l in \$lines) { if (\$l -match '^-+END') { break }; if (\$start) { \$b64 += \$l.Trim() }; if (\$l -match '^-+BEGIN') { \$start = \$true } }; if (\$b64) { [IO.File]::WriteAllBytes('%CSHOS_TEMP_PS%', [Convert]::FromBase64String(\$b64)) }\"\r\n"
             . ")\r\n"
             . "if not exist \"%CSHOS_TEMP_PS%\" (\r\n"
-            . "    echo [ERROR] ไม่สามารถแตกไฟล์ติดตั้งชั่วคราวได้ กรุณาลองใหม่อีกครั้ง\r\n"
+            . "    echo [ERROR] Failed to extract temporary installer. Please try again.\r\n"
             . "    pause\r\n"
             . "    exit /b 1\r\n"
             . ")\r\n"
@@ -1163,7 +1167,7 @@ POWERSHELL;
             . "\r\n"
             . "echo.\r\n"
             . "echo ------------------------------------------------------------------------\r\n"
-            . "echo การติดตั้งเสร็จสมบูรณ์ กดปุ่มใดๆ เพื่อปิดหน้าต่างนี้...\r\n"
+            . "echo Setup completed successfully! Press any key to exit...\r\n"
             . "pause >nul\r\n"
             . "exit /b %PS_EXIT%\r\n"
             . "\r\n"
@@ -1376,32 +1380,36 @@ $detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyConti
     $_.IPAddress -notmatch '^169\.254\.' -and 
     $_.IPAddress -ne '127.0.0.1' 
 } | Select-Object -ExpandProperty IPAddress)
-$allIpsStr = if ($detectedIps) { ($detectedIps | Select-Object -Unique) -join ", " } else { "ไม่พบ IP" }
+$allIpsStr = if ($detectedIps) { ($detectedIps | Select-Object -Unique) -join ", " } else { "No IP (DHCP)" }
 
 Write-Host ""
 Write-Host "========================================================================" -ForegroundColor Cyan
-Write-Host "      CSHOS DIGITAL HEALTH - โรงพยาบาลเชียงแสน" -ForegroundColor White
-Write-Host "      เปิดระบบ Auto-Sync สเปกและ IP อัตโนมัติเมื่อเปิดเครื่องสำเร็จ!" -ForegroundColor Green
+Write-Host "      CSHOS DIGITAL HEALTH - CHIANG SAEN HOSPITAL" -ForegroundColor White
+Write-Host "      Auto-Sync System Configured & Specs Updated Successfully!" -ForegroundColor Green
 Write-Host "========================================================================" -ForegroundColor Cyan
-Write-Host " [1] ข้อมูลเครื่องคอมพิวเตอร์ปลายทางที่อัปเดต:" -ForegroundColor Yellow
-Write-Host "     • ชื่อเครื่อง (Computer Name) : " -NoNewline -ForegroundColor Gray
+Write-Host " [1] Client Machine Specifications:" -ForegroundColor Yellow
+Write-Host "     * Computer Name               : " -NoNewline -ForegroundColor Gray
 Write-Host "$compName" -ForegroundColor White
-Write-Host "     • ผู้ใช้งาน (Username)       : " -NoNewline -ForegroundColor Gray
+Write-Host "     * Current User (Username)     : " -NoNewline -ForegroundColor Gray
 Write-Host "$userName" -ForegroundColor White
-Write-Host "     • หมายเลข IP Address          : " -NoNewline -ForegroundColor Gray
+Write-Host "     * IP Address                  : " -NoNewline -ForegroundColor Gray
 Write-Host "$allIpsStr" -ForegroundColor Green
-Write-Host "     • สเปก CPU                    : " -NoNewline -ForegroundColor Gray
+Write-Host "     * Processor (CPU)             : " -NoNewline -ForegroundColor Gray
 Write-Host "$cpuInfo" -ForegroundColor White
-Write-Host "     • ขนาดหน่วยความจำ RAM        : " -NoNewline -ForegroundColor Gray
+Write-Host "     * Memory (RAM)                : " -NoNewline -ForegroundColor Gray
 Write-Host "$ramInfo" -ForegroundColor White
+Write-Host "     * Operating System (OS)       : " -NoNewline -ForegroundColor Gray
+Write-Host "$osVerStr" -ForegroundColor White
+Write-Host "     * Microsoft Office            : " -NoNewline -ForegroundColor Gray
+Write-Host "$officeFinal" -ForegroundColor White
 Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
-Write-Host " [2] สถานะระบบ Auto-Sync อัตโนมัติ (Reboot / Startup Sync):" -ForegroundColor Yellow
-Write-Host "     • สถานะ                      : " -NoNewline -ForegroundColor Gray
-Write-Host "เปิดใช้งานสำเร็จ (Windows Task Scheduler & Registry)" -ForegroundColor Green
-Write-Host "     • การทำงาน                    : " -NoNewline -ForegroundColor Gray
-Write-Host "ส่งข้อมูล IP และสเปกขึ้นระบบ CSHOS อัตโนมัติทุกครั้งที่เปิดหรือรีสตาร์ตเครื่อง" -ForegroundColor White
-Write-Host "     • ความสะดวก                  : " -NoNewline -ForegroundColor Gray
-Write-Host "ไม่ต้องติดตั้งหรือรันแอปใหม่อีกต่อไป" -ForegroundColor Green
+Write-Host " [2] Auto-Sync System Status (Reboot / Startup Sync):" -ForegroundColor Yellow
+Write-Host "     * Status                      : " -NoNewline -ForegroundColor Gray
+Write-Host "Enabled (Windows Task Scheduler & Registry)" -ForegroundColor Green
+Write-Host "     * Feature                     : " -NoNewline -ForegroundColor Gray
+Write-Host "Auto-updates IP & Specs to CSHOS Server on every system boot/logon" -ForegroundColor White
+Write-Host "     * Convenience                 : " -NoNewline -ForegroundColor Gray
+Write-Host "No need to reinstall or rerun installer again" -ForegroundColor Green
 Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -1411,7 +1419,9 @@ $popupText = "เปิดระบบ Auto-Sync สำหรับเครื�
     "• ผู้ใช้งาน (Username)       : $userName`n" +
     "• หมายเลข IP Address        : $allIpsStr`n" +
     "• สเปก CPU                 : $cpuInfo`n" +
-    "• ขนาด RAM                 : $ramInfo`n`n" +
+    "• ขนาด RAM                 : $ramInfo`n" +
+    "• ระบบปฏิบัติการ OS        : $osVerStr`n" +
+    "• โปรแกรม Microsoft Office  : $officeFinal`n`n" +
     "================ คุณสมบัติ Auto-Sync ================`n" +
     "• ต่อไปนี้ ทุกครั้งที่มีการเปิดเครื่องหรือรีสตาร์ตเครื่อง`n" +
     "  ข้อมูล IP และสเปกจะถูกส่งไปอัปเดตที่หน้า Admin อัตโนมัติ`n" +
@@ -1434,17 +1444,17 @@ POWERSHELL;
         $batContent = "@echo off\r\n"
             . "chcp 65001 >nul\r\n"
             . "cd /d \"%~dp0\"\r\n"
-            . "title {$appName} - เปิดระบบ Auto-Sync เมื่อเปิดเครื่อง\r\n"
+            . "title {$appName} - Enable Auto-Sync on Boot\r\n"
             . "echo ========================================================================\r\n"
             . "echo    {$appName} - Chiang Saen Hospital\r\n"
-            . "echo    กำลังตั้งค่าระบบ Auto-Sync ส่งข้อมูล IP และสเปกอัตโนมัติเมื่อเปิดเครื่อง...\r\n"
+            . "echo    Configuring Auto-Sync system to report IP and specs on boot...\r\n"
             . "echo ========================================================================\r\n"
             . "echo.\r\n"
             . "\r\n"
-            . "REM ตรวจสอบสิทธิ์ Administrator หากยังไม่มี ให้เรียกขอสิทธิ์อัตโนมัติ\r\n"
+            . "REM Check Administrator privileges\r\n"
             . "net session >nul 2>&1\r\n"
             . "if %errorlevel% neq 0 (\r\n"
-            . "    echo กำลังร้องขอสิทธิ์ Administrator เพื่อเปิดระบบ Auto-Sync...\r\n"
+            . "    echo [INFO] Requesting Administrator privileges (UAC)...\r\n"
             . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"try { Start-Process -FilePath '%~f0' -Verb RunAs } catch {}\"\r\n"
             . "    exit /b\r\n"
             . ")\r\n"
@@ -1455,7 +1465,7 @@ POWERSHELL;
             . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"\$lines = Get-Content -LiteralPath '%~f0'; \$start = \$false; \$b64 = ''; foreach (\$l in \$lines) { if (\$l -match '^-+END') { break }; if (\$start) { \$b64 += \$l.Trim() }; if (\$l -match '^-+BEGIN') { \$start = \$true } }; if (\$b64) { [IO.File]::WriteAllBytes('%CSHOS_TEMP_PS%', [Convert]::FromBase64String(\$b64)) }\"\r\n"
             . ")\r\n"
             . "if not exist \"%CSHOS_TEMP_PS%\" (\r\n"
-            . "    echo [ERROR] ไม่สามารถแตกไฟล์ติดตั้งชั่วคราวได้ กรุณาลองใหม่อีกครั้ง\r\n"
+            . "    echo [ERROR] Failed to extract temporary installer. Please try again.\r\n"
             . "    pause\r\n"
             . "    exit /b 1\r\n"
             . ")\r\n"
@@ -1466,7 +1476,7 @@ POWERSHELL;
             . "\r\n"
             . "echo.\r\n"
             . "echo ------------------------------------------------------------------------\r\n"
-            . "echo การตั้งค่าเสร็จสมบูรณ์ กดปุ่มใดๆ เพื่อปิดหน้าต่างนี้...\r\n"
+            . "echo Auto-Sync configuration completed successfully! Press any key to exit...\r\n"
             . "pause >nul\r\n"
             . "exit /b %PS_EXIT%\r\n"
             . "\r\n"
@@ -1596,45 +1606,45 @@ POWERSHELL;
         $batContent = "@echo off\r\n"
             . "chcp 65001 >nul\r\n"
             . "cd /d \"%~dp0\"\r\n"
-            . "title {$appName} - ถอนการติดตั้งและลบไฟล์ระบบ\r\n"
+            . "title {$appName} - Uninstall and Cleanup\r\n"
             . "echo ========================================================================\r\n"
             . "echo    {$appName} - Chiang Saen Hospital\r\n"
-            . "echo    กำลังดำเนินการถอนการติดตั้งและลบไฟล์ระบบ...\r\n"
+            . "echo    Uninstalling and removing CSHOS system components...\r\n"
             . "echo ========================================================================\r\n"
             . "echo.\r\n"
             . "\r\n"
-            . "REM ตรวจสอบสิทธิ์ Administrator หากยังไม่มี ให้เรียกขอสิทธิ์อัตโนมัติ\r\n"
+            . "REM Check Administrator privileges\r\n"
             . "net session >nul 2>&1\r\n"
             . "if %errorlevel% neq 0 (\r\n"
-            . "    echo กำลังร้องขอสิทธิ์ Administrator เพื่อถอนการติดตั้ง...\r\n"
+            . "    echo [INFO] Requesting Administrator privileges (UAC)...\r\n"
             . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"try { Start-Process -FilePath '%~f0' -Verb RunAs } catch {}\"\r\n"
             . "    exit /b\r\n"
             . ")\r\n"
             . "\r\n"
-            . "echo [1/5] ลบงาน Auto-Sync ใน Windows Task Scheduler...\r\n"
+            . "echo [1/5] Removing Auto-Sync tasks in Windows Task Scheduler...\r\n"
             . "schtasks /delete /tn \"CSHOS-AutoSync-Startup\" /f >nul 2>&1\r\n"
             . "schtasks /delete /tn \"CSHOS-AutoSync-Logon\" /f >nul 2>&1\r\n"
             . "\r\n"
-            . "echo [2/5] ลบคำสั่งเริ่มต้นระบบใน Windows Registry (Run Keys)...\r\n"
+            . "echo [2/5] Removing startup entries in Windows Registry (Run Keys)...\r\n"
             . "reg delete \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\" /v \"CSHOS_AutoSync\" /f >nul 2>&1\r\n"
             . "reg delete \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\" /v \"CSHOS_AutoSync\" /f >nul 2>&1\r\n"
             . "\r\n"
-            . "echo [3/5] ลบการลงทะเบียนโปรโตคอล VNC Launcher...\r\n"
+            . "echo [3/5] Removing VNC Protocol Launcher registration...\r\n"
             . "reg delete \"HKCU\\Software\\Classes\\vnc\" /f >nul 2>&1\r\n"
             . "\r\n"
-            . "echo [4/5] ลบไอคอนทางลัดโปรแกรมบน Desktop...\r\n"
+            . "echo [4/5] Removing Desktop shortcuts...\r\n"
             . "del /f /q \"%PUBLIC%\\Desktop\\{$appName}.lnk\" >nul 2>&1\r\n"
             . "del /f /q \"%USERPROFILE%\\Desktop\\{$appName}.lnk\" >nul 2>&1\r\n"
             . "del /f /q \"%ALLUSERSPROFILE%\\Desktop\\{$appName}.lnk\" >nul 2>&1\r\n"
             . "powershell.exe -NoProfile -Command \"Get-ChildItem 'C:\\Users\\*\\Desktop\\{$appName}.lnk' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue\"\r\n"
             . "\r\n"
-            . "echo [5/5] ลบโฟลเดอร์ระบบและการตั้งค่า CSHOS...\r\n"
+            . "echo [5/5] Removing CSHOS system directories and cache...\r\n"
             . "rmdir /s /q \"C:\\ProgramData\\CSHOS\" >nul 2>&1\r\n"
             . "rmdir /s /q \"%LOCALAPPDATA%\\CSHOS\" >nul 2>&1\r\n"
             . "ie4uinit.exe -show >nul 2>&1\r\n"
             . "\r\n"
             . "echo ========================================================================\r\n"
-            . "echo    ถอนการติดตั้งและลบไอคอน {$appName} เรียบร้อยแล้ว!\r\n"
+            . "echo    CSHOS components and shortcuts removed successfully!\r\n"
             . "echo ========================================================================\r\n"
             . "echo.\r\n"
             . "powershell.exe -NoProfile -Command \"(New-Object -ComObject WScript.Shell).Popup('ถอนการติดตั้งไอคอนและระบบ Auto-Sync ของ {$appName} เรียบร้อยแล้ว!', 5, '{$appName}', 64) | Out-Null\"\r\n"
