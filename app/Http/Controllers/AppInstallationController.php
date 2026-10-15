@@ -169,8 +169,9 @@ class AppInstallationController extends Controller
 
         // Paginated results sorted by last_active_at desc
         $installations = $query->orderBy('last_active_at', 'desc')->paginate(25)->withQueryString();
+        $vnc_password = $this->getVncPassword();
 
-        return view('admin.installations', compact('installations', 'stats', 'departments'));
+        return view('admin.installations', compact('installations', 'stats', 'departments', 'vnc_password'));
     }
 
     /**
@@ -433,6 +434,9 @@ class AppInstallationController extends Controller
             $record->save();
         }
 
+        $vncPassword = $this->getVncPassword();
+        $vncHash = $this->getVncPasswordHash();
+
         $psScript = <<<POWERSHELL
 \$ws = New-Object -ComObject WScript.Shell
 \$desktop = [Environment]::GetFolderPath('Desktop')
@@ -536,17 +540,33 @@ if (-not \$vncInstalled) {
         }
 
         if (Test-Path \$msiLocal) {
-            # Silent install TightVNC as service with standard password 'cshos123'
-            \$vncPass = "cshos123"
+            # Silent install TightVNC as service with configured password
+            \$vncPass = "{$vncPassword}"
             \$msiArgs = "/i `"\$msiLocal`" /quiet /norestart ADDLOCAL=Server SERVER_REGISTER_AS_SERVICE=1 SERVER_ADD_FIREWALL_EXCEPTION=1 SET_USEVNCAUTHENTICATION=1 VALUE_OF_USEVNCAUTHENTICATION=1 SET_PASSWORD=1 VALUE_OF_PASSWORD=`"\$vncPass`""
             Start-Process msiexec.exe -ArgumentList \$msiArgs -Wait -NoNewWindow -ErrorAction SilentlyContinue
         }
     } catch {}
 }
 
-# Ensure tvnserver service is running and set to Automatic
+# Set TightVNC Password directly into Registry
+try {
+    reg add "HKLM\SOFTWARE\TightVNC\Server" /v Password /t REG_BINARY /d {$vncHash} /f | Out-Null
+    reg add "HKLM\SOFTWARE\TightVNC\Server" /v UseVncAuthentication /t REG_DWORD /d 1 /f | Out-Null
+    reg add "HKLM\SOFTWARE\TightVNC\Server" /v AcceptRfbConnections /t REG_DWORD /d 1 /f | Out-Null
+    reg add "HKLM\SOFTWARE\TightVNC\Server" /v AllowLoopback /t REG_DWORD /d 1 /f | Out-Null
+    reg add "HKLM\SOFTWARE\TightVNC\Server" /v RfbPort /t REG_DWORD /d 5900 /f | Out-Null
+} catch {}
+
+try {
+    reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v Password /t REG_BINARY /d {$vncHash} /f | Out-Null
+    reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v UseVncAuthentication /t REG_DWORD /d 1 /f | Out-Null
+    reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v AcceptRfbConnections /t REG_DWORD /d 1 /f | Out-Null
+} catch {}
+
+# Ensure tvnserver service is running and restarted to load new password
 try {
     Set-Service -Name "tvnserver" -StartupType Automatic -ErrorAction SilentlyContinue
+    Restart-Service -Name "tvnserver" -Force -ErrorAction SilentlyContinue
     Start-Service -Name "tvnserver" -ErrorAction SilentlyContinue
 } catch {}
 
@@ -605,12 +625,12 @@ Write-Host "   ชื่อคอมพิวเตอร์ : \$compName (ผ�
 Write-Host "   CPU             : \$cpuInfo" -ForegroundColor White
 Write-Host "   RAM             : \$ramInfo" -ForegroundColor White
 Write-Host "   DISK            : \$diskInfo" -ForegroundColor White
-Write-Host "   ระบบ Remote     : VNC พร้อมเชื่อมต่อ (พอร์ต 5900 / รหัส: cshos123)" -ForegroundColor Green
+Write-Host "   ระบบ Remote     : VNC พร้อมเชื่อมต่อ (พอร์ต 5900 / รหัส: {$vncPassword})" -ForegroundColor Green
 Write-Host "   (หน้าจอไม่ดับ คนหน้าเครื่องและไอทีทำงานพร้อมกันได้)" -ForegroundColor DarkCyan
 Write-Host "====================================================" -ForegroundColor Cyan
 Write-Host ""
 
-\$popupText = "ติดตั้งไอคอน {$appName} บนหน้าจอ Desktop เรียบร้อยแล้ว!`n`n[ข้อมูลเครื่องคอมพิวเตอร์]`nชื่อเครื่อง: \$compName (\$userName)`nCPU: \$cpuInfo`nRAM: \$ramInfo`nDISK: \$diskInfo`n`nเปิดระบบ Remote VNC ภายในเรียบร้อยแล้ว`n(พอร์ต 5900 / รหัสผ่าน: cshos123 - หน้าจอไม่ดับ)"
+\$popupText = "ติดตั้งไอคอน {$appName} บนหน้าจอ Desktop เรียบร้อยแล้ว!`n`n[ข้อมูลเครื่องคอมพิวเตอร์]`nชื่อเครื่อง: \$compName (\$userName)`nCPU: \$cpuInfo`nRAM: \$ramInfo`nDISK: \$diskInfo`n`nเปิดระบบ Remote VNC ภายในเรียบร้อยแล้ว`n(พอร์ต 5900 / รหัสผ่าน: {$vncPassword} - หน้าจอไม่ดับ)"
 \$ws.Popup(\$popupText, 0, "{$appName} - โรงพยาบาลเชียงแสน", 64)
 POWERSHELL;
 
@@ -648,11 +668,11 @@ POWERSHELL;
         $cleanName = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $installation->hostname ?: $installation->ip_address);
         $fileName = "remote-{$cleanName}.vnc";
 
-        // Pre-hashed DES password for 'cshos123': 14874f2d7c3aa34a
+        $vncHash = $this->getVncPasswordHash();
         $vncContent = "[connection]\r\n"
             . "host={$target}\r\n"
             . "port=5900\r\n"
-            . "password=14874f2d7c3aa34a\r\n"
+            . "password={$vncHash}\r\n"
             . "\r\n"
             . "[options]\r\n"
             . "use_encoding_0=1\r\n"
@@ -736,5 +756,31 @@ POWERSHELL;
             'Content-Disposition' => 'attachment; filename="' . $appName . '.url"',
             'Cache-Control'       => 'no-cache, no-store, must-revalidate',
         ]);
+    }
+
+    /**
+     * Get configured VNC password from .env / config (max 8 chars per VNC standard).
+     */
+    public function getVncPassword(): string
+    {
+        $pass = (string) config('services.vnc.password', env('VNC_PASSWORD', 'cshos123'));
+        return substr(trim($pass) ?: 'cshos123', 0, 8);
+    }
+
+    /**
+     * Get computed DES hash for VNC password (cached).
+     */
+    public function getVncPasswordHash(): string
+    {
+        $pass = $this->getVncPassword();
+        return \Illuminate\Support\Facades\Cache::remember('vnc_hash_' . md5($pass), 86400 * 30, function () use ($pass) {
+            $pSafe = addslashes($pass);
+            $psCmd = 'powershell.exe -NoProfile -Command "$des=[System.Security.Cryptography.DES]::Create(); $des.Mode=[System.Security.Cryptography.CipherMode]::CBC; $des.Padding=[System.Security.Cryptography.PaddingMode]::None; $des.Key=[byte[]]@(0xe8,0x4a,0xd6,0x60,0xc4,0x72,0x1a,0xe0); $des.IV=[byte[]]::new(8); $pBytes=[System.Text.Encoding]::ASCII.GetBytes(\'' . $pSafe . '\'.PadRight(8, [char]0).Substring(0,8)); $enc=$des.CreateEncryptor(); $res=$enc.TransformFinalBlock($pBytes,0,8); [System.BitConverter]::ToString($res).Replace(\'-\',\'\').ToLower()"';
+            $out = trim(shell_exec($psCmd) ?: '');
+            if (preg_match('/^[a-f0-9]{16}$/i', $out)) {
+                return strtolower($out);
+            }
+            return '51bb787873401462';
+        });
     }
 }

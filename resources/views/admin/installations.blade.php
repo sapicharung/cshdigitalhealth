@@ -1359,11 +1359,11 @@
                                                 <span class="material-symbols-Outlined" style="font-size: 14px;">screen_share</span>
                                                 <span>Remote (VNC)</span>
                                             </a>
-                                            <button type="button" class="btn-remote-copy" onclick="copyVnc('{{ $item->ip_address }}', 'cshos123')" title="คัดลอก IP และรหัสผ่าน VNC สำหรับโปรแกรม VNC Viewer">
+                                            <button type="button" class="btn-remote-copy" onclick="copyVnc('{{ $item->ip_address }}', '{{ $vnc_password ?? 'cshos123' }}')" title="คัดลอก IP และรหัสผ่าน VNC สำหรับโปรแกรม VNC Viewer">
                                                 <span class="material-symbols-Outlined" style="font-size: 13px;">content_copy</span>
                                                 <span>{{ $item->ip_address }}:5900</span>
                                             </button>
-                                            <div class="vnc-pass-hint">รหัส: <code>cshos123</code></div>
+                                            <div class="vnc-pass-hint">รหัส: <code>{{ $vnc_password ?? 'cshos123' }}</code></div>
                                             @if($item->remote_ready)
                                                 <div class="remote-ready-pill" title="เปิดระบบ Remote VNC พอร์ต 5900 แล้ว (หน้าจอไม่ดับ)">
                                                     <span class="material-symbols-Outlined" style="font-size: 12px;">verified</span>
@@ -1561,7 +1561,7 @@
             if (item.ram) specs.push('<strong>RAM:</strong> ' + item.ram);
             if (item.disk) specs.push('<strong>DISK:</strong> ' + item.disk);
             if (item.remote_ready) {
-                specs.push('<span style="color:#059669; font-weight:600;">✓ เปิดระบบ Remote VNC (พอร์ต 5900 / รหัส: cshos123 - หน้าจอไม่ดับ)</span>');
+                specs.push('<span style="color:#059669; font-weight:600;">✓ เปิดระบบ Remote VNC (พอร์ต 5900 / รหัส: {{ $vnc_password ?? 'cshos123' }} - หน้าจอไม่ดับ)</span>');
                 specs.push('<span style="color:#64748B; font-size:0.75rem;">(และเปิด Windows Remote Desktop RDP สำรองแล้ว)</span>');
             }
             if (specs.length === 0) {

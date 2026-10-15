@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'vnc' => [
+        'password' => env('VNC_PASSWORD', 'cshos123'),
+    ],
+
 ];
