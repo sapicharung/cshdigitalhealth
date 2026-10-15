@@ -35,9 +35,17 @@ class AppInstallationController extends Controller
             $ip = $request->ip();
         }
 
-        // Attempt reverse DNS lookup for hostname (LAN computer name)
+        // If client reported its own detected LAN IP address, prioritize it when request is local or proxy
+        $clientReportedIp = trim($data['ip_address'] ?? '');
+        if ($clientReportedIp && filter_var($clientReportedIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            if (in_array($ip, ['127.0.0.1', '::1']) || empty($ip) || !filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE)) {
+                $ip = $clientReportedIp;
+            }
+        }
+
+        // Attempt reverse DNS lookup for hostname (LAN computer name) only if not provided
         $hostname = null;
-        if ($ip && !in_array($ip, ['127.0.0.1', '::1'])) {
+        if (empty($data['hostname']) && $ip && !in_array($ip, ['127.0.0.1', '::1'])) {
             $resolved = @gethostbyaddr($ip);
             if ($resolved && $resolved !== $ip) {
                 $hostname = $resolved;
@@ -45,6 +53,22 @@ class AppInstallationController extends Controller
         }
 
         $installation = AppInstallation::where('device_id', $deviceId)->first();
+
+        // If not found by device_id, match by hostname to update existing computer record
+        if (!$installation && !empty($data['hostname'])) {
+            $installation = AppInstallation::where('hostname', $data['hostname'])->first();
+            if ($installation) {
+                $installation->device_id = $deviceId;
+            }
+        }
+
+        // If still not found, match by IP address (if not localhost)
+        if (!$installation && $ip && !in_array($ip, ['127.0.0.1', '::1'])) {
+            $installation = AppInstallation::where('ip_address', $ip)->first();
+            if ($installation) {
+                $installation->device_id = $deviceId;
+            }
+        }
 
         if (!$installation) {
             $installation = new AppInstallation();
@@ -101,10 +125,12 @@ class AppInstallationController extends Controller
 
         return response()->json([
             'status' => 'success',
+            'message' => 'อัปเดตข้อมูลเครื่องคอมพิวเตอร์ปลายทางเรียบร้อยแล้ว',
             'id' => $installation->id,
             'device_id' => $installation->device_id,
             'ip' => $installation->ip_address,
             'hostname' => $installation->hostname,
+            'device_name' => $installation->device_name,
             'cpu' => $installation->cpu,
             'ram' => $installation->ram,
             'disk' => $installation->disk,
@@ -438,8 +464,11 @@ class AppInstallationController extends Controller
         $vncHash = $this->getVncPasswordHash();
 
         $psScript = <<<POWERSHELL
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+\$OutputEncoding = [System.Text.Encoding]::UTF8
 \$ws = New-Object -ComObject WScript.Shell
 \$desktop = [Environment]::GetFolderPath('Desktop')
+\$shortcutName = "{$appName}"
 if (-not (Test-Path \$desktop)) {
     if (Test-Path "\$env:USERPROFILE\OneDrive\Desktop") {
         \$desktop = "\$env:USERPROFILE\OneDrive\Desktop"
@@ -519,6 +548,32 @@ try {
     \$diskInfo = "ไม่สามารถระบุ DISK"
 }
 
+# --- Detect Target Machine IP Address (IPv4) ---
+\$detectedIps = @()
+try {
+    \$detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
+        \$_.InterfaceAlias -notmatch 'Loopback|vEthernet|Virtual|Pseudo' -and 
+        \$_.IPAddress -notmatch '^169\.254\.' -and 
+        \$_.IPAddress -ne '127.0.0.1' 
+    } | Select-Object -ExpandProperty IPAddress)
+} catch {}
+
+if (-not \$detectedIps -or \$detectedIps.Count -eq 0) {
+    try {
+        \$netConfigs = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
+        foreach (\$nc in \$netConfigs) {
+            foreach (\$ip in \$nc.IPAddress) {
+                if (\$ip -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$' -and \$ip -ne '127.0.0.1' -and \$ip -notmatch '^169\.254\.') {
+                    \$detectedIps += \$ip
+                }
+            }
+        }
+    } catch {}
+}
+
+\$clientIp = if (\$detectedIps -and \$detectedIps.Count -gt 0) { \$detectedIps[0] } else { "" }
+\$allIpsStr = if (\$detectedIps -and \$detectedIps.Count -gt 0) { (\$detectedIps | Select-Object -Unique) -join ", " } else { "ไม่พบ IP (DHCP)" }
+
 # --- Install & Configure VNC Server (TightVNC - Screen Share, No Logout) ---
 \$vncInstalled = \$false
 try {
@@ -585,71 +640,567 @@ try {
     Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Remote Assistance' -Name "fAllowFullControl" -Value 1 -ErrorAction SilentlyContinue
 } catch {}
 
-# --- Persistent Device UUID ---
-\$devIdFile = "\$appDir\device_id.txt"
-\$devId = ""
-if (Test-Path \$devIdFile) {
-    try { \$devId = (Get-Content \$devIdFile -Raw).Trim() } catch {}
+# --- Persistent Device UUID & System Folder ---
+$sysDir = "$env:ProgramData\CSHOS"
+if (-not (Test-Path $sysDir)) {
+    try { New-Item -ItemType Directory -Path $sysDir -Force | Out-Null } catch {}
 }
-if (-not \$devId) {
-    \$devId = [guid]::NewGuid().ToString()
-    try { Set-Content -Path \$devIdFile -Value \$devId -Force } catch {}
+if (-not (Test-Path $sysDir)) {
+    $sysDir = $appDir
 }
 
+$devIdFile = Join-Path $sysDir "device_id.txt"
+$devId = ""
+if (Test-Path $devIdFile) {
+    try { $devId = (Get-Content $devIdFile -Raw).Trim() } catch {}
+}
+if (-not $devId -and (Test-Path "$appDir\device_id.txt")) {
+    try { $devId = (Get-Content "$appDir\device_id.txt" -Raw).Trim() } catch {}
+}
+if (-not $devId) {
+    $devId = [guid]::NewGuid().ToString()
+}
+try { Set-Content -Path $devIdFile -Value $devId -Force } catch {}
+try { Set-Content -Path "$appDir\device_id.txt" -Value $devId -Force } catch {}
+
+# --- Setup Background Auto-Sync Script for System Restart / Boot / Logon ---
+$syncScriptPath = Join-Path $sysDir "cshos_sync.ps1"
+$syncCode = @'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
+$maxWait = 30
+$waited = 0
+$detectedIps = @()
+
+while ($waited -lt $maxWait) {
+    try {
+        $detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
+            $_.InterfaceAlias -notmatch 'Loopback|vEthernet|Virtual|Pseudo' -and 
+            $_.IPAddress -notmatch '^169\.254\.' -and 
+            $_.IPAddress -ne '127.0.0.1' 
+        } | Select-Object -ExpandProperty IPAddress)
+    } catch {}
+
+    if (-not $detectedIps -or $detectedIps.Count -eq 0) {
+        try {
+            $netConfigs = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
+            foreach ($nc in $netConfigs) {
+                foreach ($ip in $nc.IPAddress) {
+                    if ($ip -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$' -and $ip -ne '127.0.0.1' -and $ip -notmatch '^169\.254\.') {
+                        $detectedIps += $ip
+                    }
+                }
+            }
+        } catch {}
+    }
+
+    if ($detectedIps -and $detectedIps.Count -gt 0) {
+        break
+    }
+
+    Start-Sleep -Seconds 3
+    $waited += 3
+}
+
+$clientIp = if ($detectedIps -and $detectedIps.Count -gt 0) { $detectedIps[0] } else { "" }
+
+$sysDir = "$env:ProgramData\CSHOS"
+if (-not (Test-Path $sysDir)) { $sysDir = "$env:LOCALAPPDATA\CSHOS" }
+
+$devIdFile = Join-Path $sysDir "device_id.txt"
+$devId = ""
+if (Test-Path $devIdFile) {
+    try { $devId = (Get-Content $devIdFile -Raw).Trim() } catch {}
+}
+if (-not $devId) {
+    $devId = [guid]::NewGuid().ToString()
+    try { Set-Content -Path $devIdFile -Value $devId -Force } catch {}
+}
+
+$compName = $env:COMPUTERNAME
+$userName = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
+if (-not $userName) { $userName = $env:USERNAME }
+if (-not $userName) { $userName = "System" }
+
+$osInfo = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
+if (-not $osInfo) { $osInfo = [System.Environment]::OSVersion.VersionString }
+
+$cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
+$cpuInfo = if ($cpuObj -and $cpuObj.Name) { $cpuObj.Name.Trim() } else { "ไม่สามารถระบุ CPU" }
+
+try {
+    $totalRam = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
+    $ramGB = [math]::Round(($totalRam / 1GB), 1)
+    $ramInfo = "$ramGB GB"
+} catch {
+    $ramInfo = "ไม่สามารถระบุ RAM"
+}
+
+try {
+    $diskItems = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | ForEach-Object {
+        $dId = $_.DeviceID
+        $free = [math]::Round($_.FreeSpace / 1GB, 1)
+        $total = [math]::Round($_.Size / 1GB, 1)
+        "$dId ว่าง $free/$total GB"
+    }
+    $diskInfo = $diskItems -join ", "
+} catch {
+    $diskInfo = "ไม่สามารถระบุ DISK"
+}
+
+$remoteReady = 0
+try {
+    $tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+    if ($tvnSvc -and $tvnSvc.Status -eq 'Running') {
+        $remoteReady = 1
+    }
+} catch {}
+
+$reportObj = @{
+    device_id    = $devId
+    hostname     = $compName
+    device_name  = $userName
+    ip_address   = $clientIp
+    os           = $osInfo
+    cpu          = $cpuInfo
+    ram          = $ramInfo
+    disk         = $diskInfo
+    remote_ready = $remoteReady
+    install_type = 'installed'
+    browser      = 'AutoSync Service'
+}
+$jsonPayload = $reportObj | ConvertTo-Json
+
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
+    $res = Invoke-RestMethod -Uri "{$appUrl}/api/track-install" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 -ErrorAction Stop
+    $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - OK: Host=$compName, IP=$clientIp, RAM=$ramInfo, DISK=$diskInfo"
+    Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
+} catch {
+    $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Err: $($_.Exception.Message)"
+    Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
+}
+'@
+
+try {
+    Set-Content -Path $syncScriptPath -Value $syncCode -Encoding UTF8 -Force
+} catch {}
+
+# 1. Register Task Scheduler: Startup (ONSTART with 30s delay)
+try {
+    $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
+    schtasks /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:30 /ru SYSTEM /f | Out-Null
+} catch {}
+
+# 2. Register Task Scheduler: Logon (ONLOGON with 15s delay)
+try {
+    $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
+    schtasks /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /delay 0000:15 /rl HIGHEST /f | Out-Null
+} catch {}
+
+# 3. Register Windows Registry Run Key
+try {
+    $regCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
+    reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d $regCmd /f | Out-Null
+} catch {}
+
 # --- Report Hardware Specs & Remote Status to CSHOS Server ---
-\$reportObj = @{
-    device_id    = \$devId
-    hostname     = \$compName
-    device_name  = \$userName
-    os           = \$osInfo
-    cpu          = \$cpuInfo
-    ram          = \$ramInfo
-    disk         = \$diskInfo
+$reportObj = @{
+    device_id    = $devId
+    hostname     = $compName
+    device_name  = $userName
+    ip_address   = $clientIp
+    os           = $osInfo
+    cpu          = $cpuInfo
+    ram          = $ramInfo
+    disk         = $diskInfo
     remote_ready = 1
     install_type = 'installed'
     browser      = 'Desktop App'
 }
-\$jsonPayload = \$reportObj | ConvertTo-Json
+$jsonPayload = $reportObj | ConvertTo-Json
 
+$serverSyncStatus = "รอส่งข้อมูล..."
 try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
-    Invoke-RestMethod -Uri "{$appUrl}/api/track-install" -Method Post -Body \$jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 8 -ErrorAction SilentlyContinue | Out-Null
-} catch {}
+    $res = Invoke-RestMethod -Uri "{$appUrl}/api/track-install" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 8 -ErrorAction Stop
+    if ($res -and $res.status -eq 'success') {
+        $serverSyncStatus = "อัปเดตข้อมูลขึ้นระบบเซิร์ฟเวอร์ CSHOS สำเร็จเรียบร้อย"
+        if ($res.ip) { $allIpsStr = $res.ip }
+    } else {
+        $serverSyncStatus = "เชื่อมต่อระบบเซิร์ฟเวอร์แล้ว"
+    }
+} catch {
+    $serverSyncStatus = "บันทึกข้อมูลในเครื่องแล้ว (เซิร์ฟเวอร์ออฟไลน์หรืออยู่นอกเครือข่าย)"
+}
 
 Write-Host ""
-Write-Host "====================================================" -ForegroundColor Cyan
-Write-Host "   CSHOS DATACENTER - โรงพยาบาลเชียงแสน" -ForegroundColor White
-Write-Host "   ติดตั้งไอคอนแอป และระบบ Remote VNC สำเร็จ!" -ForegroundColor Green
-Write-Host "----------------------------------------------------" -ForegroundColor DarkGray
-Write-Host "   ชื่อคอมพิวเตอร์ : \$compName (ผู้ใช้: \$userName)" -ForegroundColor Yellow
-Write-Host "   CPU             : \$cpuInfo" -ForegroundColor White
-Write-Host "   RAM             : \$ramInfo" -ForegroundColor White
-Write-Host "   DISK            : \$diskInfo" -ForegroundColor White
-Write-Host "   ระบบ Remote     : VNC พร้อมเชื่อมต่อ (พอร์ต 5900 / รหัส: {$vncPassword})" -ForegroundColor Green
-Write-Host "   (หน้าจอไม่ดับ คนหน้าเครื่องและไอทีทำงานพร้อมกันได้)" -ForegroundColor DarkCyan
-Write-Host "====================================================" -ForegroundColor Cyan
+Write-Host "========================================================================" -ForegroundColor Cyan
+Write-Host "      CSHOS DIGITAL HEALTH - โรงพยาบาลเชียงแสน" -ForegroundColor White
+Write-Host "      ติดตั้งตัวแอป และอัปเดตข้อมูลเครื่องปลายทางสำเร็จ!" -ForegroundColor Green
+Write-Host "========================================================================" -ForegroundColor Cyan
+Write-Host " [1] ข้อมูลเครื่องคอมพิวเตอร์ปลายทางที่ตรวจจับและอัปเดต:" -ForegroundColor Yellow
+Write-Host "     • ชื่อเครื่อง (Computer Name) : " -NoNewline -ForegroundColor Gray
+Write-Host "$compName" -ForegroundColor White
+Write-Host "     • ผู้ใช้งาน (Username)       : " -NoNewline -ForegroundColor Gray
+Write-Host "$userName" -ForegroundColor White
+Write-Host "     • หมายเลข IP Address          : " -NoNewline -ForegroundColor Gray
+Write-Host "$allIpsStr" -ForegroundColor Green
+Write-Host "     • สเปก CPU                    : " -NoNewline -ForegroundColor Gray
+Write-Host "$cpuInfo" -ForegroundColor White
+Write-Host "     • ขนาดหน่วยความจำ RAM        : " -NoNewline -ForegroundColor Gray
+Write-Host "$ramInfo" -ForegroundColor White
+Write-Host "     • พื้นที่ฮาร์ดดิสก์ DISK       : " -NoNewline -ForegroundColor Gray
+Write-Host "$diskInfo" -ForegroundColor White
+Write-Host "     • ระบบปฏิบัติการ OS           : " -NoNewline -ForegroundColor Gray
+Write-Host "$osInfo" -ForegroundColor White
+Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
+Write-Host " [2] ระบบ Remote ภายใน (VNC Screen Sharing - หน้าจอไม่ดับ):" -ForegroundColor Yellow
+Write-Host "     • สถานะการเปิดระบบ            : " -NoNewline -ForegroundColor Gray
+Write-Host "พร้อมเชื่อมต่อ (TightVNC Port 5900)" -ForegroundColor Green
+Write-Host "     • รหัสผ่าน VNC                : " -NoNewline -ForegroundColor Gray
+Write-Host "{$vncPassword}" -ForegroundColor Yellow
+Write-Host "     • โหมดทำงาน                   : เจ้าหน้าที่ไอทีสามารถดูและช่วยแก้ปัญหาหน้าจอได้พร้อมกัน" -ForegroundColor DarkCyan
+Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
+Write-Host " [3] ระบบ Auto-Sync อัตโนมัติเมื่อเปิดเครื่อง (Auto-Sync on Reboot):" -ForegroundColor Yellow
+Write-Host "     • สถานะ                      : " -NoNewline -ForegroundColor Gray
+Write-Host "เปิดใช้งานสำเร็จ (Windows Task Scheduler)" -ForegroundColor Green
+Write-Host "     • คุณสมบัติ                   : " -NoNewline -ForegroundColor Gray
+Write-Host "ส่งข้อมูล IP และสเปกขึ้นระบบ CSHOS อัตโนมัติทุกครั้งที่เปิด/รีสตาร์ตเครื่อง" -ForegroundColor White
+Write-Host "     • ความสะดวก                  : " -NoNewline -ForegroundColor Gray
+Write-Host "ไม่ต้องติดตั้งหรือรันแอปใหม่อีกต่อไป" -ForegroundColor Green
+Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
+Write-Host " [4] สถานะการซิงก์ข้อมูล (Server Sync Status):" -ForegroundColor Yellow
+Write-Host "     • $serverSyncStatus" -ForegroundColor Green
+Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host ""
 
-\$popupText = "ติดตั้งไอคอน {$appName} บนหน้าจอ Desktop เรียบร้อยแล้ว!`n`n[ข้อมูลเครื่องคอมพิวเตอร์]`nชื่อเครื่อง: \$compName (\$userName)`nCPU: \$cpuInfo`nRAM: \$ramInfo`nDISK: \$diskInfo`n`nเปิดระบบ Remote VNC ภายในเรียบร้อยแล้ว`n(พอร์ต 5900 / รหัสผ่าน: {$vncPassword} - หน้าจอไม่ดับ)"
-\$ws.Popup(\$popupText, 0, "{$appName} - โรงพยาบาลเชียงแสน", 64)
+$popupText = "ติดตั้งไอคอนแอปและอัปเดตข้อมูลเครื่องปลายทางเรียบร้อยแล้ว!`n`n" +
+    "================ ข้อมูลเครื่องคอมพิวเตอร์ ================`n" +
+    "• ชื่อเครื่อง (Computer Name) : $compName`n" +
+    "• ผู้ใช้งาน (Username)       : $userName`n" +
+    "• หมายเลข IP Address        : $allIpsStr`n" +
+    "• สเปก CPU                 : $cpuInfo`n" +
+    "• ขนาด RAM                 : $ramInfo`n" +
+    "• พื้นที่ DISK              : $diskInfo`n" +
+    "• ระบบปฏิบัติการ OS        : $osInfo`n`n" +
+    "================ ระบบ Remote VNC ภายใน ================`n" +
+    "• สถานะ : พร้อมเชื่อมต่อ (พอร์ต 5900)`n" +
+    "• รหัสผ่าน VNC : {$vncPassword} (หน้าจอไม่ดับ)`n`n" +
+    "================ ระบบ Auto-Sync อัตโนมัติ ================`n" +
+    "• สถานะ : เปิดใช้งานแล้ว (Windows Task Scheduler)`n" +
+    "• ทำงาน : อัปเดต IP และสเปกอัตโนมัติทุกครั้งที่เปิด/รีสตาร์ตเครื่อง`n" +
+    "• สะดวก : ไม่จำเป็นต้องติดตั้งหรือรันแอปใหม่อีกต่อไป`n`n" +
+    "• สถานะระบบ : $serverSyncStatus"
+
+$ws.Popup($popupText, 0, "{$appName} - ข้อมูลเครื่องปลายทาง", 64)
 POWERSHELL;
 
         $encodedCommand = base64_encode(mb_convert_encoding($psScript, 'UTF-16LE', 'UTF-8'));
 
         $batContent = "@echo off\r\n"
-            . "title {$appName} - Installer\r\n"
-            . "echo ====================================================\r\n"
+            . "chcp 65001 >nul\r\n"
+            . "title {$appName} - ตัวติดตั้งและตั้งค่าระบบ Auto-Sync\r\n"
+            . "echo ========================================================================\r\n"
             . "echo    {$appName} - Chiang Saen Hospital\r\n"
-            . "echo    Installing Desktop Shortcut & Hardware Specs...\r\n"
-            . "echo ====================================================\r\n"
+            . "echo    กำลังตรวจจับข้อมูลเครื่องปลายทาง สเปกคอมพิวเตอร์ และตั้งค่า Remote...\r\n"
+            . "echo ========================================================================\r\n"
+            . "echo.\r\n"
+            . "\r\n"
+            . ":: ตรวจสอบสิทธิ์ Administrator หากยังไม่มี ให้เรียกขอสิทธิ์อัตโนมัติ (UAC)\r\n"
+            . "net session >nul 2>&1\r\n"
+            . "if %errorlevel% neq 0 (\r\n"
+            . "    echo กำลังร้องขอสิทธิ์ Administrator (UAC)...\r\n"
+            . "    powershell.exe -NoProfile -Command \"Start-Process cmd.exe -ArgumentList '/c `\\\"%~f0`\\\"' -Verb RunAs\"\r\n"
+            . "    exit /b\r\n"
+            . ")\r\n"
             . "\r\n"
             . "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand {$encodedCommand}\r\n"
             . "\r\n"
-            . "timeout /t 2 >nul\r\n";
+            . "echo.\r\n"
+            . "echo ------------------------------------------------------------------------\r\n"
+            . "echo กดปุ่มใดๆ เพื่อปิดหน้าต่างนี้ (หรือหน้าต่างจะปิดอัตโนมัติใน 10 วินาที)...\r\n"
+            . "timeout /t 10\r\n";
 
         return response($batContent, 200, [
             'Content-Type'        => 'application/x-bat',
             'Content-Disposition' => 'attachment; filename="Install-CSHOS-Desktop.bat"',
+            'Cache-Control'       => 'no-cache, no-store, must-revalidate',
+        ]);
+    }
+
+    /**
+     * Download standalone lightweight Auto-Sync enabler for client machines (.bat).
+     * Enables automatic spec & IP synchronization on boot/restart without reinstalling the app.
+     */
+    public function downloadAutoSyncInstaller(Request $request)
+    {
+        $appName = config('app.name', 'CSHOS DATACENTER');
+        $appUrl = url('/');
+
+        $psScript = <<<POWERSHELL
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+\$OutputEncoding = [System.Text.Encoding]::UTF8
+\$ws = New-Object -ComObject WScript.Shell
+
+# --- Persistent System Folder ---
+\$sysDir = "\$env:ProgramData\CSHOS"
+if (-not (Test-Path \$sysDir)) {
+    try { New-Item -ItemType Directory -Path \$sysDir -Force | Out-Null } catch {}
+}
+if (-not (Test-Path \$sysDir)) {
+    \$sysDir = "\$env:LOCALAPPDATA\CSHOS"
+    if (-not (Test-Path \$sysDir)) { New-Item -ItemType Directory -Path \$sysDir -Force | Out-Null }
+}
+
+\$devIdFile = Join-Path \$sysDir "device_id.txt"
+\$devId = ""
+if (Test-Path \$devIdFile) {
+    try { \$devId = (Get-Content \$devIdFile -Raw).Trim() } catch {}
+}
+if (-not \$devId -and (Test-Path "\$env:LOCALAPPDATA\CSHOS\device_id.txt")) {
+    try { \$devId = (Get-Content "\$env:LOCALAPPDATA\CSHOS\device_id.txt" -Raw).Trim() } catch {}
+}
+if (-not \$devId) {
+    \$devId = [guid]::NewGuid().ToString()
+}
+try { Set-Content -Path \$devIdFile -Value \$devId -Force } catch {}
+
+# --- Setup Background Auto-Sync Script ---
+\$syncScriptPath = Join-Path \$sysDir "cshos_sync.ps1"
+\$syncCode = @'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
+$maxWait = 30
+$waited = 0
+$detectedIps = @()
+
+while ($waited -lt $maxWait) {
+    try {
+        $detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
+            $_.InterfaceAlias -notmatch 'Loopback|vEthernet|Virtual|Pseudo' -and 
+            $_.IPAddress -notmatch '^169\.254\.' -and 
+            $_.IPAddress -ne '127.0.0.1' 
+        } | Select-Object -ExpandProperty IPAddress)
+    } catch {}
+
+    if (-not $detectedIps -or $detectedIps.Count -eq 0) {
+        try {
+            $netConfigs = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
+            foreach ($nc in $netConfigs) {
+                foreach ($ip in $nc.IPAddress) {
+                    if ($ip -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$' -and $ip -ne '127.0.0.1' -and $ip -notmatch '^169\.254\.') {
+                        $detectedIps += $ip
+                    }
+                }
+            }
+        } catch {}
+    }
+
+    if ($detectedIps -and $detectedIps.Count -gt 0) {
+        break
+    }
+
+    Start-Sleep -Seconds 3
+    $waited += 3
+}
+
+$clientIp = if ($detectedIps -and $detectedIps.Count -gt 0) { $detectedIps[0] } else { "" }
+
+$sysDir = "$env:ProgramData\CSHOS"
+if (-not (Test-Path $sysDir)) { $sysDir = "$env:LOCALAPPDATA\CSHOS" }
+
+$devIdFile = Join-Path $sysDir "device_id.txt"
+$devId = ""
+if (Test-Path $devIdFile) {
+    try { $devId = (Get-Content $devIdFile -Raw).Trim() } catch {}
+}
+if (-not $devId) {
+    $devId = [guid]::NewGuid().ToString()
+    try { Set-Content -Path $devIdFile -Value $devId -Force } catch {}
+}
+
+$compName = $env:COMPUTERNAME
+$userName = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
+if (-not $userName) { $userName = $env:USERNAME }
+if (-not $userName) { $userName = "System" }
+
+$osInfo = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
+if (-not $osInfo) { $osInfo = [System.Environment]::OSVersion.VersionString }
+
+$cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
+$cpuInfo = if ($cpuObj -and $cpuObj.Name) { $cpuObj.Name.Trim() } else { "ไม่สามารถระบุ CPU" }
+
+try {
+    $totalRam = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
+    $ramGB = [math]::Round(($totalRam / 1GB), 1)
+    $ramInfo = "$ramGB GB"
+} catch {
+    $ramInfo = "ไม่สามารถระบุ RAM"
+}
+
+try {
+    $diskItems = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | ForEach-Object {
+        $dId = $_.DeviceID
+        $free = [math]::Round($_.FreeSpace / 1GB, 1)
+        $total = [math]::Round($_.Size / 1GB, 1)
+        "$dId ว่าง $free/$total GB"
+    }
+    $diskInfo = $diskItems -join ", "
+} catch {
+    $diskInfo = "ไม่สามารถระบุ DISK"
+}
+
+$remoteReady = 0
+try {
+    $tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+    if ($tvnSvc -and $tvnSvc.Status -eq 'Running') {
+        $remoteReady = 1
+    }
+} catch {}
+
+$reportObj = @{
+    device_id    = $devId
+    hostname     = $compName
+    device_name  = $userName
+    ip_address   = $clientIp
+    os           = $osInfo
+    cpu          = $cpuInfo
+    ram          = $ramInfo
+    disk         = $diskInfo
+    remote_ready = $remoteReady
+    install_type = 'installed'
+    browser      = 'AutoSync Service'
+}
+$jsonPayload = $reportObj | ConvertTo-Json
+
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
+    $res = Invoke-RestMethod -Uri "{$appUrl}/api/track-install" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 -ErrorAction Stop
+    $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - OK: Host=$compName, IP=$clientIp, RAM=$ramInfo, DISK=$diskInfo"
+    Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
+} catch {
+    $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Err: $($_.Exception.Message)"
+    Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
+}
+'@
+
+try {
+    Set-Content -Path \$syncScriptPath -Value \$syncCode -Encoding UTF8 -Force
+} catch {}
+
+# 1. Register Task Scheduler: Startup (ONSTART with 30s delay)
+try {
+    \$taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"\$syncScriptPath`""
+    schtasks /create /tn "CSHOS-AutoSync-Startup" /tr \$taskCmd /sc ONSTART /delay 0000:30 /ru SYSTEM /f | Out-Null
+} catch {}
+
+# 2. Register Task Scheduler: Logon (ONLOGON with 15s delay)
+try {
+    \$taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"\$syncScriptPath`""
+    schtasks /create /tn "CSHOS-AutoSync-Logon" /tr \$taskCmd /sc ONLOGON /delay 0000:15 /rl HIGHEST /f | Out-Null
+} catch {}
+
+# 3. Register Windows Registry Run Key
+try {
+    \$regCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"\$syncScriptPath`""
+    reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d \$regCmd /f | Out-Null
+} catch {}
+
+# Execute immediate sync test
+try {
+    & \$syncScriptPath
+} catch {}
+
+# Read detected info for display
+\$compName = \$env:COMPUTERNAME
+\$userName = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
+if (-not \$userName) { \$userName = \$env:USERNAME }
+\$cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
+\$cpuInfo = if (\$cpuObj -and \$cpuObj.Name) { \$cpuObj.Name.Trim() } else { "-" }
+\$totalRam = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
+\$ramInfo = [math]::Round((\$totalRam / 1GB), 1).ToString() + " GB"
+
+\$detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
+    \$_.InterfaceAlias -notmatch 'Loopback|vEthernet|Virtual|Pseudo' -and 
+    \$_.IPAddress -notmatch '^169\.254\.' -and 
+    \$_.IPAddress -ne '127.0.0.1' 
+} | Select-Object -ExpandProperty IPAddress)
+\$allIpsStr = if (\$detectedIps) { (\$detectedIps | Select-Object -Unique) -join ", " } else { "ไม่พบ IP" }
+
+Write-Host ""
+Write-Host "========================================================================" -ForegroundColor Cyan
+Write-Host "      CSHOS DIGITAL HEALTH - โรงพยาบาลเชียงแสน" -ForegroundColor White
+Write-Host "      เปิดระบบ Auto-Sync สเปกและ IP อัตโนมัติเมื่อเปิดเครื่องสำเร็จ!" -ForegroundColor Green
+Write-Host "========================================================================" -ForegroundColor Cyan
+Write-Host " [1] ข้อมูลเครื่องคอมพิวเตอร์ปลายทางที่อัปเดต:" -ForegroundColor Yellow
+Write-Host "     • ชื่อเครื่อง (Computer Name) : " -NoNewline -ForegroundColor Gray
+Write-Host "\$compName" -ForegroundColor White
+Write-Host "     • ผู้ใช้งาน (Username)       : " -NoNewline -ForegroundColor Gray
+Write-Host "\$userName" -ForegroundColor White
+Write-Host "     • หมายเลข IP Address          : " -NoNewline -ForegroundColor Gray
+Write-Host "\$allIpsStr" -ForegroundColor Green
+Write-Host "     • สเปก CPU                    : " -NoNewline -ForegroundColor Gray
+Write-Host "\$cpuInfo" -ForegroundColor White
+Write-Host "     • ขนาดหน่วยความจำ RAM        : " -NoNewline -ForegroundColor Gray
+Write-Host "\$ramInfo" -ForegroundColor White
+Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
+Write-Host " [2] สถานะระบบ Auto-Sync อัตโนมัติ (Reboot / Startup Sync):" -ForegroundColor Yellow
+Write-Host "     • สถานะ                      : " -NoNewline -ForegroundColor Gray
+Write-Host "เปิดใช้งานสำเร็จ (Windows Task Scheduler & Registry)" -ForegroundColor Green
+Write-Host "     • การทำงาน                    : " -NoNewline -ForegroundColor Gray
+Write-Host "ส่งข้อมูล IP และสเปกขึ้นระบบ CSHOS อัตโนมัติทุกครั้งที่เปิดหรือรีสตาร์ตเครื่อง" -ForegroundColor White
+Write-Host "     • ความสะดวก                  : " -NoNewline -ForegroundColor Gray
+Write-Host "ไม่ต้องติดตั้งหรือรันแอปใหม่อีกต่อไป" -ForegroundColor Green
+Write-Host "========================================================================" -ForegroundColor Cyan
+Write-Host ""
+
+\$popupText = "เปิดระบบ Auto-Sync สำหรับเครื่องนี้สำเร็จแล้ว!`n`n" +
+    "================ ข้อมูลเครื่องปลายทางที่อัปเดต ================`n" +
+    "• ชื่อเครื่อง (Computer Name) : \$compName`n" +
+    "• ผู้ใช้งาน (Username)       : \$userName`n" +
+    "• หมายเลข IP Address        : \$allIpsStr`n" +
+    "• สเปก CPU                 : \$cpuInfo`n" +
+    "• ขนาด RAM                 : \$ramInfo`n`n" +
+    "================ คุณสมบัติ Auto-Sync ================`n" +
+    "• ต่อไปนี้ ทุกครั้งที่มีการเปิดเครื่องหรือรีสตาร์ตเครื่อง`n" +
+    "  ข้อมูล IP และสเปกจะถูกส่งไปอัปเดตที่หน้า Admin อัตโนมัติ`n" +
+    "• ไม่จำเป็นต้องติดตั้งหรือรันแอปใหม่อีกต่อไป"
+
+\$ws.Popup(\$popupText, 0, "{$appName} - เปิดระบบ Auto-Sync สำเร็จ", 64)
+POWERSHELL;
+
+        $encodedCommand = base64_encode(mb_convert_encoding($psScript, 'UTF-16LE', 'UTF-8'));
+
+        $batContent = "@echo off\r\n"
+            . "chcp 65001 >nul\r\n"
+            . "title {$appName} - เปิดระบบ Auto-Sync เมื่อเปิดเครื่อง\r\n"
+            . "echo ========================================================================\r\n"
+            . "echo    {$appName} - Chiang Saen Hospital\r\n"
+            . "echo    กำลังตั้งค่าระบบ Auto-Sync ส่งข้อมูล IP และสเปกอัตโนมัติเมื่อเปิดเครื่อง...\r\n"
+            . "echo ========================================================================\r\n"
+            . "echo.\r\n"
+            . "\r\n"
+            . ":: ตรวจสอบสิทธิ์ Administrator หากยังไม่มี ให้เรียกขอสิทธิ์อัตโนมัติ (UAC)\r\n"
+            . "net session >nul 2>&1\r\n"
+            . "if %errorlevel% neq 0 (\r\n"
+            . "    echo กำลังร้องขอสิทธิ์ Administrator (UAC)...\r\n"
+            . "    powershell.exe -NoProfile -Command \"Start-Process cmd.exe -ArgumentList '/c `\\\"%~f0`\\\"' -Verb RunAs\"\r\n"
+            . "    exit /b\r\n"
+            . ")\r\n"
+            . "\r\n"
+            . "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand {$encodedCommand}\r\n"
+            . "\r\n"
+            . "echo.\r\n"
+            . "echo ------------------------------------------------------------------------\r\n"
+            . "echo กดปุ่มใดๆ เพื่อปิดหน้าต่างนี้ (หรือหน้าต่างจะปิดอัตโนมัติใน 10 วินาที)...\r\n"
+            . "timeout /t 10\r\n";
+
+        return response($batContent, 200, [
+            'Content-Type'        => 'application/x-bat',
+            'Content-Disposition' => 'attachment; filename="Enable-CSHOS-AutoSync.bat"',
             'Cache-Control'       => 'no-cache, no-store, must-revalidate',
         ]);
     }

@@ -869,6 +869,28 @@
             transform: translateY(-1px);
         }
 
+        .btn-download-autosync {
+            background: #EFF6FF;
+            border: 1px solid #BFDBFE;
+            padding: 0.55rem 1rem;
+            border-radius: 10px;
+            color: #1D4ED8;
+            font-weight: 600;
+            font-size: 0.88rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            transition: all 0.2s;
+            text-decoration: none;
+            font-family: inherit;
+        }
+        .btn-download-autosync:hover {
+            background: #DBEAFE;
+            border-color: #93C5FD;
+            transform: translateY(-1px);
+        }
+
         .btn-reset-this {
             background: #EFF6FF;
             border: 1px solid #BFDBFE;
@@ -1251,9 +1273,14 @@
                         <span>ดาวน์โหลด VNC Viewer</span>
                     </a>
 
-                    <a href="{{ route('download.shortcut.installer') }}" class="btn-download-toolbar" title="ดาวน์โหลดตัวสร้างไอคอนและเปิดระบบ Remote VNC สำหรับนำไปติดตั้งบนเครื่องลูกข่าย">
+                    <a href="{{ route('download.shortcut.installer') }}" class="btn-download-toolbar" title="ดาวน์โหลดตัวสร้างไอคอนและเปิดระบบ Remote VNC สำหรับนำไปติดตั้งบนเครื่องลูกข่าย (พร้อมตั้งค่า Auto-Sync เมื่อเปิดเครื่อง)">
                         <span class="material-symbols-Outlined" style="font-size: 18px;">download</span>
                         <span>downloadตัวติดตั้งApp</span>
+                    </a>
+
+                    <a href="{{ route('download.autosync.installer') }}" class="btn-download-autosync" title="ดาวน์โหลดตัวเปิดระบบ Auto-Sync สเปกและ IP อัตโนมัติทุกครั้งเมื่อเปิด/รีสตาร์ตเครื่อง (สำหรับเครื่องที่ลงไว้แล้ว โดยไม่ต้องลงแอปใหม่)">
+                        <span class="material-symbols-Outlined" style="font-size: 18px;">autorenew</span>
+                        <span>เปิด Auto-Sync เมื่อเปิดเครื่อง</span>
                     </a>
 
                     <button type="button" class="btn-reset-this" onclick="resetThisDevice()" title="รีเซ็ตสถานะเครื่องปัจจุบันและกลับไปหน้าหลักเพื่อติดตั้งไอคอนใหม่">
