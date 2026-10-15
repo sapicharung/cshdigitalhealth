@@ -99,6 +99,14 @@ class AppInstallationController extends Controller
             $installation->os = $data['os'];
         }
 
+        if (!empty($data['os_version'])) {
+            $installation->os_version = $data['os_version'];
+        }
+
+        if (!empty($data['office_version'])) {
+            $installation->office_version = $data['office_version'];
+        }
+
         if (!empty($data['browser'])) {
             $installation->browser = $data['browser'];
         }
@@ -134,6 +142,8 @@ class AppInstallationController extends Controller
             'cpu' => $installation->cpu,
             'ram' => $installation->ram,
             'disk' => $installation->disk,
+            'os_version' => $installation->os_version,
+            'office_version' => $installation->office_version,
             'remote_ready' => $installation->remote_ready,
             'last_active' => $installation->last_active_at->toDateTimeString(),
         ]);
@@ -304,6 +314,8 @@ class AppInstallationController extends Controller
                 'แผนก/ฝ่าย',
                 'ชื่อเครื่อง/เจ้าของ',
                 'ระบบปฏิบัติการ (OS)',
+                'เวอร์ชั่นระบบปฏิบัติการ (OS Version)',
+                'เวอร์ชั่น Microsoft Office',
                 'เบราว์เซอร์',
                 'CPU (หน่วยประมวลผล)',
                 'RAM (หน่วยความจำ)',
@@ -328,6 +340,8 @@ class AppInstallationController extends Controller
                         $item->department ?? '-',
                         $item->device_name ?? '-',
                         $item->os ?? '-',
+                        $item->os_version ?? ($item->os ?? '-'),
+                        $item->office_version ?? 'ไม่ได้ติดตั้ง / ไม่พบข้อมูล',
                         $item->browser ?? '-',
                         $item->cpu ?? '-',
                         $item->ram ?? '-',
@@ -466,57 +480,139 @@ class AppInstallationController extends Controller
         $psTemplate = <<<'POWERSHELL'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
+
+# Enable TLS 1.2/1.1 for modern web requests on all Windows versions
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
+} catch {}
+
 $ws = New-Object -ComObject WScript.Shell
-$desktop = [Environment]::GetFolderPath('Desktop')
 $shortcutName = "{{APP_NAME}}"
-if (-not (Test-Path $desktop)) {
-    if (Test-Path "$env:USERPROFILE\OneDrive\Desktop") {
-        $desktop = "$env:USERPROFILE\OneDrive\Desktop"
-    }
-}
-$shortcutPath = Join-Path $desktop "{{APP_NAME}}.lnk"
-$sc = $ws.CreateShortcut($shortcutPath)
 $appUrl = '{{APP_URL}}'
 
-$chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
-if (-not (Test-Path $chrome)) {
-    $chrome = 'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe'
-}
-$edge = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
-if (-not (Test-Path $edge)) {
-    $edge = 'C:\Program Files\Microsoft\Edge\Application\msedge.exe'
-}
-
-if (Test-Path $chrome) {
-    $sc.TargetPath = $chrome
-    $sc.Arguments = "--app=$appUrl"
-} elseif (Test-Path $edge) {
-    $sc.TargetPath = $edge
-    $sc.Arguments = "--app=$appUrl"
-} else {
-    $sc.TargetPath = $appUrl
+# Locate Google Chrome or Microsoft Edge
+$browserExe = ""
+$browserCandidates = @(
+    'C:\Program Files\Google\Chrome\Application\chrome.exe',
+    'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+    "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe",
+    'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
+    'C:\Program Files\Microsoft\Edge\Application\msedge.exe'
+)
+foreach ($cand in $browserCandidates) {
+    if (Test-Path $cand) {
+        $browserExe = $cand
+        break
+    }
 }
 
-$appDir = "$env:LOCALAPPDATA\CSHOS"
-if (-not (Test-Path $appDir)) {
-    New-Item -ItemType Directory -Path $appDir -Force | Out-Null
+# --- Shared System Directory for CSHOS assets (All local users have read access) ---
+$sysDir = "$env:ProgramData\CSHOS"
+if (-not (Test-Path $sysDir)) {
+    try { New-Item -ItemType Directory -Path $sysDir -Force | Out-Null } catch {}
 }
-$icoPath = "$appDir\app-icon.ico"
-if (-not (Test-Path $icoPath)) {
+if (-not (Test-Path $sysDir)) {
+    $sysDir = "$env:LOCALAPPDATA\CSHOS"
+    if (-not (Test-Path $sysDir)) { New-Item -ItemType Directory -Path $sysDir -Force | Out-Null }
+}
+
+# --- Download App Icon ---
+$icoPath = Join-Path $sysDir "app-icon.ico"
+$iconDownloaded = $false
+try {
+    $wc = New-Object System.Net.WebClient
+    $wc.Headers.Add("User-Agent", "CSHOS-Installer")
+    $wc.DownloadFile('{{ICON_URL}}', $icoPath)
+    if ((Test-Path $icoPath) -and ((Get-Item $icoPath).Length -gt 100)) {
+        $iconDownloaded = $true
+    }
+} catch {}
+
+if (-not $iconDownloaded) {
     try {
-        Invoke-WebRequest -Uri '{{ICON_URL}}' -OutFile $icoPath -UseBasicParsing -TimeoutSec 4 -ErrorAction SilentlyContinue
+        Invoke-WebRequest -Uri '{{ICON_URL}}' -OutFile $icoPath -UseBasicParsing -TimeoutSec 15 -ErrorAction SilentlyContinue
+        if ((Test-Path $icoPath) -and ((Get-Item $icoPath).Length -gt 100)) {
+            $iconDownloaded = $true
+        }
     } catch {}
 }
-if (Test-Path $icoPath) {
-    $sc.IconLocation = "$icoPath,0"
+
+# --- Detect All Target Desktops (Public Desktop + Logged-in User Desktops) ---
+$targetDesktops = @()
+
+# 1. Common / Public Desktop (Displays on ALL users' screens immediately)
+$commonDesktop = [Environment]::GetFolderPath('CommonDesktopDirectory')
+if ($commonDesktop -and (Test-Path $commonDesktop)) {
+    $targetDesktops += $commonDesktop
 }
 
-$sc.Description = "{{APP_NAME}} - โรงพยาบาลเชียงแสน"
-$sc.Save()
+# 2. Current User Desktop
+$userDesktop = [Environment]::GetFolderPath('Desktop')
+if ($userDesktop -and (Test-Path $userDesktop)) {
+    $targetDesktops += $userDesktop
+}
+
+# 3. Interactive Logged-in Console User Desktop
+try {
+    $activeUser = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
+    if ($activeUser) {
+        $uName = $activeUser.Split('\')[-1]
+        $uDesk = "C:\Users\$uName\Desktop"
+        if (Test-Path $uDesk) { $targetDesktops += $uDesk }
+        $uOneDesk = "C:\Users\$uName\OneDrive\Desktop"
+        if (Test-Path $uOneDesk) { $targetDesktops += $uOneDesk }
+    }
+} catch {}
+
+# 4. Current Profile OneDrive Desktop
+if (Test-Path "$env:USERPROFILE\OneDrive\Desktop") {
+    $targetDesktops += "$env:USERPROFILE\OneDrive\Desktop"
+}
+
+# 5. All existing user profiles under C:\Users
+try {
+    $userDirs = Get-ChildItem -Path "C:\Users" -Directory -ErrorAction SilentlyContinue | Where-Object { 
+        $_.Name -notmatch '^(Public|Default|Default User|All Users)$' 
+    }
+    foreach ($ud in $userDirs) {
+        $dPath = Join-Path $ud.FullName "Desktop"
+        if (Test-Path $dPath) { $targetDesktops += $dPath }
+        $oPath = Join-Path $ud.FullName "OneDrive\Desktop"
+        if (Test-Path $oPath) { $targetDesktops += $oPath }
+    }
+} catch {}
+
+$targetDesktops = $targetDesktops | Select-Object -Unique
+
+# --- Install Desktop Shortcut to All Detected Desktops ---
+$installedCount = 0
+foreach ($desk in $targetDesktops) {
+    try {
+        $shortcutPath = Join-Path $desk "$shortcutName.lnk"
+        $sc = $ws.CreateShortcut($shortcutPath)
+        if ($browserExe) {
+            $sc.TargetPath = $browserExe
+            $sc.Arguments = "--app=`"$appUrl`""
+        } else {
+            $sc.TargetPath = $appUrl
+        }
+        $sc.WorkingDirectory = $sysDir
+        $sc.Description = "$shortcutName - โรงพยาบาลเชียงแสน"
+        if ($iconDownloaded -or ((Test-Path $icoPath) -and ((Get-Item $icoPath).Length -gt 100))) {
+            $sc.IconLocation = "$icoPath,0"
+        }
+        $sc.Save()
+        $installedCount++
+    } catch {}
+}
+
+# Refresh Windows Explorer desktop icon cache
+try { & ie4uinit.exe -show | Out-Null } catch {}
 
 # --- Collect Computer Specs ---
 $compName = $env:COMPUTERNAME
-$userName = $env:USERNAME
+$userName = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
+if (-not $userName) { $userName = $env:USERNAME }
 
 $osInfo = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
 if (-not $osInfo) { $osInfo = [System.Environment]::OSVersion.VersionString }
@@ -588,10 +684,15 @@ if (-not $vncInstalled) {
         $is64 = [Environment]::Is64BitOperatingSystem
         $msiFile = if ($is64) { "tightvnc-64bit.msi" } else { "tightvnc-32bit.msi" }
         $msiUrl = "{{APP_URL}}/downloads/" + $msiFile
-        $msiLocal = Join-Path $appDir $msiFile
+        $msiLocal = Join-Path $sysDir $msiFile
 
         if (-not (Test-Path $msiLocal)) {
-            Invoke-WebRequest -Uri $msiUrl -OutFile $msiLocal -UseBasicParsing -TimeoutSec 20 -ErrorAction SilentlyContinue
+            try {
+                $wc = New-Object System.Net.WebClient
+                $wc.DownloadFile($msiUrl, $msiLocal)
+            } catch {
+                Invoke-WebRequest -Uri $msiUrl -OutFile $msiLocal -UseBasicParsing -TimeoutSec 25 -ErrorAction SilentlyContinue
+            }
         }
 
         if (Test-Path $msiLocal) {
@@ -639,28 +740,16 @@ try {
     Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Remote Assistance' -Name "fAllowFullControl" -Value 1 -ErrorAction SilentlyContinue
 } catch {}
 
-# --- Persistent Device UUID & System Folder ---
-$sysDir = "$env:ProgramData\CSHOS"
-if (-not (Test-Path $sysDir)) {
-    try { New-Item -ItemType Directory -Path $sysDir -Force | Out-Null } catch {}
-}
-if (-not (Test-Path $sysDir)) {
-    $sysDir = $appDir
-}
-
+# --- Persistent Device UUID ---
 $devIdFile = Join-Path $sysDir "device_id.txt"
 $devId = ""
 if (Test-Path $devIdFile) {
     try { $devId = (Get-Content $devIdFile -Raw).Trim() } catch {}
 }
-if (-not $devId -and (Test-Path "$appDir\device_id.txt")) {
-    try { $devId = (Get-Content "$appDir\device_id.txt" -Raw).Trim() } catch {}
-}
 if (-not $devId) {
     $devId = [guid]::NewGuid().ToString()
 }
 try { Set-Content -Path $devIdFile -Value $devId -Force } catch {}
-try { Set-Content -Path "$appDir\device_id.txt" -Value $devId -Force } catch {}
 
 # --- Setup Background Auto-Sync Script for System Restart / Boot / Logon ---
 $syncScriptPath = Join-Path $sysDir "cshos_sync.ps1"
@@ -756,18 +845,81 @@ try {
     }
 } catch {}
 
+$osCaption = ($osInfo -replace 'Microsoft\s*', '').Trim()
+$osVerStr = $osCaption
+try {
+    $regNT = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -ErrorAction SilentlyContinue
+    $dispVer = if ($regNT.DisplayVersion) { $regNT.DisplayVersion } elseif ($regNT.ReleaseId) { $regNT.ReleaseId } else { "" }
+    $build = $regNT.CurrentBuild
+    $arch = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture
+    if ($dispVer) { $osVerStr += " $dispVer" }
+    if ($arch -or $build) {
+        $p = @()
+        if ($arch) { $p += $arch }
+        if ($build) { $p += "Build $build" }
+        $osVerStr += " (" + ($p -join ", ") + ")"
+    }
+} catch {}
+
+$officeFinal = "Not Installed"
+try {
+    $c2r = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" -ErrorAction SilentlyContinue
+    if ($c2r -and $c2r.ProductReleaseIds) {
+        $idStr = "$($c2r.ProductReleaseIds)"
+        $verReport = $c2r.VersionToReport
+        $platform = $c2r.Platform
+        $friendly = if ($idStr -match '2024') { "Microsoft Office 2024" }
+                    elseif ($idStr -match '2021') { "Microsoft Office 2021" }
+                    elseif ($idStr -match '2019') { "Microsoft Office 2019" }
+                    elseif ($idStr -match 'O365|M365|365') { "Microsoft 365 Apps" }
+                    elseif ($idStr -match '2016') { "Microsoft Office 2016" }
+                    elseif ($idStr -match '2013') { "Microsoft Office 2013" }
+                    elseif ($idStr -match '2010') { "Microsoft Office 2010" }
+                    else { "Microsoft Office" }
+        $edition = if ($idStr -match 'ProPlus') { " Professional Plus" }
+                   elseif ($idStr -match 'Standard') { " Standard" }
+                   elseif ($idStr -match 'HomeBusiness') { " Home & Business" }
+                   elseif ($idStr -match 'HomeStudent') { " Home & Student" }
+                   else { "" }
+        $officeFinal = "$friendly$edition"
+        if ($verReport) { $officeFinal += " ($verReport" + (if ($platform) { " $platform" } else { "" }) + ")" }
+    }
+    if ($officeFinal -eq "Not Installed") {
+        $keys = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
+        $installed = Get-ItemProperty $keys -ErrorAction SilentlyContinue | Where-Object { 
+            $_.DisplayName -match '^Microsoft Office (Professional|Standard|Home|Personal|365|Enterprise)' -or
+            $_.DisplayName -match '^Microsoft 365'
+        } | Select-Object -First 1
+        if ($installed) {
+            $officeFinal = $installed.DisplayName + (if ($installed.DisplayVersion) { " ($($installed.DisplayVersion))" } else { "" })
+        }
+    }
+    if ($officeFinal -eq "Not Installed") {
+        $appPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\excel.exe" -ErrorAction SilentlyContinue).'(Default)'
+        if (-not $appPath) { $appPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\winword.exe" -ErrorAction SilentlyContinue).'(Default)' }
+        if ($appPath -and (Test-Path $appPath)) {
+            $vi = (Get-Item $appPath -ErrorAction SilentlyContinue).VersionInfo
+            $m = $vi.ProductMajorPart
+            $known = switch ($m) { 16 { "Microsoft Office 2016/2019/365" } 15 { "Microsoft Office 2013" } 14 { "Microsoft Office 2010" } 12 { "Microsoft Office 2007" } default { "Microsoft Office" } }
+            $officeFinal = "$known" + (if ($vi.ProductVersion) { " ($($vi.ProductVersion))" } else { "" })
+        }
+    }
+} catch {}
+
 $reportObj = @{
-    device_id    = $devId
-    hostname     = $compName
-    device_name  = $userName
-    ip_address   = $clientIp
-    os           = $osInfo
-    cpu          = $cpuInfo
-    ram          = $ramInfo
-    disk         = $diskInfo
-    remote_ready = $remoteReady
-    install_type = 'installed'
-    browser      = 'AutoSync Service'
+    device_id      = $devId
+    hostname       = $compName
+    device_name    = $userName
+    ip_address     = $clientIp
+    os             = $osInfo
+    os_version     = $osVerStr
+    office_version = $officeFinal
+    cpu            = $cpuInfo
+    ram            = $ramInfo
+    disk           = $diskInfo
+    remote_ready   = $remoteReady
+    install_type   = 'installed'
+    browser        = 'AutoSync Service'
 }
 $jsonPayload = $reportObj | ConvertTo-Json
 
@@ -802,7 +954,62 @@ try {
 try {
     $regCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
     reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d $regCmd /f | Out-Null
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d $regCmd /f | Out-Null
 } catch {}
+
+# Trigger initial Auto-Sync immediately in background to verify setup
+try {
+    Start-Process powershell.exe -ArgumentList "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`"" -WindowStyle Hidden
+} catch {}
+
+# 4. Register vnc:// URL protocol for TightVNC Viewer (CSHOS Remote Launcher)
+try {
+    $passFile = Join-Path $sysDir "vnc_password.txt"
+    Set-Content -Path $passFile -Value "{{VNC_PASSWORD}}" -Encoding ASCII -Force
+    $vncLauncherVbs = Join-Path $sysDir "vnc-launcher.vbs"
+    $vbsCode = @'
+Set args = WScript.Arguments
+If args.Count = 0 Then WScript.Quit
+rawUrl = Replace(Replace(args(0), "vnc://", "", 1, -1, 1), "/", "")
+host = ""
+port = "5900"
+pass = "{{VNC_PASSWORD}}"
+Set fso = CreateObject("Scripting.FileSystemObject")
+If fso.FileExists("C:\ProgramData\CSHOS\vnc_password.txt") Then
+    On Error Resume Next
+    Set pf = fso.OpenTextFile("C:\ProgramData\CSHOS\vnc_password.txt", 1)
+    pass = Trim(pf.ReadAll)
+    pf.Close
+    On Error Goto 0
+End If
+targetPart = rawUrl
+If InStr(targetPart, ":") > 0 Then
+    hParts = Split(targetPart, ":")
+    host = hParts(0)
+    port = hParts(1)
+Else
+    host = targetPart
+End If
+vncExe = "C:\Program Files\TightVNC\tvnviewer.exe"
+If Not fso.FileExists(vncExe) Then vncExe = "C:\Program Files (x86)\TightVNC\tvnviewer.exe"
+If Not fso.FileExists(vncExe) Then
+    MsgBox "TightVNC Viewer is not installed.", 16, "CSHOS VNC"
+    WScript.Quit
+End If
+Set shell = CreateObject("WScript.Shell")
+If pass <> "" Then
+    cmd = """" & vncExe & """ -host=" & host & " -port=" & port & " -password=" & pass
+Else
+    cmd = """" & vncExe & """ -host=" & host & " -port=" & port
+End If
+shell.Run cmd, 1, False
+'@
+    Set-Content -Path $vncLauncherVbs -Value $vbsCode -Encoding ASCII -Force
+    reg add "HKCU\Software\Classes\vnc" /ve /t REG_SZ /d "URL:VNC Protocol" /f | Out-Null
+    reg add "HKCU\Software\Classes\vnc" /v "URL Protocol" /t REG_SZ /d "" /f | Out-Null
+    reg add "HKCU\Software\Classes\vnc\shell\open\command" /ve /t REG_SZ /d "wscript.exe `"$vncLauncherVbs`" `"%1`"" /f | Out-Null
+} catch {}
+
 
 # --- Report Hardware Specs & Remote Status to CSHOS Server ---
 $reportObj = @{
@@ -839,7 +1046,17 @@ Write-Host "====================================================================
 Write-Host "      CSHOS DIGITAL HEALTH - โรงพยาบาลเชียงแสน" -ForegroundColor White
 Write-Host "      ติดตั้งตัวแอป และอัปเดตข้อมูลเครื่องปลายทางสำเร็จ!" -ForegroundColor Green
 Write-Host "========================================================================" -ForegroundColor Cyan
-Write-Host " [1] ข้อมูลเครื่องคอมพิวเตอร์ปลายทางที่ตรวจจับและอัปเดต:" -ForegroundColor Yellow
+Write-Host " [1] ไอคอนทางลัดโปรแกรม (Desktop Shortcut):" -ForegroundColor Yellow
+Write-Host "     • จำนวนตำแหน่งที่ติดตั้ง       : " -NoNewline -ForegroundColor Gray
+Write-Host "$installedCount ตำแหน่ง (Public Desktop + ทุกผู้ใช้งาน)" -ForegroundColor Green
+Write-Host "     • ไฟล์ไอคอนแอป               : " -NoNewline -ForegroundColor Gray
+if ($iconDownloaded -or (Test-Path $icoPath)) {
+    Write-Host "ดาวน์โหลดและติดตั้งสมบูรณ์ ($icoPath)" -ForegroundColor Green
+} else {
+    Write-Host "ใช้ไอคอนระบบเริ่มต้น" -ForegroundColor Yellow
+}
+Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
+Write-Host " [2] ข้อมูลเครื่องคอมพิวเตอร์ปลายทางที่ตรวจจับและอัปเดต:" -ForegroundColor Yellow
 Write-Host "     • ชื่อเครื่อง (Computer Name) : " -NoNewline -ForegroundColor Gray
 Write-Host "$compName" -ForegroundColor White
 Write-Host "     • ผู้ใช้งาน (Username)       : " -NoNewline -ForegroundColor Gray
@@ -855,14 +1072,14 @@ Write-Host "$diskInfo" -ForegroundColor White
 Write-Host "     • ระบบปฏิบัติการ OS           : " -NoNewline -ForegroundColor Gray
 Write-Host "$osInfo" -ForegroundColor White
 Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
-Write-Host " [2] ระบบ Remote ภายใน (VNC Screen Sharing - หน้าจอไม่ดับ):" -ForegroundColor Yellow
+Write-Host " [3] ระบบ Remote ภายใน (VNC Screen Sharing - หน้าจอไม่ดับ):" -ForegroundColor Yellow
 Write-Host "     • สถานะการเปิดระบบ            : " -NoNewline -ForegroundColor Gray
 Write-Host "พร้อมเชื่อมต่อ (TightVNC Port 5900)" -ForegroundColor Green
 Write-Host "     • รหัสผ่าน VNC                : " -NoNewline -ForegroundColor Gray
 Write-Host "{{VNC_PASSWORD}}" -ForegroundColor Yellow
 Write-Host "     • โหมดทำงาน                   : เจ้าหน้าที่ไอทีสามารถดูและช่วยแก้ปัญหาหน้าจอได้พร้อมกัน" -ForegroundColor DarkCyan
 Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
-Write-Host " [3] ระบบ Auto-Sync อัตโนมัติเมื่อเปิดเครื่อง (Auto-Sync on Reboot):" -ForegroundColor Yellow
+Write-Host " [4] ระบบ Auto-Sync อัตโนมัติเมื่อเปิดเครื่อง (Auto-Sync on Reboot):" -ForegroundColor Yellow
 Write-Host "     • สถานะ                      : " -NoNewline -ForegroundColor Gray
 Write-Host "เปิดใช้งานสำเร็จ (Windows Task Scheduler)" -ForegroundColor Green
 Write-Host "     • คุณสมบัติ                   : " -NoNewline -ForegroundColor Gray
@@ -870,12 +1087,14 @@ Write-Host "ส่งข้อมูล IP และสเปกขึ้นร�
 Write-Host "     • ความสะดวก                  : " -NoNewline -ForegroundColor Gray
 Write-Host "ไม่ต้องติดตั้งหรือรันแอปใหม่อีกต่อไป" -ForegroundColor Green
 Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
-Write-Host " [4] สถานะการซิงก์ข้อมูล (Server Sync Status):" -ForegroundColor Yellow
+Write-Host " [5] สถานะการซิงก์ข้อมูล (Server Sync Status):" -ForegroundColor Yellow
 Write-Host "     • $serverSyncStatus" -ForegroundColor Green
 Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host ""
 
 $popupText = "ติดตั้งไอคอนแอปและอัปเดตข้อมูลเครื่องปลายทางเรียบร้อยแล้ว!`n`n" +
+    "================ ตำแหน่งไอคอนทางลัด ===============`n" +
+    "• ติดตั้งไว้ที่ : หน้าจอเดสก์ท็อป (Public Desktop สำหรับทุกผู้ใช้)`n`n" +
     "================ ข้อมูลเครื่องคอมพิวเตอร์ ================`n" +
     "• ชื่อเครื่อง (Computer Name) : $compName`n" +
     "• ผู้ใช้งาน (Username)       : $userName`n" +
@@ -893,7 +1112,9 @@ $popupText = "ติดตั้งไอคอนแอปและอัปเ
     "• สะดวก : ไม่จำเป็นต้องติดตั้งหรือรันแอปใหม่อีกต่อไป`n`n" +
     "• สถานะระบบ : $serverSyncStatus"
 
-$ws.Popup($popupText, 0, "{{APP_NAME}} - ข้อมูลเครื่องปลายทาง", 64)
+try {
+    $ws.Popup($popupText, 0, "{{APP_NAME}} - ข้อมูลเครื่องปลายทาง", 64)
+} catch {}
 POWERSHELL;
 
         $psScript = str_replace(
@@ -902,14 +1123,17 @@ POWERSHELL;
             $psTemplate
         );
 
-        $encodedCommand = base64_encode(mb_convert_encoding($psScript, 'UTF-16LE', 'UTF-8'));
+        // Encode payload using CertUtil compatible Base64 block (64 chars per line)
+        // With UTF-8 BOM so PowerShell correctly interprets Thai characters
+        $psScriptWithBom = "\xEF\xBB\xBF" . $psScript;
+        $b64Payload = chunk_split(base64_encode($psScriptWithBom), 64, "\r\n");
 
         $batContent = "@echo off\r\n"
             . "chcp 65001 >nul\r\n"
             . "title {$appName} - ตัวติดตั้งและตั้งค่าระบบ Auto-Sync\r\n"
             . "echo ========================================================================\r\n"
             . "echo    {$appName} - Chiang Saen Hospital\r\n"
-            . "echo    กำลังตรวจจับข้อมูลเครื่องปลายทาง สเปกคอมพิวเตอร์ และตั้งค่า Remote...\r\n"
+            . "echo    กำลังตรวจจับข้อมูลเครื่องปลายทาง ติดตั้งไอคอน และตั้งค่า Remote...\r\n"
             . "echo ========================================================================\r\n"
             . "echo.\r\n"
             . "\r\n"
@@ -917,16 +1141,34 @@ POWERSHELL;
             . "net session >nul 2>&1\r\n"
             . "if %errorlevel% neq 0 (\r\n"
             . "    echo กำลังร้องขอสิทธิ์ Administrator (UAC)...\r\n"
-            . "    powershell.exe -NoProfile -Command \"Start-Process cmd.exe -ArgumentList '/c `\\\"%~f0`\\\"' -Verb RunAs\"\r\n"
+            . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Start-Process cmd.exe -ArgumentList '/c `\\\"%~f0`\\\"' -Verb RunAs\"\r\n"
             . "    exit /b\r\n"
             . ")\r\n"
             . "\r\n"
-            . "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand {$encodedCommand}\r\n"
+            . "set \"CSHOS_TEMP_PS=%TEMP%\\cshos_installer_%RANDOM%.ps1\"\r\n"
+            . "certutil -decode \"%~f0\" \"%CSHOS_TEMP_PS%\" >nul 2>&1\r\n"
+            . "if not exist \"%CSHOS_TEMP_PS%\" (\r\n"
+            . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"\$lines = Get-Content -LiteralPath '%~f0'; \$start = \$false; \$b64 = ''; foreach (\$l in \$lines) { if (\$l -match '^-+END') { break }; if (\$start) { \$b64 += \$l.Trim() }; if (\$l -match '^-+BEGIN') { \$start = \$true } }; if (\$b64) { [IO.File]::WriteAllBytes('%CSHOS_TEMP_PS%', [Convert]::FromBase64String(\$b64)) }\"\r\n"
+            . ")\r\n"
+            . "if not exist \"%CSHOS_TEMP_PS%\" (\r\n"
+            . "    echo [ERROR] ไม่สามารถแตกไฟล์ติดตั้งชั่วคราวได้ กรุณาลองใหม่อีกครั้ง\r\n"
+            . "    pause\r\n"
+            . "    exit /b 1\r\n"
+            . ")\r\n"
+            . "\r\n"
+            . "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%CSHOS_TEMP_PS%\"\r\n"
+            . "set \"PS_EXIT=%ERRORLEVEL%\"\r\n"
+            . "del \"%CSHOS_TEMP_PS%\" >nul 2>&1\r\n"
             . "\r\n"
             . "echo.\r\n"
             . "echo ------------------------------------------------------------------------\r\n"
             . "echo กดปุ่มใดๆ เพื่อปิดหน้าต่างนี้ (หรือหน้าต่างจะปิดอัตโนมัติใน 10 วินาที)...\r\n"
-            . "timeout /t 10\r\n";
+            . "timeout /t 10\r\n"
+            . "exit /b %PS_EXIT%\r\n"
+            . "\r\n"
+            . "-----BEGIN CERTIFICATE-----\r\n"
+            . $b64Payload
+            . "-----END CERTIFICATE-----\r\n";
 
         return response($batContent, 200, [
             'Content-Type'        => 'application/x-bat',
@@ -1183,7 +1425,10 @@ POWERSHELL;
             $psTemplate
         );
 
-        $encodedCommand = base64_encode(mb_convert_encoding($psScript, 'UTF-16LE', 'UTF-8'));
+        // Encode payload using CertUtil compatible Base64 block (64 chars per line)
+        // With UTF-8 BOM so PowerShell correctly interprets Thai characters
+        $psScriptWithBom = "\xEF\xBB\xBF" . $psScript;
+        $b64Payload = chunk_split(base64_encode($psScriptWithBom), 64, "\r\n");
 
         $batContent = "@echo off\r\n"
             . "chcp 65001 >nul\r\n"
@@ -1198,16 +1443,34 @@ POWERSHELL;
             . "net session >nul 2>&1\r\n"
             . "if %errorlevel% neq 0 (\r\n"
             . "    echo กำลังร้องขอสิทธิ์ Administrator (UAC)...\r\n"
-            . "    powershell.exe -NoProfile -Command \"Start-Process cmd.exe -ArgumentList '/c `\\\"%~f0`\\\"' -Verb RunAs\"\r\n"
+            . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Start-Process cmd.exe -ArgumentList '/c `\\\"%~f0`\\\"' -Verb RunAs\"\r\n"
             . "    exit /b\r\n"
             . ")\r\n"
             . "\r\n"
-            . "powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand {$encodedCommand}\r\n"
+            . "set \"CSHOS_TEMP_PS=%TEMP%\\cshos_sync_inst_%RANDOM%.ps1\"\r\n"
+            . "certutil -decode \"%~f0\" \"%CSHOS_TEMP_PS%\" >nul 2>&1\r\n"
+            . "if not exist \"%CSHOS_TEMP_PS%\" (\r\n"
+            . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"\$lines = Get-Content -LiteralPath '%~f0'; \$start = \$false; \$b64 = ''; foreach (\$l in \$lines) { if (\$l -match '^-+END') { break }; if (\$start) { \$b64 += \$l.Trim() }; if (\$l -match '^-+BEGIN') { \$start = \$true } }; if (\$b64) { [IO.File]::WriteAllBytes('%CSHOS_TEMP_PS%', [Convert]::FromBase64String(\$b64)) }\"\r\n"
+            . ")\r\n"
+            . "if not exist \"%CSHOS_TEMP_PS%\" (\r\n"
+            . "    echo [ERROR] ไม่สามารถแตกไฟล์ติดตั้งชั่วคราวได้ กรุณาลองใหม่อีกครั้ง\r\n"
+            . "    pause\r\n"
+            . "    exit /b 1\r\n"
+            . ")\r\n"
+            . "\r\n"
+            . "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%CSHOS_TEMP_PS%\"\r\n"
+            . "set \"PS_EXIT=%ERRORLEVEL%\"\r\n"
+            . "del \"%CSHOS_TEMP_PS%\" >nul 2>&1\r\n"
             . "\r\n"
             . "echo.\r\n"
             . "echo ------------------------------------------------------------------------\r\n"
             . "echo กดปุ่มใดๆ เพื่อปิดหน้าต่างนี้ (หรือหน้าต่างจะปิดอัตโนมัติใน 10 วินาที)...\r\n"
-            . "timeout /t 10\r\n";
+            . "timeout /t 10\r\n"
+            . "exit /b %PS_EXIT%\r\n"
+            . "\r\n"
+            . "-----BEGIN CERTIFICATE-----\r\n"
+            . $b64Payload
+            . "-----END CERTIFICATE-----\r\n";
 
         return response($batContent, 200, [
             'Content-Type'        => 'application/x-bat',
@@ -1316,6 +1579,67 @@ POWERSHELL;
         return response($urlContent, 200, [
             'Content-Type'        => 'application/internet-shortcut',
             'Content-Disposition' => 'attachment; filename="' . $appName . '.url"',
+            'Cache-Control'       => 'no-cache, no-store, must-revalidate',
+        ]);
+    }
+
+    /**
+     * Download Uninstall-CSHOS.bat to completely remove shortcuts, Auto-Sync jobs, and system data.
+     */
+    public function downloadUninstaller(Request $request)
+    {
+        $appName = "CSHOS DATACENTER";
+        $fileName = "Uninstall-CSHOS.bat";
+
+        $batContent = "@echo off\r\n"
+            . "chcp 65001 >nul\r\n"
+            . "title {$appName} - ถอนการติดตั้งและลบไฟล์ระบบ\r\n"
+            . "echo ========================================================================\r\n"
+            . "echo    {$appName} - Chiang Saen Hospital\r\n"
+            . "echo    กำลังดำเนินการถอนการติดตั้งและลบไฟล์ระบบ...\r\n"
+            . "echo ========================================================================\r\n"
+            . "echo.\r\n"
+            . "\r\n"
+            . ":: ตรวจสอบสิทธิ์ Administrator หากยังไม่มี ให้เรียกขอสิทธิ์อัตโนมัติ (UAC)\r\n"
+            . "net session >nul 2>&1\r\n"
+            . "if %errorlevel% neq 0 (\r\n"
+            . "    echo กำลังร้องขอสิทธิ์ Administrator (UAC)...\r\n"
+            . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Start-Process cmd.exe -ArgumentList '/c `\\\"%~f0`\\\"' -Verb RunAs\"\r\n"
+            . "    exit /b\r\n"
+            . ")\r\n"
+            . "\r\n"
+            . "echo [1/5] ลบงาน Auto-Sync ใน Windows Task Scheduler...\r\n"
+            . "schtasks /delete /tn \"CSHOS-AutoSync-Startup\" /f >nul 2>&1\r\n"
+            . "schtasks /delete /tn \"CSHOS-AutoSync-Logon\" /f >nul 2>&1\r\n"
+            . "\r\n"
+            . "echo [2/5] ลบคำสั่งเริ่มต้นระบบใน Windows Registry (Run Keys)...\r\n"
+            . "reg delete \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\" /v \"CSHOS_AutoSync\" /f >nul 2>&1\r\n"
+            . "reg delete \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\" /v \"CSHOS_AutoSync\" /f >nul 2>&1\r\n"
+            . "\r\n"
+            . "echo [3/5] ลบการลงทะเบียนโปรโตคอล VNC Launcher...\r\n"
+            . "reg delete \"HKCU\\Software\\Classes\\vnc\" /f >nul 2>&1\r\n"
+            . "\r\n"
+            . "echo [4/5] ลบไอคอนทางลัดโปรแกรมบน Desktop...\r\n"
+            . "del /f /q \"%PUBLIC%\\Desktop\\{$appName}.lnk\" >nul 2>&1\r\n"
+            . "del /f /q \"%USERPROFILE%\\Desktop\\{$appName}.lnk\" >nul 2>&1\r\n"
+            . "del /f /q \"%ALLUSERSPROFILE%\\Desktop\\{$appName}.lnk\" >nul 2>&1\r\n"
+            . "powershell.exe -NoProfile -Command \"Get-ChildItem 'C:\\Users\\*\\Desktop\\{$appName}.lnk' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue\"\r\n"
+            . "\r\n"
+            . "echo [5/5] ลบโฟลเดอร์ระบบและการตั้งค่า CSHOS...\r\n"
+            . "rmdir /s /q \"C:\\ProgramData\\CSHOS\" >nul 2>&1\r\n"
+            . "rmdir /s /q \"%LOCALAPPDATA%\\CSHOS\" >nul 2>&1\r\n"
+            . "ie4uinit.exe -show >nul 2>&1\r\n"
+            . "\r\n"
+            . "echo ========================================================================\r\n"
+            . "echo    ถอนการติดตั้งและลบไอคอน {$appName} เรียบร้อยแล้ว!\r\n"
+            . "echo ========================================================================\r\n"
+            . "echo.\r\n"
+            . "powershell.exe -NoProfile -Command \"(New-Object -ComObject WScript.Shell).Popup('ถอนการติดตั้งไอคอนและระบบ Auto-Sync ของ {$appName} เรียบร้อยแล้ว!', 5, '{$appName}', 64) | Out-Null\"\r\n"
+            . "timeout /t 3 >nul\r\n";
+
+        return response($batContent, 200, [
+            'Content-Type'        => 'application/x-bat',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
             'Cache-Control'       => 'no-cache, no-store, must-revalidate',
         ]);
     }

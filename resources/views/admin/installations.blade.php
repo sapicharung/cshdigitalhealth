@@ -279,53 +279,73 @@
         /* --- Controls Bar --- */
         .controls-card {
             background: var(--surface);
-            border-radius: 18px;
-            padding: 1.2rem 1.4rem;
+            border-radius: 14px;
+            padding: 0.65rem 1rem;
             border: 1px solid var(--border);
-            margin-bottom: 1.5rem;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+            margin-bottom: 1.25rem;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+            overflow: hidden;
         }
 
         .filter-form {
             display: flex;
-            flex-wrap: wrap;
-            gap: 0.8rem;
+            flex-wrap: nowrap;
+            gap: 0.6rem;
             align-items: center;
             justify-content: space-between;
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding-bottom: 2px;
+            scrollbar-width: thin;
+        }
+
+        .filter-form::-webkit-scrollbar {
+            height: 4px;
+        }
+        .filter-form::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .filter-form::-webkit-scrollbar-thumb {
+            background: #E2E8F0;
+            border-radius: 4px;
         }
 
         .filter-inputs {
             display: flex;
-            flex-wrap: wrap;
-            gap: 0.75rem;
+            flex-wrap: nowrap;
+            gap: 0.45rem;
             align-items: center;
-            flex: 1;
+            flex-shrink: 0;
         }
 
         .search-box {
             position: relative;
-            flex: 1;
-            min-width: 250px;
+            width: 200px;
+            flex-shrink: 0;
         }
 
         .search-box .material-symbols-Outlined {
             position: absolute;
-            left: 12px;
+            left: 10px;
             top: 50%;
             transform: translateY(-50%);
             color: #94A3B8;
-            font-size: 19px;
+            font-size: 17px;
         }
 
         .search-box input {
             width: 100%;
-            padding: 0.55rem 0.8rem 0.55rem 2.4rem;
+            height: 35px;
+            padding: 0 0.65rem 0 2rem;
             border: 1.5px solid var(--border);
-            border-radius: 10px;
-            font-size: 0.9rem;
+            border-radius: 8px;
+            font-size: 0.82rem;
             font-family: inherit;
             outline: none;
             background: #F8FAFC;
+            box-sizing: border-box;
+            transition: all 0.2s;
         }
 
         .search-box input:focus {
@@ -334,15 +354,21 @@
         }
 
         .select-filter {
-            padding: 0.55rem 0.9rem;
+            height: 35px;
+            padding: 0 0.65rem;
             border: 1.5px solid var(--border);
-            border-radius: 10px;
-            font-size: 0.88rem;
+            border-radius: 8px;
+            font-size: 0.82rem;
             font-family: inherit;
             background: #F8FAFC;
             color: var(--text-dark);
             outline: none;
             cursor: pointer;
+            box-sizing: border-box;
+            max-width: 150px;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            flex-shrink: 0;
         }
 
         .select-filter:focus {
@@ -351,18 +377,22 @@
         }
 
         .btn-filter {
-            padding: 0.55rem 1rem;
+            height: 35px;
+            padding: 0 0.8rem;
             background: var(--primary);
             color: white;
             border: none;
-            border-radius: 10px;
-            font-size: 0.88rem;
+            border-radius: 8px;
+            font-size: 0.82rem;
             font-weight: 500;
             font-family: inherit;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 0.35rem;
+            gap: 0.3rem;
+            white-space: nowrap;
+            flex-shrink: 0;
+            box-sizing: border-box;
             transition: background 0.2s;
         }
 
@@ -371,18 +401,22 @@
         }
 
         .btn-reset {
-            padding: 0.55rem 0.85rem;
+            height: 35px;
+            padding: 0 0.65rem;
             background: #F1F5F9;
             color: #64748B;
             border: 1px solid var(--border);
-            border-radius: 10px;
-            font-size: 0.88rem;
+            border-radius: 8px;
+            font-size: 0.82rem;
             font-family: inherit;
             cursor: pointer;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
             gap: 0.25rem;
+            white-space: nowrap;
+            flex-shrink: 0;
+            box-sizing: border-box;
         }
 
         .btn-reset:hover {
@@ -393,23 +427,34 @@
         .action-buttons {
             display: flex;
             align-items: center;
-            gap: 0.6rem;
+            gap: 0.4rem;
+            flex-shrink: 0;
+            flex-wrap: nowrap;
+        }
+
+        .action-buttons a,
+        .action-buttons button {
+            height: 35px;
+            padding: 0 0.65rem;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            white-space: nowrap;
+            box-sizing: border-box;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            font-family: inherit;
+            text-decoration: none;
+            cursor: pointer;
+            flex-shrink: 0;
         }
 
         .btn-export {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            padding: 0.55rem 1.1rem;
             background: #10B981;
             color: white;
             border: none;
-            border-radius: 10px;
-            font-size: 0.88rem;
             font-weight: 500;
-            text-decoration: none;
-            cursor: pointer;
-            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.25);
+            box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
             transition: all 0.2s;
         }
 
@@ -419,16 +464,10 @@
         }
 
         .btn-refresh {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.35rem;
-            padding: 0.55rem 0.9rem;
             background: #FFFFFF;
             color: #475569;
             border: 1.5px solid var(--border);
-            border-radius: 10px;
-            font-size: 0.88rem;
-            cursor: pointer;
+            font-weight: 500;
             transition: all 0.2s;
         }
 
@@ -455,9 +494,8 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.9rem;
+            font-size: 0.84rem;
             text-align: left;
-            min-width: 1350px;
         }
 
         thead {
@@ -466,18 +504,19 @@
         }
 
         th {
-            padding: 1rem 1.1rem;
+            padding: 0.7rem 0.65rem;
             font-weight: 600;
             color: #475569;
-            font-size: 0.82rem;
+            font-size: 0.78rem;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.3px;
             white-space: nowrap;
         }
 
         tbody tr {
             border-bottom: 1px solid #F1F5F9;
             transition: background 0.15s;
+            height: 48px;
         }
 
         tbody tr:hover {
@@ -485,7 +524,7 @@
         }
 
         td {
-            padding: 1rem 1.1rem;
+            padding: 0.55rem 0.65rem;
             vertical-align: middle;
             color: #334155;
             white-space: nowrap;
@@ -495,9 +534,9 @@
             display: inline-flex;
             align-items: center;
             gap: 0.3rem;
-            padding: 0.25rem 0.65rem;
+            padding: 0.2rem 0.55rem;
             border-radius: 20px;
-            font-size: 0.78rem;
+            font-size: 0.75rem;
             font-weight: 500;
             white-space: nowrap;
         }
@@ -525,148 +564,330 @@
         }
 
         .pulse-dot {
-            width: 8px;
-            height: 8px;
+            width: 7px;
+            height: 7px;
             border-radius: 50%;
             background-color: #10B981;
             display: inline-block;
             box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
         }
 
-        .ip-badge {
-            font-family: monospace;
-            background: #F1F5F9;
-            padding: 0.2rem 0.5rem;
-            border-radius: 6px;
-            font-size: 0.88rem;
-            color: #0F172A;
-            font-weight: 600;
-        }
-
-        .hostname-text {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-top: 0.15rem;
-        }
-
-        /* Spec list badges */
-        .spec-list {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            font-size: 0.78rem;
-            max-width: 280px;
-        }
-
-        .spec-badge {
+        /* Compact Hostname & IP */
+        .host-ip-compact {
             display: inline-flex;
             align-items: center;
-            gap: 5px;
-            padding: 2px 7px;
-            border-radius: 6px;
-            font-size: 0.76rem;
-            line-height: 1.35;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 100%;
+            gap: 6px;
+            cursor: pointer;
+            max-width: 200px;
         }
 
-        .spec-cpu {
-            background: #EFF6FF;
-            color: #1E40AF;
-            border: 1px solid #BFDBFE;
-        }
-
-        .spec-ram {
-            background: #FAF5FF;
-            color: #6B21A8;
-            border: 1px solid #E9D5FF;
-        }
-
-        .spec-disk {
-            background: #F0FDF4;
-            color: #166534;
-            border: 1px solid #BBF7D0;
-        }
-
-        .spec-empty {
-            color: #94A3B8;
-            font-size: 0.78rem;
-            font-style: italic;
-        }
-
-        /* Remote VNC / Desktop actions */
-        .remote-actions {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            min-width: 145px;
-            align-items: center;
-        }
-
-        .btn-remote-vnc {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
-            width: 100%;
-            padding: 5px 9px;
-            background: linear-gradient(135deg, #059669, #047857);
-            color: white !important;
-            text-decoration: none;
-            border-radius: 8px;
-            font-size: 0.78rem;
-            font-weight: 600;
-            box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
-            transition: all 0.15s;
-        }
-
-        .btn-remote-vnc:hover {
-            background: linear-gradient(135deg, #047857, #065F46);
-            transform: translateY(-1px);
-            box-shadow: 0 4px 10px rgba(5, 150, 105, 0.35);
-        }
-
-        .btn-remote-rdp {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-            padding: 4px 8px;
-            background: #F1F5F9;
-            color: #475569 !important;
-            text-decoration: none;
-            border: 1px solid #CBD5E1;
-            border-radius: 6px;
-            font-size: 0.72rem;
-            font-weight: 500;
-            transition: all 0.15s;
-        }
-
-        .btn-remote-rdp:hover {
-            background: #E2E8F0;
-            color: #0F172A !important;
-        }
-
-        .rdp-alt-link {
-            display: inline-flex;
-            align-items: center;
-            gap: 3px;
-            font-size: 0.72rem;
-            color: #64748B;
-            text-decoration: none;
-            padding: 2px 6px;
-            border-radius: 4px;
-            transition: all 0.15s;
-        }
-
-        .rdp-alt-link:hover {
-            background: #F1F5F9;
-            color: #0284C7;
+        .host-ip-compact:hover .host-name-text {
+            color: var(--primary);
             text-decoration: underline;
         }
 
+        .host-icon {
+            font-size: 16px;
+            color: var(--primary);
+            flex-shrink: 0;
+        }
+
+        .host-name-text {
+            font-weight: 600;
+            color: #1E293B;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 0.84rem;
+        }
+
+        .ip-badge-mini {
+            font-family: monospace;
+            background: #F1F5F9;
+            border: 1px solid #E2E8F0;
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 0.74rem;
+            color: #334155;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        /* Spec Pill Compact (1 row) */
+        .spec-pill-compact {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            background: #EFF6FF;
+            border: 1px solid #BFDBFE;
+            border-radius: 7px;
+            font-size: 0.76rem;
+            color: #1E40AF;
+            cursor: pointer;
+            transition: all 0.15s;
+            max-width: 185px;
+        }
+
+        .spec-pill-compact:hover {
+            background: #DBEAFE;
+            border-color: #93C5FD;
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.15);
+        }
+
+        .spec-pill-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .spec-pill-icon {
+            font-size: 14px;
+            color: #2563EB;
+            flex-shrink: 0;
+        }
+
+        .spec-pill-more {
+            font-size: 12px;
+            color: #3B82F6;
+            margin-left: 1px;
+            flex-shrink: 0;
+        }
+
+        .spec-empty-compact {
+            color: #94A3B8;
+            font-size: 0.76rem;
+            font-style: italic;
+            cursor: pointer;
+        }
+
+        /* Remote Compact (1 row) */
+        .remote-compact-cell {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-remote-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 7px;
+            background: linear-gradient(135deg, #059669, #047857);
+            color: white !important;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 0.73rem;
+            font-weight: 600;
+            box-shadow: 0 1px 4px rgba(5, 150, 105, 0.2);
+            transition: all 0.15s;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .btn-remote-pill:hover {
+            background: linear-gradient(135deg, #047857, #065F46);
+            transform: translateY(-1px);
+        }
+
+        .btn-copy-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 25px;
+            height: 25px;
+            background: #F8FAFC;
+            border: 1px solid #CBD5E1;
+            border-radius: 6px;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.15s;
+            padding: 0;
+        }
+
+        .btn-copy-icon:hover {
+            background: #F1F5F9;
+            color: #0F172A;
+            border-color: #94A3B8;
+        }
+
+        /* Compact Dept */
+        .dept-compact-tag {
+            background: #F3E8FF;
+            color: #6B21A8;
+            padding: 2px 7px;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 500;
+            display: inline-block;
+            max-width: 135px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .dept-empty {
+            color: #94A3B8;
+            font-style: italic;
+            font-size: 0.78rem;
+        }
+
+        /* Compact User & OS */
+        .user-os-compact {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            max-width: 155px;
+        }
+
+        .user-name-compact {
+            font-weight: 500;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-size: 0.82rem;
+            max-width: 70px;
+        }
+
+        .os-mini-tag {
+            background: #F1F5F9;
+            border: 1px solid #E2E8F0;
+            color: #475569;
+            padding: 1px 4px;
+            border-radius: 4px;
+            font-size: 0.68rem;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .office-mini-tag {
+            background: #FFF7ED;
+            border: 1px solid #FED7AA;
+            color: #C2410C;
+            padding: 1px 4px;
+            border-radius: 4px;
+            font-size: 0.68rem;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .office-mini-tag.office-none {
+            background: #F8FAFC;
+            border-color: #E2E8F0;
+            color: #94A3B8;
+        }
+
+        .office-mini-tag.office-m365 {
+            background: #EFF6FF;
+            border-color: #BFDBFE;
+            color: #1D4ED8;
+        }
+
+        /* Compact Launch & Type */
+        .launch-compact {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .launch-count-badge {
+            font-weight: 600;
+            color: var(--primary);
+            font-size: 0.82rem;
+        }
+
+        .app-type-tag {
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 0.69rem;
+            font-weight: 500;
+        }
+
+        .app-type-tag.installed {
+            background: #D1FAE5;
+            color: #065F46;
+            border: 1px solid #A7F3D0;
+        }
+
+        .app-type-tag.web {
+            background: #E0F2FE;
+            color: #0369A1;
+            border: 1px solid #BAE6FD;
+        }
+
+        /* Compact Last Active */
+        .time-compact-cell {
+            font-size: 0.82rem;
+            color: #334155;
+            cursor: pointer;
+        }
+
+        /* Compact Action Buttons */
+        .table-actions-cell {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .btn-action-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 27px;
+            height: 27px;
+            border-radius: 7px;
+            border: 1px solid var(--border);
+            background: #FFFFFF;
+            cursor: pointer;
+            transition: all 0.15s;
+            padding: 0;
+        }
+
+        .btn-action-view {
+            color: #0284C7;
+            border-color: #BAE6FD;
+        }
+        .btn-action-view:hover {
+            background: #E0F2FE;
+            color: #0369A1;
+            border-color: #7DD3FC;
+            transform: translateY(-1px);
+        }
+
+        .btn-action-edit {
+            color: var(--primary);
+            border-color: #BFDBFE;
+        }
+        .btn-action-edit:hover {
+            background: var(--primary-light);
+            color: var(--primary-dark);
+            border-color: var(--primary);
+            transform: translateY(-1px);
+        }
+
+        .btn-action-reset {
+            color: #D97706;
+            border-color: #FDE68A;
+        }
+        .btn-action-reset:hover {
+            background: #FEF3C7;
+            border-color: #F59E0B;
+            transform: translateY(-1px);
+        }
+
+        .btn-action-delete {
+            color: #DC2626;
+            border-color: #FECACA;
+        }
+        .btn-action-delete:hover {
+            background: #FEE2E2;
+            border-color: #EF4444;
+            transform: translateY(-1px);
+        }
+
+        /* Toolbar Download VNC Button */
         .btn-download-vnc {
             display: inline-flex;
             align-items: center;
@@ -686,58 +907,6 @@
             background: #E9D5FF;
             color: #581C87;
             transform: translateY(-1px);
-        }
-
-        .vnc-pass-hint {
-            font-size: 0.72rem;
-            color: #64748B;
-            margin-top: 1px;
-            text-align: center;
-        }
-
-        .vnc-pass-hint code {
-            background: #F1F5F9;
-            padding: 1px 4px;
-            border-radius: 4px;
-            color: #0F172A;
-            font-weight: 600;
-            font-family: monospace;
-        }
-
-        .btn-remote-copy {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-            width: 100%;
-            padding: 4px 8px;
-            background: #F8FAFC;
-            color: #475569;
-            border: 1px solid #CBD5E1;
-            border-radius: 7px;
-            font-size: 0.74rem;
-            font-family: inherit;
-            cursor: pointer;
-            transition: all 0.15s;
-        }
-
-        .btn-remote-copy:hover {
-            background: #F1F5F9;
-            color: #0F172A;
-            border-color: #94A3B8;
-        }
-
-        .remote-ready-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 3px;
-            font-size: 0.7rem;
-            color: #059669;
-            font-weight: 600;
-            background: #ECFDF5;
-            padding: 2px 6px;
-            border-radius: 4px;
-            border: 1px solid #A7F3D0;
         }
 
         /* Toast Notification */
@@ -766,102 +935,236 @@
             transform: translateY(0);
         }
 
-        .dept-tag {
-            background: #F3E8FF;
-            color: #6B21A8;
-            padding: 0.25rem 0.65rem;
-            border-radius: 8px;
-            font-size: 0.82rem;
-            font-weight: 500;
-            display: inline-block;
+        /* Details Modal Styles */
+        .modal-card-large {
+            max-width: 680px;
+            max-height: 88vh;
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem 1.6rem;
         }
 
-        .dept-empty {
-            color: #94A3B8;
-            font-style: italic;
-            font-size: 0.85rem;
+        .details-modal-body {
+            overflow-y: auto;
+            padding-right: 4px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.9rem;
+            margin-top: 0.4rem;
         }
 
-        .table-actions-cell {
+        .detail-section {
+            background: #F8FAFC;
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 0.9rem 1.1rem;
+        }
+
+        .detail-section.highlight-remote {
+            background: #F0FDF4;
+            border-color: #BBF7D0;
+        }
+
+        .detail-section-title {
             display: flex;
             align-items: center;
-            justify-content: center;
             gap: 6px;
+            font-size: 0.88rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 0.65rem;
         }
 
-        .btn-action-edit {
-            background: none;
-            border: 1px solid var(--border);
-            padding: 0.35rem 0.6rem;
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.65rem;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .detail-item.full-width {
+            grid-column: span 2;
+        }
+
+        .detail-item label {
+            font-size: 0.73rem;
+            color: #64748B;
+            font-weight: 500;
+        }
+
+        .detail-value {
+            font-size: 0.85rem;
+            color: #1E293B;
+            font-weight: 500;
+            line-height: 1.4;
+            word-break: break-word;
+        }
+
+        .detail-value.text-highlight {
+            color: #1D4ED8;
+            font-weight: 600;
+        }
+
+        .detail-value-with-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .ip-badge-lg {
+            font-family: monospace;
+            font-size: 0.92rem;
+            font-weight: 700;
+            background: #E2E8F0;
+            color: #0F172A;
+            padding: 2px 8px;
+            border-radius: 6px;
+        }
+
+        .btn-copy-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 7px;
+            background: #FFFFFF;
+            border: 1px solid #CBD5E1;
+            border-radius: 6px;
+            font-size: 0.74rem;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn-copy-chip:hover {
+            background: #F1F5F9;
+            color: #0F172A;
+        }
+
+        .remote-banner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.8rem;
+            flex-wrap: wrap;
+        }
+
+        .remote-banner-info {
+            flex: 1;
+            min-width: 220px;
+        }
+
+        .remote-banner-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .btn-modal-vnc {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 12px;
+            background: linear-gradient(135deg, #059669, #047857);
+            color: white !important;
+            text-decoration: none;
             border-radius: 8px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
+            transition: all 0.15s;
+            border: none;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .btn-modal-vnc:hover {
+            background: linear-gradient(135deg, #047857, #065F46);
+            transform: translateY(-1px);
+        }
+
+        .btn-modal-copy-vnc {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 5px 9px;
+            background: #FFFFFF;
+            border: 1.5px solid #86EFAC;
+            border-radius: 8px;
+            font-size: 0.78rem;
+            color: #047857;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .btn-modal-copy-vnc:hover {
+            background: #DCFCE7;
+        }
+
+        .btn-modal-rdp {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 5px 9px;
+            background: #FFFFFF;
+            border: 1px solid #CBD5E1;
+            border-radius: 8px;
+            font-size: 0.78rem;
+            color: #475569 !important;
+            text-decoration: none;
+            transition: all 0.15s;
+        }
+
+        .btn-modal-rdp:hover {
+            background: #F1F5F9;
+            color: #0F172A !important;
+        }
+
+        .btn-modal-edit-trigger {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 0.5rem 0.9rem;
+            background: #EFF6FF;
+            border: 1px solid #BFDBFE;
+            border-radius: 10px;
             color: var(--primary);
+            font-size: 0.83rem;
+            font-weight: 600;
             cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            font-size: 0.8rem;
-            font-family: inherit;
-            transition: all 0.2s;
+            transition: all 0.15s;
         }
 
-        .btn-action-edit:hover {
-            background: var(--primary-light);
-            border-color: var(--primary);
-        }
-
-        .btn-action-reset {
-            background: none;
-            border: 1px solid #FDE68A;
-            padding: 0.35rem 0.6rem;
-            border-radius: 8px;
-            color: #D97706;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            font-size: 0.8rem;
-            font-family: inherit;
-            transition: all 0.2s;
-        }
-        .btn-action-reset:hover {
-            background: #FEF3C7;
-            border-color: #F59E0B;
-        }
-
-        .btn-action-delete {
-            background: none;
-            border: 1px solid #FECACA;
-            padding: 0.35rem 0.5rem;
-            border-radius: 8px;
-            color: #DC2626;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.8rem;
-            font-family: inherit;
-            transition: all 0.2s;
-        }
-        .btn-action-delete:hover {
-            background: #FEE2E2;
-            border-color: #EF4444;
+        .btn-modal-edit-trigger:hover {
+            background: #DBEAFE;
+            border-color: #93C5FD;
         }
 
         .btn-download-toolbar {
             background: #ECFDF5;
             border: 1px solid #A7F3D0;
-            padding: 0.55rem 1rem;
-            border-radius: 10px;
+            padding: 0 0.65rem;
+            height: 35px;
+            border-radius: 8px;
             color: #047857;
             font-weight: 600;
-            font-size: 0.88rem;
+            font-size: 0.82rem;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 0.4rem;
+            gap: 0.35rem;
             transition: all 0.2s;
             text-decoration: none;
             font-family: inherit;
+            white-space: nowrap;
+            box-sizing: border-box;
         }
         .btn-download-toolbar:hover {
             background: #D1FAE5;
@@ -872,18 +1175,21 @@
         .btn-download-autosync {
             background: #EFF6FF;
             border: 1px solid #BFDBFE;
-            padding: 0.55rem 1rem;
-            border-radius: 10px;
+            padding: 0 0.65rem;
+            height: 35px;
+            border-radius: 8px;
             color: #1D4ED8;
             font-weight: 600;
-            font-size: 0.88rem;
+            font-size: 0.82rem;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 0.4rem;
+            gap: 0.35rem;
             transition: all 0.2s;
             text-decoration: none;
             font-family: inherit;
+            white-space: nowrap;
+            box-sizing: border-box;
         }
         .btn-download-autosync:hover {
             background: #DBEAFE;
@@ -894,18 +1200,21 @@
         .btn-reset-this {
             background: #EFF6FF;
             border: 1px solid #BFDBFE;
-            padding: 0.55rem 1rem;
-            border-radius: 10px;
+            padding: 0 0.65rem;
+            height: 35px;
+            border-radius: 8px;
             color: #1D4ED8;
             font-weight: 500;
-            font-size: 0.88rem;
+            font-size: 0.82rem;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 0.4rem;
+            gap: 0.35rem;
             transition: all 0.2s;
             text-decoration: none;
             font-family: inherit;
+            white-space: nowrap;
+            box-sizing: border-box;
         }
         .btn-reset-this:hover {
             background: #DBEAFE;
@@ -914,19 +1223,22 @@
         }
 
         .btn-reset-all {
-            background: none;
+            background: #FFFFFF;
             border: 1px solid #E2E8F0;
-            padding: 0.55rem 0.85rem;
-            border-radius: 10px;
+            padding: 0 0.65rem;
+            height: 35px;
+            border-radius: 8px;
             color: #64748B;
             font-weight: 500;
-            font-size: 0.88rem;
+            font-size: 0.82rem;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 0.4rem;
+            gap: 0.35rem;
             transition: all 0.2s;
             font-family: inherit;
+            white-space: nowrap;
+            box-sizing: border-box;
         }
         .btn-reset-all:hover {
             background: #FEE2E2;
@@ -1116,14 +1428,12 @@
                 padding: 0.8rem 1rem;
             }
             .container {
-                padding: 1rem;
+                padding: 0.85rem;
             }
             .filter-form {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            .action-buttons {
-                justify-content: flex-end;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
             }
         }
     </style>
@@ -1234,12 +1544,12 @@
                 <div class="filter-inputs">
                     <div class="search-box">
                         <span class="material-symbols-Outlined">search</span>
-                        <input type="text" name="search" placeholder="ค้นหา IP, Hostname, สเปก CPU/RAM, แผนก, ชื่อเครื่อง..." 
+                        <input type="text" name="search" placeholder="ค้นหา IP, สเปก, แผนก, เครื่อง..." 
                                value="{{ request('search') }}">
                     </div>
 
                     <select name="department" class="select-filter">
-                        <option value="">-- ทุกแผนก/หน่วยงาน --</option>
+                        <option value="">-- แผนกทั้งหมด --</option>
                         @foreach($departments as $dept)
                             <option value="{{ $dept }}" {{ request('department') == $dept ? 'selected' : '' }}>
                                 {{ $dept }}
@@ -1250,57 +1560,42 @@
                     <select name="status" class="select-filter">
                         <option value="">-- ทุกช่วงเวลา --</option>
                         <option value="today" {{ request('status') == 'today' ? 'selected' : '' }}>ใช้งานวันนี้</option>
-                        <option value="week" {{ request('status') == 'week' ? 'selected' : '' }}>ใช้งานใน 7 วันล่าสุด</option>
-                        <option value="installed_only" {{ request('status') == 'installed_only' ? 'selected' : '' }}>ติดตั้งไอคอนแล้วเท่านั้น</option>
+                        <option value="week" {{ request('status') == 'week' ? 'selected' : '' }}>7 วันล่าสุด</option>
+                        <option value="installed_only" {{ request('status') == 'installed_only' ? 'selected' : '' }}>ติดตั้งไอคอนแล้ว</option>
                     </select>
 
-                    <button type="submit" class="btn-filter">
-                        <span class="material-symbols-Outlined" style="font-size: 18px;">tune</span>
+                    <button type="submit" class="btn-filter" title="ค้นหาและกรองข้อมูล">
+                        <span class="material-symbols-Outlined" style="font-size: 17px;">tune</span>
                         <span>กรองข้อมูล</span>
                     </button>
 
                     @if(request()->hasAny(['search', 'department', 'status']))
-                        <a href="{{ route('admin.installations') }}" class="btn-reset">
+                        <a href="{{ route('admin.installations') }}" class="btn-reset" title="ล้างการค้นหาและตัวกรอง">
                             <span class="material-symbols-Outlined" style="font-size: 16px;">close</span>
-                            <span>ล้างตัวกรอง</span>
+                            <span>ล้างกรอง</span>
                         </a>
                     @endif
                 </div>
 
                 <div class="action-buttons">
-                    <a href="{{ asset('downloads/tightvnc-64bit.msi') }}" class="btn-download-vnc" title="ดาวน์โหลดโปรแกรม TightVNC Viewer สำหรับเครื่องแอดมิน/ช่างไอทีใช้รีโมท">
-                        <span class="material-symbols-Outlined" style="font-size: 18px;">tv</span>
-                        <span>ดาวน์โหลด VNC Viewer</span>
-                    </a>
-
-                    <a href="{{ route('download.shortcut.installer') }}" class="btn-download-toolbar" title="ดาวน์โหลดตัวสร้างไอคอนและเปิดระบบ Remote VNC สำหรับนำไปติดตั้งบนเครื่องลูกข่าย (พร้อมตั้งค่า Auto-Sync เมื่อเปิดเครื่อง)">
-                        <span class="material-symbols-Outlined" style="font-size: 18px;">download</span>
-                        <span>downloadตัวติดตั้งApp</span>
-                    </a>
-
-                    <a href="{{ route('download.autosync.installer') }}" class="btn-download-autosync" title="ดาวน์โหลดตัวเปิดระบบ Auto-Sync สเปกและ IP อัตโนมัติทุกครั้งเมื่อเปิด/รีสตาร์ตเครื่อง (สำหรับเครื่องที่ลงไว้แล้ว โดยไม่ต้องลงแอปใหม่)">
-                        <span class="material-symbols-Outlined" style="font-size: 18px;">autorenew</span>
-                        <span>เปิด Auto-Sync เมื่อเปิดเครื่อง</span>
-                    </a>
-
                     <button type="button" class="btn-reset-this" onclick="resetThisDevice()" title="รีเซ็ตสถานะเครื่องปัจจุบันและกลับไปหน้าหลักเพื่อติดตั้งไอคอนใหม่">
-                        <span class="material-symbols-Outlined" style="font-size: 18px;">restart_alt</span>
-                        <span>รีเซ็ตเครื่องนี้ & ติดตั้งใหม่</span>
+                        <span class="material-symbols-Outlined" style="font-size: 17px;">restart_alt</span>
+                        <span>รีเซ็ตเครื่องนี้</span>
                     </button>
 
                     <button type="button" class="btn-reset-all" onclick="submitResetAll()" title="รีเซ็ตสถานะของทุกเครื่องในระบบ">
-                        <span class="material-symbols-Outlined" style="font-size: 18px;">history</span>
+                        <span class="material-symbols-Outlined" style="font-size: 17px;">history</span>
                         <span>รีเซ็ตทุกเครื่อง</span>
                     </button>
 
                     <button type="button" class="btn-refresh" onclick="location.reload()" title="รีเฟรชข้อมูล">
-                        <span class="material-symbols-Outlined" style="font-size: 18px;">refresh</span>
+                        <span class="material-symbols-Outlined" style="font-size: 17px;">refresh</span>
                         <span>รีเฟรช</span>
                     </button>
 
                     <a href="{{ route('admin.installations.export') }}" class="btn-export" title="ส่งออกข้อมูลเป็นไฟล์ Excel/CSV">
-                        <span class="material-symbols-Outlined" style="font-size: 18px;">download</span>
-                        <span>ส่งออก Excel/CSV</span>
+                        <span class="material-symbols-Outlined" style="font-size: 17px;">file_download</span>
+                        <span>ส่งออก Excel</span>
                     </a>
                 </div>
             </form>
@@ -1315,155 +1610,162 @@
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 45px;">ลำดับ</th>
-                            <th>สถานะ</th>
-                            <th>เครื่องคอมพิวเตอร์ & IP</th>
-                            <th>สเปกเครื่อง (CPU / RAM / DISK)</th>
-                            <th style="text-align: center;">รีโมทภายใน (VNC / RDP)</th>
-                            <th>แผนก / หน่วยงาน</th>
-                            <th>ผู้ใช้ / OS</th>
-                            <th>เปิดใช้งาน</th>
-                            <th>ใช้งานล่าสุด</th>
-                            <th style="text-align: center;">จัดการ</th>
+                            <th style="width: 45px; text-align: center;">ลำดับ</th>
+                            <th style="width: 75px; text-align: center;">สถานะ</th>
+                            <th style="width: 200px;">เครื่องคอมพิวเตอร์ & IP</th>
+                            <th style="width: 195px;">สเปกเครื่อง (CPU/RAM/DISK)</th>
+                            <th style="width: 105px; text-align: center;">รีโมท (VNC)</th>
+                            <th style="width: 135px;">แผนก / หน่วยงาน</th>
+                            <th style="width: 145px;">ผู้ใช้ / OS / Office</th>
+                            <th style="width: 85px; text-align: center;">เปิดใช้งาน</th>
+                            <th style="width: 115px;">ใช้งานล่าสุด</th>
+                            <th style="width: 120px; text-align: center;">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($installations as $index => $item)
                             @php
                                 $isToday = $item->last_active_at && $item->last_active_at->isToday();
+                                
+                                // Clean and compact CPU text
+                                $cleanCpu = trim(preg_replace('/Intel\(R\)|Core\(TM\)|\(R\)|CPU|@.*$/i', '', $item->cpu ?? ''));
+                                $compactSpec = '';
+                                if ($item->ram) {
+                                    $compactSpec = $item->ram;
+                                }
+                                if ($cleanCpu) {
+                                    $compactSpec .= ($compactSpec ? ' • ' : '') . Str::limit($cleanCpu, 14);
+                                } elseif ($item->disk) {
+                                    $compactSpec .= ($compactSpec ? ' • ' : '') . 'DISK';
+                                }
                             @endphp
                             <tr>
-                                <td>{{ $installations->firstItem() + $index }}</td>
-                                <td>
+                                <td style="text-align: center; color: #64748B;">{{ $installations->firstItem() + $index }}</td>
+                                <td style="text-align: center;">
                                     @if($isToday)
-                                        <span class="badge badge-online">
+                                        <span class="badge badge-online" title="ออนไลน์ (ใช้งานวันนี้)">
                                             <span class="pulse-dot"></span> วันนี้
                                         </span>
                                     @else
-                                        <span class="badge badge-offline">ออฟไลน์</span>
+                                        <span class="badge badge-offline" title="ออฟไลน์">ออฟไลน์</span>
                                     @endif
                                 </td>
                                 <td>
-                                    <div style="display: flex; align-items: center; gap: 6px;">
-                                        <span class="material-symbols-Outlined" style="font-size: 18px; color: var(--primary);">computer</span>
-                                        <strong>{{ $item->hostname ?: '-' }}</strong>
+                                    <div class="host-ip-compact" onclick="openDetailsModal({{ json_encode($item) }})" title="คลิกเพื่อดูรายละเอียดเครื่อง {{ $item->hostname ?: $item->ip_address }}">
+                                        <span class="material-symbols-Outlined host-icon">computer</span>
+                                        <span class="host-name-text">{{ $item->hostname ?: '-' }}</span>
+                                        @if($item->ip_address)
+                                            <span class="ip-badge-mini">{{ $item->ip_address }}</span>
+                                        @endif
                                     </div>
-                                    <div style="margin-top: 3px;">
-                                        <span class="ip-badge">{{ $item->ip_address ?: 'ไม่พบ IP' }}</span>
-                                    </div>
-                                    <div class="hostname-text" title="{{ $item->device_id }}">UUID: {{ Str::limit($item->device_id, 10) }}</div>
                                 </td>
                                 <td>
                                     @if($item->cpu || $item->ram || $item->disk)
-                                        <div class="spec-list">
-                                            @if($item->cpu)
-                                                <span class="spec-badge spec-cpu" title="CPU: {{ $item->cpu }}">
-                                                    <span class="material-symbols-Outlined" style="font-size: 13px;">memory</span>
-                                                    <span>{{ Str::limit($item->cpu, 32) }}</span>
-                                                </span>
-                                            @endif
-                                            @if($item->ram)
-                                                <span class="spec-badge spec-ram" title="RAM: {{ $item->ram }}">
-                                                    <span class="material-symbols-Outlined" style="font-size: 13px;">developer_board</span>
-                                                    <span>RAM: {{ $item->ram }}</span>
-                                                </span>
-                                            @endif
-                                            @if($item->disk)
-                                                <span class="spec-badge spec-disk" title="DISK: {{ $item->disk }}">
-                                                    <span class="material-symbols-Outlined" style="font-size: 13px;">storage</span>
-                                                    <span>DISK: {{ $item->disk }}</span>
-                                                </span>
-                                            @endif
+                                        <div class="spec-pill-compact" onclick="openDetailsModal({{ json_encode($item) }})" title="คลิกเพื่อดูรายละเอียดสเปกเต็ม: CPU {{ $item->cpu }} | RAM {{ $item->ram }} | DISK {{ $item->disk }}">
+                                            <span class="material-symbols-Outlined spec-pill-icon">memory</span>
+                                            <span class="spec-pill-text">{{ $compactSpec ?: 'ดูสเปก' }}</span>
+                                            <span class="material-symbols-Outlined spec-pill-more">open_in_new</span>
                                         </div>
                                     @else
-                                        <span class="spec-empty">รอรันตัวติดตั้งเพื่อตรวจจับสเปก</span>
+                                        <span class="spec-empty-compact" onclick="openDetailsModal({{ json_encode($item) }})" title="คลิกเพื่อดูรายละเอียด">- ยังไม่มีสเปก -</span>
                                     @endif
                                 </td>
                                 <td style="text-align: center;">
                                     @if($item->ip_address)
-                                        <div class="remote-actions">
-                                            <a href="{{ route('admin.installations.vnc', $item->id) }}" class="btn-remote-vnc" title="ดาวน์โหลดไฟล์ .vnc เพื่อเปิดดูหน้าจอและควบคุมเครื่องนี้ทันที (หน้าจอไม่ดับ)">
-                                                <span class="material-symbols-Outlined" style="font-size: 14px;">screen_share</span>
-                                                <span>Remote (VNC)</span>
-                                            </a>
-                                            <button type="button" class="btn-remote-copy" onclick="copyVnc('{{ $item->ip_address }}', '{{ $vnc_password ?? 'cshos123' }}')" title="คัดลอก IP และรหัสผ่าน VNC สำหรับโปรแกรม VNC Viewer">
-                                                <span class="material-symbols-Outlined" style="font-size: 13px;">content_copy</span>
-                                                <span>{{ $item->ip_address }}:5900</span>
+                                        <div class="remote-compact-cell">
+                                            <button type="button" class="btn-remote-pill" onclick="launchVnc('{{ $item->ip_address }}')" title="คลิกเพื่อเรียกเปิดโปรแกรม TightVNC ดูหน้าจอเครื่องนี้ทันที (พอร์ต 5900 - หน้าจอไม่ดับ)">
+                                                <span class="material-symbols-Outlined" style="font-size: 13px;">screen_share</span>
+                                                <span>Remote</span>
                                             </button>
-                                            <div class="vnc-pass-hint">รหัส: <code>{{ $vnc_password ?? 'cshos123' }}</code></div>
-                                            @if($item->remote_ready)
-                                                <div class="remote-ready-pill" title="เปิดระบบ Remote VNC พอร์ต 5900 แล้ว (หน้าจอไม่ดับ)">
-                                                    <span class="material-symbols-Outlined" style="font-size: 12px;">verified</span>
-                                                    <span>VNC Ready</span>
-                                                </div>
-                                            @endif
-                                            <div style="margin-top: 2px;">
-                                                <a href="{{ route('admin.installations.rdp', $item->id) }}" class="rdp-alt-link" title="สลับไปใช้ Windows Remote Desktop แบบปกติ (หน้าจอจะล็อก)">
-                                                    <span class="material-symbols-Outlined" style="font-size: 11px;">desktop_windows</span>
-                                                    <span>RDP สำรอง</span>
-                                                </a>
-                                            </div>
+                                            <button type="button" class="btn-copy-icon" onclick="copyVnc('{{ $item->ip_address }}', '{{ $vnc_password ?? 'cshos123' }}')" title="คัดลอก IP:5900 สำหรับโปรแกรม VNC Viewer">
+                                                <span class="material-symbols-Outlined" style="font-size: 13px;">content_copy</span>
+                                            </button>
                                         </div>
                                     @else
-                                        <span class="spec-empty">ไม่พบ IP</span>
+                                        <span class="spec-empty-compact">ไม่พบ IP</span>
                                     @endif
                                 </td>
                                 <td>
                                     @if($item->department)
-                                        <span class="dept-tag">{{ $item->department }}</span>
+                                        <span class="dept-compact-tag" title="{{ $item->department }}" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;">
+                                            {{ $item->department }}
+                                        </span>
                                     @else
-                                        <span class="dept-empty">ยังไม่ระบุ</span>
+                                        <span class="dept-empty" onclick="openEditModal({{ json_encode($item) }})" style="cursor: pointer;" title="คลิกเพื่อระบุแผนก">ยังไม่ระบุ</span>
                                     @endif
                                 </td>
                                 <td>
-                                    <div style="font-weight: 500;">{{ $item->device_name ?: '-' }}</div>
-                                    <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
-                                        {{ $item->os ?: 'Windows' }}
-                                    </div>
-                                </td>
-                                <td>
-                                    <span style="font-weight: 600; color: var(--primary);">{{ number_format($item->launch_count) }}</span> ครั้ง
-                                    <div style="margin-top: 0.2rem;">
-                                        @if($item->install_type === 'installed')
-                                            <span class="badge badge-installed">
-                                                <span class="material-symbols-Outlined" style="font-size: 14px;">check</span> ติดตั้งไอคอนแล้ว
-                                            </span>
-                                        @else
-                                            <span class="badge badge-browser">ผ่านเบราว์เซอร์</span>
+                                    @php
+                                        $osDisplay = 'Win';
+                                        $fullOs = $item->os_version ?: $item->os;
+                                        if (Str::contains($fullOs, '11')) { $osDisplay = 'Win 11'; }
+                                        elseif (Str::contains($fullOs, '10')) { $osDisplay = 'Win 10'; }
+                                        elseif (Str::contains($fullOs, '7')) { $osDisplay = 'Win 7'; }
+
+                                        $officeStr = $item->office_version ?: '';
+                                        $officeDisplay = '';
+                                        $officeClass = 'office-mini-tag';
+                                        if ($officeStr && $officeStr !== 'Not Installed') {
+                                            if (Str::contains($officeStr, '2024')) { $officeDisplay = 'Off 24'; }
+                                            elseif (Str::contains($officeStr, '2021')) { $officeDisplay = 'Off 21'; }
+                                            elseif (Str::contains($officeStr, '2019')) { $officeDisplay = 'Off 19'; }
+                                            elseif (Str::contains($officeStr, ['365', 'O365', 'M365'])) { $officeDisplay = 'M365'; $officeClass .= ' office-m365'; }
+                                            elseif (Str::contains($officeStr, '2016')) { $officeDisplay = 'Off 16'; }
+                                            elseif (Str::contains($officeStr, '2013')) { $officeDisplay = 'Off 13'; }
+                                            elseif (Str::contains($officeStr, '2010')) { $officeDisplay = 'Off 10'; }
+                                            elseif (Str::contains($officeStr, '2007')) { $officeDisplay = 'Off 07'; }
+                                            else { $officeDisplay = 'Office'; }
+                                        } elseif ($officeStr === 'Not Installed') {
+                                            $officeDisplay = 'No Off';
+                                            $officeClass .= ' office-none';
+                                        }
+                                    @endphp
+                                    <div class="user-os-compact" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;" title="ผู้ใช้: {{ $item->device_name ?: '-' }}&#10;OS: {{ $item->os_version ?: $item->os ?: 'Windows' }}&#10;Office: {{ $item->office_version ?: 'ยังไม่มีข้อมูล' }}">
+                                        <span class="user-name-compact">{{ $item->device_name ?: '-' }}</span>
+                                        <span class="os-mini-tag" title="{{ $item->os_version ?: $item->os }}">{{ $osDisplay }}</span>
+                                        @if($officeDisplay)
+                                            <span class="{{ $officeClass }}" title="{{ $item->office_version }}">{{ $officeDisplay }}</span>
                                         @endif
                                     </div>
                                 </td>
-                                <td style="font-size: 0.85rem;">
-                                    <div style="font-weight: 500;">
-                                        {{ $item->last_active_at ? $item->last_active_at->format('d/m/Y H:i') : '-' }}
+                                <td style="text-align: center;">
+                                    <div class="launch-compact">
+                                        <span class="launch-count-badge">{{ number_format($item->launch_count) }}</span>
+                                        @if($item->install_type === 'installed')
+                                            <span class="app-type-tag installed" title="ติดตั้งไอคอนแอปบน Desktop แล้ว">แอป</span>
+                                        @else
+                                            <span class="app-type-tag web" title="เข้าผ่านเว็บเบราว์เซอร์">เว็บ</span>
+                                        @endif
                                     </div>
-                                    <div style="font-size: 0.75rem; color: var(--text-muted);">
-                                        {{ $item->last_active_at ? $item->last_active_at->diffForHumans() : '' }}
-                                    </div>
-                                    <div style="font-size: 0.72rem; color: #94A3B8; margin-top: 2px;">
-                                        ติดตั้ง: {{ $item->first_installed_at ? $item->first_installed_at->format('d/m/Y H:i') : '-' }}
+                                </td>
+                                <td>
+                                    <div class="time-compact-cell" onclick="openDetailsModal({{ json_encode($item) }})" title="ใช้งานล่าสุด: {{ $item->last_active_at ? $item->last_active_at->diffForHumans() : '-' }}&#10;ติดตั้งเมื่อ: {{ $item->first_installed_at ? $item->first_installed_at->format('d/m/Y H:i') : '-' }}">
+                                        {{ $item->last_active_at ? $item->last_active_at->format('d/m/y H:i') : '-' }}
                                     </div>
                                 </td>
                                 <td style="text-align: center;">
                                     <div class="table-actions-cell">
-                                        <button type="button" class="btn-action-edit" 
+                                        <button type="button" class="btn-action-icon btn-action-view" 
+                                                onclick="openDetailsModal({{ json_encode($item) }})"
+                                                title="คลิกเพื่อดูรายละเอียดคอมพิวเตอร์และสเปกฉบับเต็ม">
+                                            <span class="material-symbols-Outlined" style="font-size: 15px;">visibility</span>
+                                        </button>
+                                        <button type="button" class="btn-action-icon btn-action-edit" 
                                                 onclick="openEditModal({{ json_encode($item) }})"
                                                 title="แก้ไขแผนก / ข้อมูลเครื่อง">
-                                            <span class="material-symbols-Outlined" style="font-size: 16px;">edit</span>
-                                            <span>แก้ไข</span>
+                                            <span class="material-symbols-Outlined" style="font-size: 15px;">edit</span>
                                         </button>
                                         <form action="{{ route('admin.installations.reset', $item->id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('ต้องการรีเซ็ตสถานะการติดตั้งของเครื่อง {{ $item->hostname ?: $item->ip_address }} ใช่หรือไม่? \n(สถานะจะเปลี่ยนเป็น \'รอติดตั้งใหม่\' เพื่อให้เครื่องนี้ติดตั้งไอคอนใหม่ได้)')">
                                             @csrf
-                                            <button type="submit" class="btn-action-reset" title="รีเซ็ตสถานะ ให้เครื่องนี้ติดตั้งใหม่ได้">
-                                                <span class="material-symbols-Outlined" style="font-size: 16px;">restart_alt</span>
-                                                <span>รีเซ็ต</span>
+                                            <button type="submit" class="btn-action-icon btn-action-reset" title="รีเซ็ตสถานะ ให้เครื่องนี้ติดตั้งใหม่ได้">
+                                                <span class="material-symbols-Outlined" style="font-size: 15px;">restart_alt</span>
                                             </button>
                                         </form>
                                         <form action="{{ route('admin.installations.destroy', $item->id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('ต้องการลบข้อมูลเครื่อง {{ $item->hostname ?: $item->ip_address }} ออกจากระบบใช่หรือไม่?')">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn-action-delete" title="ลบข้อมูลเครื่องนี้">
-                                                <span class="material-symbols-Outlined" style="font-size: 16px;">delete</span>
+                                            <button type="submit" class="btn-action-icon btn-action-delete" title="ลบข้อมูลเครื่องนี้">
+                                                <span class="material-symbols-Outlined" style="font-size: 15px;">delete</span>
                                             </button>
                                         </form>
                                     </div>
@@ -1566,6 +1868,166 @@
         </div>
     </div>
 
+    <!-- Machine Details Modal -->
+    <div class="modal-overlay" id="detailsModal">
+        <div class="modal-card modal-card-large">
+            <div class="modal-header">
+                <h3>
+                    <span class="material-symbols-Outlined" style="color: var(--primary); font-size: 22px;">desktop_windows</span>
+                    <span id="dtHostname">รายละเอียดเครื่องคอมพิวเตอร์</span>
+                </h3>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span id="dtStatusBadge" class="badge"></span>
+                    <button type="button" class="modal-close" onclick="closeDetailsModal()">
+                        <span class="material-symbols-Outlined">close</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="details-modal-body">
+                <!-- Section 1: สเปกฮาร์ดแวร์ & ซอฟต์แวร์ -->
+                <div class="detail-section">
+                    <div class="detail-section-title">
+                        <span class="material-symbols-Outlined" style="color: #2563EB;">memory</span>
+                        <span>สเปกฮาร์ดแวร์ & ซอฟต์แวร์ระบบ (Hardware & System Specs)</span>
+                    </div>
+                    <div class="detail-grid">
+                        <div class="detail-item full-width">
+                            <label>หน่วยประมวลผลกลาง (CPU)</label>
+                            <div id="dtCpu" class="detail-value text-highlight">-</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>หน่วยความจำ (RAM)</label>
+                            <div id="dtRam" class="detail-value text-highlight">-</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>ระบบปฏิบัติการ & เวอร์ชั่น (OS & Version)</label>
+                            <div id="dtOs" class="detail-value text-highlight">-</div>
+                        </div>
+                        <div class="detail-item full-width">
+                            <label>ชุดโปรแกรมสำนักงาน (Microsoft Office Version)</label>
+                            <div id="dtOffice" class="detail-value text-highlight" style="background: #FFF7ED; border-color: #FED7AA; color: #C2410C;">-</div>
+                        </div>
+                        <div class="detail-item full-width">
+                            <label>พื้นที่จัดเก็บข้อมูลฮาร์ดดิสก์ (DISK)</label>
+                            <div id="dtDisk" class="detail-value font-mono" style="font-size: 0.82rem; background: #FFF; padding: 5px 8px; border-radius: 6px; border: 1px solid #E2E8F0;">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: ข้อมูลเครือข่าย & ผู้ใช้งาน -->
+                <div class="detail-section">
+                    <div class="detail-section-title">
+                        <span class="material-symbols-Outlined" style="color: #059669;">lan</span>
+                        <span>ข้อมูลเครือข่าย & ผู้ใช้งาน (Network & Identity)</span>
+                    </div>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <label>หมายเลข IP Address</label>
+                            <div class="detail-value-with-btn">
+                                <span id="dtIp" class="ip-badge-lg">-</span>
+                                <button type="button" class="btn-copy-chip" onclick="copyCurrentIp()" title="คัดลอก IP Address">
+                                    <span class="material-symbols-Outlined" style="font-size: 13px;">content_copy</span>
+                                    <span>คัดลอก</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="detail-item">
+                            <label>ชื่อเครื่อง (Computer Name)</label>
+                            <div id="dtCompName" class="detail-value" style="font-weight: 700; color: #0F172A;">-</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>แผนก / หน่วยงาน</label>
+                            <div id="dtDept" class="detail-value">-</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>ผู้ใช้งานประจำเครื่อง / อุปกรณ์</label>
+                            <div id="dtDeviceName" class="detail-value">-</div>
+                        </div>
+                        <div class="detail-item full-width">
+                            <label>รหัสประจำอุปกรณ์ (Device UUID)</label>
+                            <div id="dtUuid" class="detail-value font-mono text-muted" style="font-size: 0.76rem;">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: ระบบ Remote ภายใน -->
+                <div class="detail-section highlight-remote">
+                    <div class="detail-section-title">
+                        <span class="material-symbols-Outlined" style="color: #059669;">screen_share</span>
+                        <span>ระบบรีโมทระยะไกล (Internal Remote Desktop - หน้าจอไม่ดับ)</span>
+                    </div>
+                    <div class="remote-banner">
+                        <div class="remote-banner-info">
+                            <div style="font-weight: 600; color: #065F46; font-size: 0.88rem;">TightVNC Remote Server (พอร์ต 5900)</div>
+                            <div style="font-size: 0.78rem; color: #047857; margin-top: 2px;">
+                                รหัสผ่าน VNC: <code>{{ $vnc_password ?? 'cshos123' }}</code> • โหมดแชร์หน้าจอ (Screen Share) ดูและแก้ปัญหาร่วมกันได้ทันที
+                            </div>
+                        </div>
+                        <div class="remote-banner-actions">
+                            <button type="button" class="btn-modal-vnc" onclick="launchCurrentVnc()" title="คลิกเพื่อเรียกเปิดโปรแกรม TightVNC ดูหน้าจอเครื่องนี้ทันที">
+                                <span class="material-symbols-Outlined" style="font-size: 15px;">play_arrow</span>
+                                <span>เปิดโปรแกรม VNC</span>
+                            </button>
+                            <button type="button" class="btn-modal-copy-vnc" onclick="copyCurrentVnc()" title="คัดลอก IP:5900">
+                                <span class="material-symbols-Outlined" style="font-size: 14px;">content_copy</span>
+                                <span>คัดลอก IP:5900</span>
+                            </button>
+                            <a id="dtVncFileLink" href="#" class="btn-modal-rdp" title="ดาวน์โหลดไฟล์ .vnc สำหรับเปิดด้วยโปรแกรม VNC อื่นๆ" style="font-size: 0.78rem;">
+                                <span class="material-symbols-Outlined" style="font-size: 13px;">file_download</span>
+                                <span>ไฟล์ .vnc</span>
+                            </a>
+                            <a id="dtRdpLink" href="#" class="btn-modal-rdp" title="สลับไปใช้ Windows Remote Desktop RDP สำรอง (หน้าจอจะล็อก)">
+                                <span class="material-symbols-Outlined" style="font-size: 13px;">desktop_windows</span>
+                                <span>RDP สำรอง</span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 4: ประวัติการใช้งาน -->
+                <div class="detail-section">
+                    <div class="detail-section-title">
+                        <span class="material-symbols-Outlined" style="color: #D97706;">history</span>
+                        <span>สถิติการใช้งาน & วันที่บันทึก (Activity & History)</span>
+                    </div>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <label>จำนวนครั้งที่เปิดใช้งาน</label>
+                            <div id="dtLaunchCount" class="detail-value">-</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>ประเภทการติดตั้ง</label>
+                            <div id="dtInstallType" class="detail-value">-</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>ติดตั้งครั้งแรก</label>
+                            <div id="dtFirstInstall" class="detail-value">-</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>ใช้งานล่าสุด</label>
+                            <div id="dtLastActive" class="detail-value">-</div>
+                        </div>
+                        <div class="detail-item full-width" id="dtNotesContainer">
+                            <label>หมายเหตุ</label>
+                            <div id="dtNotes" class="detail-value" style="font-style: italic;">-</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="justify-content: space-between;">
+                <div>
+                    <button type="button" class="btn-modal-edit-trigger" onclick="switchFromDetailsToEdit()">
+                        <span class="material-symbols-Outlined" style="font-size: 16px;">edit</span>
+                        <span>แก้ไขข้อมูลแผนก / ผู้ใช้</span>
+                    </button>
+                </div>
+                <button type="button" class="btn-modal-cancel" onclick="closeDetailsModal()">ปิดหน้าต่าง</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification -->
     <div id="toastNotification" class="toast-notify">
         <span class="material-symbols-Outlined" style="color: #34D399; font-size: 20px;">check_circle</span>
@@ -1573,6 +2035,161 @@
     </div>
 
     <script>
+        let currentDetailItem = null;
+
+        function openDetailsModal(item) {
+            currentDetailItem = item;
+            const modal = document.getElementById('detailsModal');
+            if (!modal) return;
+
+            // Header info
+            document.getElementById('dtHostname').textContent = (item.hostname ? item.hostname : 'เครื่องคอมพิวเตอร์') + (item.ip_address ? ' (' + item.ip_address + ')' : '');
+            
+            // Status badge
+            const isToday = item.last_active_at && new Date(item.last_active_at).toDateString() === new Date().toDateString();
+            const statusBadge = document.getElementById('dtStatusBadge');
+            if (statusBadge) {
+                if (isToday) {
+                    statusBadge.className = 'badge badge-online';
+                    statusBadge.innerHTML = '<span class="pulse-dot"></span> วันนี้';
+                } else {
+                    statusBadge.className = 'badge badge-offline';
+                    statusBadge.textContent = 'ออฟไลน์';
+                }
+            }
+
+            // Hardware Specs & Software
+            document.getElementById('dtCpu').textContent = item.cpu || 'ไม่สามารถระบุ CPU ได้';
+            document.getElementById('dtRam').textContent = item.ram || 'ไม่สามารถระบุ RAM ได้';
+            document.getElementById('dtDisk').textContent = item.disk || 'ไม่สามารถระบุ DISK ได้';
+            document.getElementById('dtOs').textContent = item.os_version || item.os || 'Windows';
+            const officeEl = document.getElementById('dtOffice');
+            if (officeEl) {
+                const offVal = item.office_version;
+                if (!offVal) {
+                    officeEl.textContent = 'ยังไม่มีข้อมูลการตรวจสอบ (รอการซิงก์ข้อมูลรอบถัดไป)';
+                } else if (offVal === 'Not Installed') {
+                    officeEl.textContent = 'ไม่ได้ติดตั้งโปรแกรม Microsoft Office บนเครื่องนี้';
+                } else {
+                    officeEl.textContent = offVal;
+                }
+            }
+
+            // Network & Identity
+            document.getElementById('dtIp').textContent = item.ip_address || 'ไม่พบ IP';
+            document.getElementById('dtCompName').textContent = item.hostname || '-';
+            document.getElementById('dtDept').textContent = item.department || 'ยังไม่ระบุแผนก';
+            document.getElementById('dtDeviceName').textContent = item.device_name || '-';
+            document.getElementById('dtUuid').textContent = item.device_id || '-';
+
+            // Remote links
+            const vncFileLink = document.getElementById('dtVncFileLink');
+            if (vncFileLink) {
+                vncFileLink.href = "{{ url('/admin/installations') }}/" + item.id + "/vnc";
+            }
+            const rdpLink = document.getElementById('dtRdpLink');
+            if (rdpLink) {
+                rdpLink.href = "{{ url('/admin/installations') }}/" + item.id + "/rdp";
+            }
+
+            // Usage & Timestamps
+            document.getElementById('dtLaunchCount').textContent = (item.launch_count || 0) + ' ครั้ง';
+            document.getElementById('dtInstallType').textContent = (item.install_type === 'installed') ? 'ติดตั้งไอคอนแอป (Desktop Shortcut)' : 'เข้าใช้งานผ่านเบราว์เซอร์';
+            document.getElementById('dtFirstInstall').textContent = item.first_installed_at ? formatDateTime(item.first_installed_at) : '-';
+            document.getElementById('dtLastActive').textContent = item.last_active_at ? formatDateTime(item.last_active_at) : '-';
+            
+            const notesEl = document.getElementById('dtNotes');
+            if (notesEl) {
+                notesEl.textContent = item.notes ? item.notes : 'ไม่มีหมายเหตุ';
+            }
+
+            modal.classList.add('active');
+        }
+
+        function closeDetailsModal() {
+            const modal = document.getElementById('detailsModal');
+            if (modal) modal.classList.remove('active');
+        }
+
+        function formatDateTime(dtStr) {
+            if (!dtStr) return '-';
+            try {
+                const d = new Date(dtStr);
+                if (isNaN(d.getTime())) return dtStr;
+                return d.toLocaleDateString('th-TH', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' +
+                       d.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }) + ' น.';
+            } catch(e) {
+                return dtStr;
+            }
+        }
+
+        function launchVnc(ip) {
+            if (!ip) {
+                showToast('ไม่พบ IP Address ของเครื่องนี้', 'error');
+                return;
+            }
+            const vncUri = 'vnc://' + ip + ':5900';
+            
+            // Trigger custom protocol handler safely without browser navigating away
+            const a = document.createElement('a');
+            a.href = vncUri;
+            a.style.display = 'none';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                if (document.body.contains(a)) {
+                    document.body.removeChild(a);
+                }
+            }, 600);
+
+            showToast('กำลังเรียกเปิดโปรแกรม TightVNC สำหรับเครื่อง IP: ' + ip, 'success');
+        }
+
+        function launchCurrentVnc() {
+            if (!currentDetailItem || !currentDetailItem.ip_address) {
+                showToast('ไม่พบ IP Address สำหรับเชื่อมต่อ VNC', 'error');
+                return;
+            }
+            launchVnc(currentDetailItem.ip_address);
+        }
+
+        function copyCurrentIp() {
+            if (!currentDetailItem || !currentDetailItem.ip_address) return;
+            const text = currentDetailItem.ip_address;
+            copyTextToClipboard(text, 'คัดลอก IP Address: ' + text + ' สำเร็จ!');
+        }
+
+        function copyCurrentVnc() {
+            if (!currentDetailItem || !currentDetailItem.ip_address) return;
+            copyVnc(currentDetailItem.ip_address, '{{ $vnc_password ?? 'cshos123' }}');
+        }
+
+        function copyTextToClipboard(text, msg) {
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(msg);
+                }).catch(() => {
+                    fallbackCopy(text, msg);
+                });
+            } else {
+                fallbackCopy(text, msg);
+            }
+        }
+
+        function switchFromDetailsToEdit() {
+            if (!currentDetailItem) return;
+            const item = currentDetailItem;
+            closeDetailsModal();
+            openEditModal(item);
+        }
+
+        // Close on background click for details modal
+        document.getElementById('detailsModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeDetailsModal();
+            }
+        });
+
         function openEditModal(item) {
             const modal = document.getElementById('editModal');
             const form = document.getElementById('editForm');

@@ -42,6 +42,7 @@ Route::post('/api/track-install', [AppInstallationController::class, 'track'])->
 Route::post('/api/install-desktop-shortcut', [AppInstallationController::class, 'installDesktopShortcut'])->name('api.install.desktop');
 Route::get('/download-shortcut-installer', [AppInstallationController::class, 'downloadShortcutInstaller'])->name('download.shortcut.installer');
 Route::get('/download-autosync-installer', [AppInstallationController::class, 'downloadAutoSyncInstaller'])->name('download.autosync.installer');
+Route::get('/download-uninstaller', [AppInstallationController::class, 'downloadUninstaller'])->name('download.uninstaller');
 Route::get('/download-url-shortcut', [AppInstallationController::class, 'downloadUrlShortcut'])->name('download.url.shortcut');
 
 // 4. เข้าสู่ระบบผู้ดูแลระบบ (Admin Authentication)

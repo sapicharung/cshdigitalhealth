@@ -13,6 +13,8 @@ class AppInstallation extends Model
         'department',
         'device_name',
         'os',
+        'os_version',
+        'office_version',
         'browser',
         'cpu',
         'ram',
