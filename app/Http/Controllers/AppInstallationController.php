@@ -463,149 +463,148 @@ class AppInstallationController extends Controller
         $vncPassword = $this->getVncPassword();
         $vncHash = $this->getVncPasswordHash();
 
-        $psScript = <<<POWERSHELL
+        $psTemplate = <<<'POWERSHELL'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-\$OutputEncoding = [System.Text.Encoding]::UTF8
-\$ws = New-Object -ComObject WScript.Shell
-\$desktop = [Environment]::GetFolderPath('Desktop')
-\$shortcutName = "{$appName}"
-if (-not (Test-Path \$desktop)) {
-    if (Test-Path "\$env:USERPROFILE\OneDrive\Desktop") {
-        \$desktop = "\$env:USERPROFILE\OneDrive\Desktop"
+$OutputEncoding = [System.Text.Encoding]::UTF8
+$ws = New-Object -ComObject WScript.Shell
+$desktop = [Environment]::GetFolderPath('Desktop')
+$shortcutName = "{{APP_NAME}}"
+if (-not (Test-Path $desktop)) {
+    if (Test-Path "$env:USERPROFILE\OneDrive\Desktop") {
+        $desktop = "$env:USERPROFILE\OneDrive\Desktop"
     }
 }
-\$shortcutPath = Join-Path \$desktop "{$appName}.lnk"
-\$sc = \$ws.CreateShortcut(\$shortcutPath)
-\$appUrl = '{$appUrl}'
+$shortcutPath = Join-Path $desktop "{{APP_NAME}}.lnk"
+$sc = $ws.CreateShortcut($shortcutPath)
+$appUrl = '{{APP_URL}}'
 
-\$chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
-if (-not (Test-Path \$chrome)) {
-    \$chrome = 'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe'
+$chrome = 'C:\Program Files\Google\Chrome\Application\chrome.exe'
+if (-not (Test-Path $chrome)) {
+    $chrome = 'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe'
 }
-\$edge = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
-if (-not (Test-Path \$edge)) {
-    \$edge = 'C:\Program Files\Microsoft\Edge\Application\msedge.exe'
+$edge = 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe'
+if (-not (Test-Path $edge)) {
+    $edge = 'C:\Program Files\Microsoft\Edge\Application\msedge.exe'
 }
 
-if (Test-Path \$chrome) {
-    \$sc.TargetPath = \$chrome
-    \$sc.Arguments = "--app=\$appUrl"
-} elseif (Test-Path \$edge) {
-    \$sc.TargetPath = \$edge
-    \$sc.Arguments = "--app=\$appUrl"
+if (Test-Path $chrome) {
+    $sc.TargetPath = $chrome
+    $sc.Arguments = "--app=$appUrl"
+} elseif (Test-Path $edge) {
+    $sc.TargetPath = $edge
+    $sc.Arguments = "--app=$appUrl"
 } else {
-    \$sc.TargetPath = \$appUrl
+    $sc.TargetPath = $appUrl
 }
 
-\$appDir = "\$env:LOCALAPPDATA\CSHOS"
-if (-not (Test-Path \$appDir)) {
-    New-Item -ItemType Directory -Path \$appDir -Force | Out-Null
+$appDir = "$env:LOCALAPPDATA\CSHOS"
+if (-not (Test-Path $appDir)) {
+    New-Item -ItemType Directory -Path $appDir -Force | Out-Null
 }
-\$icoPath = "\$appDir\app-icon.ico"
-if (-not (Test-Path \$icoPath)) {
+$icoPath = "$appDir\app-icon.ico"
+if (-not (Test-Path $icoPath)) {
     try {
-        Invoke-WebRequest -Uri '{$iconUrl}' -OutFile \$icoPath -UseBasicParsing -TimeoutSec 4 -ErrorAction SilentlyContinue
+        Invoke-WebRequest -Uri '{{ICON_URL}}' -OutFile $icoPath -UseBasicParsing -TimeoutSec 4 -ErrorAction SilentlyContinue
     } catch {}
 }
-if (Test-Path \$icoPath) {
-    \$sc.IconLocation = "\$icoPath,0"
+if (Test-Path $icoPath) {
+    $sc.IconLocation = "$icoPath,0"
 }
 
-\$sc.Description = "{$appName} - โรงพยาบาลเชียงแสน"
-\$sc.Save()
+$sc.Description = "{{APP_NAME}} - โรงพยาบาลเชียงแสน"
+$sc.Save()
 
 # --- Collect Computer Specs ---
-\$compName = \$env:COMPUTERNAME
-\$userName = \$env:USERNAME
+$compName = $env:COMPUTERNAME
+$userName = $env:USERNAME
 
-\$osInfo = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
-if (-not \$osInfo) { \$osInfo = [System.Environment]::OSVersion.VersionString }
+$osInfo = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
+if (-not $osInfo) { $osInfo = [System.Environment]::OSVersion.VersionString }
 
-\$cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
-if (\$cpuObj -and \$cpuObj.Name) {
-    \$cpuInfo = \$cpuObj.Name.Trim()
+$cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
+if ($cpuObj -and $cpuObj.Name) {
+    $cpuInfo = $cpuObj.Name.Trim()
 } else {
-    \$cpuInfo = "ไม่สามารถระบุ CPU"
+    $cpuInfo = "ไม่สามารถระบุ CPU"
 }
 
 try {
-    \$totalRam = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
-    \$ramGB = [math]::Round((\$totalRam / 1GB), 1)
-    \$ramInfo = "\$ramGB GB"
+    $totalRam = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
+    $ramGB = [math]::Round(($totalRam / 1GB), 1)
+    $ramInfo = "$ramGB GB"
 } catch {
-    \$ramInfo = "ไม่สามารถระบุ RAM"
+    $ramInfo = "ไม่สามารถระบุ RAM"
 }
 
 try {
-    \$diskItems = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | ForEach-Object {
-        \$dId = \$_.DeviceID
-        \$free = [math]::Round(\$_.FreeSpace / 1GB, 1)
-        \$total = [math]::Round(\$_.Size / 1GB, 1)
-        "\$dId ว่าง \$free/\$total GB"
+    $diskItems = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | ForEach-Object {
+        $dId = $_.DeviceID
+        $free = [math]::Round($_.FreeSpace / 1GB, 1)
+        $total = [math]::Round($_.Size / 1GB, 1)
+        "$dId ว่าง $free/$total GB"
     }
-    \$diskInfo = \$diskItems -join ", "
+    $diskInfo = $diskItems -join ", "
 } catch {
-    \$diskInfo = "ไม่สามารถระบุ DISK"
+    $diskInfo = "ไม่สามารถระบุ DISK"
 }
 
 # --- Detect Target Machine IP Address (IPv4) ---
-\$detectedIps = @()
+$detectedIps = @()
 try {
-    \$detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
-        \$_.InterfaceAlias -notmatch 'Loopback|vEthernet|Virtual|Pseudo' -and 
-        \$_.IPAddress -notmatch '^169\.254\.' -and 
-        \$_.IPAddress -ne '127.0.0.1' 
+    $detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
+        $_.InterfaceAlias -notmatch 'Loopback|vEthernet|Virtual|Pseudo' -and 
+        $_.IPAddress -notmatch '^169\.254\.' -and 
+        $_.IPAddress -ne '127.0.0.1' 
     } | Select-Object -ExpandProperty IPAddress)
 } catch {}
 
-if (-not \$detectedIps -or \$detectedIps.Count -eq 0) {
+if (-not $detectedIps -or $detectedIps.Count -eq 0) {
     try {
-        \$netConfigs = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
-        foreach (\$nc in \$netConfigs) {
-            foreach (\$ip in \$nc.IPAddress) {
-                if (\$ip -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$' -and \$ip -ne '127.0.0.1' -and \$ip -notmatch '^169\.254\.') {
-                    \$detectedIps += \$ip
+        $netConfigs = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
+        foreach ($nc in $netConfigs) {
+            foreach ($ip in $nc.IPAddress) {
+                if ($ip -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$' -and $ip -ne '127.0.0.1' -and $ip -notmatch '^169\.254\.') {
+                    $detectedIps += $ip
                 }
             }
         }
     } catch {}
 }
 
-\$clientIp = if (\$detectedIps -and \$detectedIps.Count -gt 0) { \$detectedIps[0] } else { "" }
-\$allIpsStr = if (\$detectedIps -and \$detectedIps.Count -gt 0) { (\$detectedIps | Select-Object -Unique) -join ", " } else { "ไม่พบ IP (DHCP)" }
+$clientIp = if ($detectedIps -and $detectedIps.Count -gt 0) { $detectedIps[0] } else { "" }
+$allIpsStr = if ($detectedIps -and $detectedIps.Count -gt 0) { ($detectedIps | Select-Object -Unique) -join ", " } else { "ไม่พบ IP (DHCP)" }
 
 # --- Install & Configure VNC Server (TightVNC - Screen Share, No Logout) ---
-\$vncInstalled = \$false
+$vncInstalled = $false
 try {
-    \$tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
-    if (\$tvnSvc) {
-        \$vncInstalled = \$true
+    $tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+    if ($tvnSvc) {
+        $vncInstalled = $true
     }
 } catch {}
 
-if (-not \$vncInstalled) {
+if (-not $vncInstalled) {
     try {
-        \$is64 = [Environment]::Is64BitOperatingSystem
-        \$msiFile = if (\$is64) { "tightvnc-64bit.msi" } else { "tightvnc-32bit.msi" }
-        \$msiUrl = "{$appUrl}/downloads/" + \$msiFile
-        \$msiLocal = Join-Path \$appDir \$msiFile
+        $is64 = [Environment]::Is64BitOperatingSystem
+        $msiFile = if ($is64) { "tightvnc-64bit.msi" } else { "tightvnc-32bit.msi" }
+        $msiUrl = "{{APP_URL}}/downloads/" + $msiFile
+        $msiLocal = Join-Path $appDir $msiFile
 
-        if (-not (Test-Path \$msiLocal)) {
-            Invoke-WebRequest -Uri \$msiUrl -OutFile \$msiLocal -UseBasicParsing -TimeoutSec 20 -ErrorAction SilentlyContinue
+        if (-not (Test-Path $msiLocal)) {
+            Invoke-WebRequest -Uri $msiUrl -OutFile $msiLocal -UseBasicParsing -TimeoutSec 20 -ErrorAction SilentlyContinue
         }
 
-        if (Test-Path \$msiLocal) {
-            # Silent install TightVNC as service with configured password
-            \$vncPass = "{$vncPassword}"
-            \$msiArgs = "/i `"\$msiLocal`" /quiet /norestart ADDLOCAL=Server SERVER_REGISTER_AS_SERVICE=1 SERVER_ADD_FIREWALL_EXCEPTION=1 SET_USEVNCAUTHENTICATION=1 VALUE_OF_USEVNCAUTHENTICATION=1 SET_PASSWORD=1 VALUE_OF_PASSWORD=`"\$vncPass`""
-            Start-Process msiexec.exe -ArgumentList \$msiArgs -Wait -NoNewWindow -ErrorAction SilentlyContinue
+        if (Test-Path $msiLocal) {
+            $vncPass = "{{VNC_PASSWORD}}"
+            $msiArgs = "/i `"$msiLocal`" /quiet /norestart ADDLOCAL=Server SERVER_REGISTER_AS_SERVICE=1 SERVER_ADD_FIREWALL_EXCEPTION=1 SET_USEVNCAUTHENTICATION=1 VALUE_OF_USEVNCAUTHENTICATION=1 SET_PASSWORD=1 VALUE_OF_PASSWORD=`"$vncPass`""
+            Start-Process msiexec.exe -ArgumentList $msiArgs -Wait -NoNewWindow -ErrorAction SilentlyContinue
         }
     } catch {}
 }
 
 # Set TightVNC Password directly into Registry
 try {
-    reg add "HKLM\SOFTWARE\TightVNC\Server" /v Password /t REG_BINARY /d {$vncHash} /f | Out-Null
+    reg add "HKLM\SOFTWARE\TightVNC\Server" /v Password /t REG_BINARY /d {{VNC_HASH}} /f | Out-Null
     reg add "HKLM\SOFTWARE\TightVNC\Server" /v UseVncAuthentication /t REG_DWORD /d 1 /f | Out-Null
     reg add "HKLM\SOFTWARE\TightVNC\Server" /v AcceptRfbConnections /t REG_DWORD /d 1 /f | Out-Null
     reg add "HKLM\SOFTWARE\TightVNC\Server" /v AllowLoopback /t REG_DWORD /d 1 /f | Out-Null
@@ -613,7 +612,7 @@ try {
 } catch {}
 
 try {
-    reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v Password /t REG_BINARY /d {$vncHash} /f | Out-Null
+    reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v Password /t REG_BINARY /d {{VNC_HASH}} /f | Out-Null
     reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v UseVncAuthentication /t REG_DWORD /d 1 /f | Out-Null
     reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v AcceptRfbConnections /t REG_DWORD /d 1 /f | Out-Null
 } catch {}
@@ -774,7 +773,7 @@ $jsonPayload = $reportObj | ConvertTo-Json
 
 try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
-    $res = Invoke-RestMethod -Uri "{$appUrl}/api/track-install" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 -ErrorAction Stop
+    $res = Invoke-RestMethod -Uri "{{APP_URL}}/api/track-install" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 -ErrorAction Stop
     $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - OK: Host=$compName, IP=$clientIp, RAM=$ramInfo, DISK=$diskInfo"
     Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
 } catch {
@@ -824,7 +823,7 @@ $jsonPayload = $reportObj | ConvertTo-Json
 $serverSyncStatus = "รอส่งข้อมูล..."
 try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
-    $res = Invoke-RestMethod -Uri "{$appUrl}/api/track-install" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 8 -ErrorAction Stop
+    $res = Invoke-RestMethod -Uri "{{APP_URL}}/api/track-install" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 8 -ErrorAction Stop
     if ($res -and $res.status -eq 'success') {
         $serverSyncStatus = "อัปเดตข้อมูลขึ้นระบบเซิร์ฟเวอร์ CSHOS สำเร็จเรียบร้อย"
         if ($res.ip) { $allIpsStr = $res.ip }
@@ -860,7 +859,7 @@ Write-Host " [2] ระบบ Remote ภายใน (VNC Screen Sharing - ห�
 Write-Host "     • สถานะการเปิดระบบ            : " -NoNewline -ForegroundColor Gray
 Write-Host "พร้อมเชื่อมต่อ (TightVNC Port 5900)" -ForegroundColor Green
 Write-Host "     • รหัสผ่าน VNC                : " -NoNewline -ForegroundColor Gray
-Write-Host "{$vncPassword}" -ForegroundColor Yellow
+Write-Host "{{VNC_PASSWORD}}" -ForegroundColor Yellow
 Write-Host "     • โหมดทำงาน                   : เจ้าหน้าที่ไอทีสามารถดูและช่วยแก้ปัญหาหน้าจอได้พร้อมกัน" -ForegroundColor DarkCyan
 Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
 Write-Host " [3] ระบบ Auto-Sync อัตโนมัติเมื่อเปิดเครื่อง (Auto-Sync on Reboot):" -ForegroundColor Yellow
@@ -887,15 +886,21 @@ $popupText = "ติดตั้งไอคอนแอปและอัปเ
     "• ระบบปฏิบัติการ OS        : $osInfo`n`n" +
     "================ ระบบ Remote VNC ภายใน ================`n" +
     "• สถานะ : พร้อมเชื่อมต่อ (พอร์ต 5900)`n" +
-    "• รหัสผ่าน VNC : {$vncPassword} (หน้าจอไม่ดับ)`n`n" +
+    "• รหัสผ่าน VNC : {{VNC_PASSWORD}} (หน้าจอไม่ดับ)`n`n" +
     "================ ระบบ Auto-Sync อัตโนมัติ ================`n" +
     "• สถานะ : เปิดใช้งานแล้ว (Windows Task Scheduler)`n" +
     "• ทำงาน : อัปเดต IP และสเปกอัตโนมัติทุกครั้งที่เปิด/รีสตาร์ตเครื่อง`n" +
     "• สะดวก : ไม่จำเป็นต้องติดตั้งหรือรันแอปใหม่อีกต่อไป`n`n" +
     "• สถานะระบบ : $serverSyncStatus"
 
-$ws.Popup($popupText, 0, "{$appName} - ข้อมูลเครื่องปลายทาง", 64)
+$ws.Popup($popupText, 0, "{{APP_NAME}} - ข้อมูลเครื่องปลายทาง", 64)
 POWERSHELL;
+
+        $psScript = str_replace(
+            ['{{APP_NAME}}', '{{APP_URL}}', '{{ICON_URL}}', '{{VNC_PASSWORD}}', '{{VNC_HASH}}'],
+            [$appName, $appUrl, $iconUrl, $vncPassword, $vncHash],
+            $psTemplate
+        );
 
         $encodedCommand = base64_encode(mb_convert_encoding($psScript, 'UTF-16LE', 'UTF-8'));
 
@@ -939,37 +944,37 @@ POWERSHELL;
         $appName = config('app.name', 'CSHOS DATACENTER');
         $appUrl = url('/');
 
-        $psScript = <<<POWERSHELL
+        $psTemplate = <<<'POWERSHELL'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-\$OutputEncoding = [System.Text.Encoding]::UTF8
-\$ws = New-Object -ComObject WScript.Shell
+$OutputEncoding = [System.Text.Encoding]::UTF8
+$ws = New-Object -ComObject WScript.Shell
 
 # --- Persistent System Folder ---
-\$sysDir = "\$env:ProgramData\CSHOS"
-if (-not (Test-Path \$sysDir)) {
-    try { New-Item -ItemType Directory -Path \$sysDir -Force | Out-Null } catch {}
+$sysDir = "$env:ProgramData\CSHOS"
+if (-not (Test-Path $sysDir)) {
+    try { New-Item -ItemType Directory -Path $sysDir -Force | Out-Null } catch {}
 }
-if (-not (Test-Path \$sysDir)) {
-    \$sysDir = "\$env:LOCALAPPDATA\CSHOS"
-    if (-not (Test-Path \$sysDir)) { New-Item -ItemType Directory -Path \$sysDir -Force | Out-Null }
+if (-not (Test-Path $sysDir)) {
+    $sysDir = "$env:LOCALAPPDATA\CSHOS"
+    if (-not (Test-Path $sysDir)) { New-Item -ItemType Directory -Path $sysDir -Force | Out-Null }
 }
 
-\$devIdFile = Join-Path \$sysDir "device_id.txt"
-\$devId = ""
-if (Test-Path \$devIdFile) {
-    try { \$devId = (Get-Content \$devIdFile -Raw).Trim() } catch {}
+$devIdFile = Join-Path $sysDir "device_id.txt"
+$devId = ""
+if (Test-Path $devIdFile) {
+    try { $devId = (Get-Content $devIdFile -Raw).Trim() } catch {}
 }
-if (-not \$devId -and (Test-Path "\$env:LOCALAPPDATA\CSHOS\device_id.txt")) {
-    try { \$devId = (Get-Content "\$env:LOCALAPPDATA\CSHOS\device_id.txt" -Raw).Trim() } catch {}
+if (-not $devId -and (Test-Path "$env:LOCALAPPDATA\CSHOS\device_id.txt")) {
+    try { $devId = (Get-Content "$env:LOCALAPPDATA\CSHOS\device_id.txt" -Raw).Trim() } catch {}
 }
-if (-not \$devId) {
-    \$devId = [guid]::NewGuid().ToString()
+if (-not $devId) {
+    $devId = [guid]::NewGuid().ToString()
 }
-try { Set-Content -Path \$devIdFile -Value \$devId -Force } catch {}
+try { Set-Content -Path $devIdFile -Value $devId -Force } catch {}
 
 # --- Setup Background Auto-Sync Script ---
-\$syncScriptPath = Join-Path \$sysDir "cshos_sync.ps1"
-\$syncCode = @'
+$syncScriptPath = Join-Path $sysDir "cshos_sync.ps1"
+$syncCode = @'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -1078,7 +1083,7 @@ $jsonPayload = $reportObj | ConvertTo-Json
 
 try {
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
-    $res = Invoke-RestMethod -Uri "{$appUrl}/api/track-install" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 -ErrorAction Stop
+    $res = Invoke-RestMethod -Uri "{{APP_URL}}/api/track-install" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 -ErrorAction Stop
     $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - OK: Host=$compName, IP=$clientIp, RAM=$ramInfo, DISK=$diskInfo"
     Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
 } catch {
@@ -1088,47 +1093,47 @@ try {
 '@
 
 try {
-    Set-Content -Path \$syncScriptPath -Value \$syncCode -Encoding UTF8 -Force
+    Set-Content -Path $syncScriptPath -Value $syncCode -Encoding UTF8 -Force
 } catch {}
 
 # 1. Register Task Scheduler: Startup (ONSTART with 30s delay)
 try {
-    \$taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"\$syncScriptPath`""
-    schtasks /create /tn "CSHOS-AutoSync-Startup" /tr \$taskCmd /sc ONSTART /delay 0000:30 /ru SYSTEM /f | Out-Null
+    $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
+    schtasks /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:30 /ru SYSTEM /f | Out-Null
 } catch {}
 
 # 2. Register Task Scheduler: Logon (ONLOGON with 15s delay)
 try {
-    \$taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"\$syncScriptPath`""
-    schtasks /create /tn "CSHOS-AutoSync-Logon" /tr \$taskCmd /sc ONLOGON /delay 0000:15 /rl HIGHEST /f | Out-Null
+    $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
+    schtasks /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /delay 0000:15 /rl HIGHEST /f | Out-Null
 } catch {}
 
 # 3. Register Windows Registry Run Key
 try {
-    \$regCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"\$syncScriptPath`""
-    reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d \$regCmd /f | Out-Null
+    $regCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
+    reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d $regCmd /f | Out-Null
 } catch {}
 
 # Execute immediate sync test
 try {
-    & \$syncScriptPath
+    & $syncScriptPath
 } catch {}
 
 # Read detected info for display
-\$compName = \$env:COMPUTERNAME
-\$userName = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
-if (-not \$userName) { \$userName = \$env:USERNAME }
-\$cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
-\$cpuInfo = if (\$cpuObj -and \$cpuObj.Name) { \$cpuObj.Name.Trim() } else { "-" }
-\$totalRam = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
-\$ramInfo = [math]::Round((\$totalRam / 1GB), 1).ToString() + " GB"
+$compName = $env:COMPUTERNAME
+$userName = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
+if (-not $userName) { $userName = $env:USERNAME }
+$cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
+$cpuInfo = if ($cpuObj -and $cpuObj.Name) { $cpuObj.Name.Trim() } else { "-" }
+$totalRam = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
+$ramInfo = [math]::Round(($totalRam / 1GB), 1).ToString() + " GB"
 
-\$detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
-    \$_.InterfaceAlias -notmatch 'Loopback|vEthernet|Virtual|Pseudo' -and 
-    \$_.IPAddress -notmatch '^169\.254\.' -and 
-    \$_.IPAddress -ne '127.0.0.1' 
+$detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
+    $_.InterfaceAlias -notmatch 'Loopback|vEthernet|Virtual|Pseudo' -and 
+    $_.IPAddress -notmatch '^169\.254\.' -and 
+    $_.IPAddress -ne '127.0.0.1' 
 } | Select-Object -ExpandProperty IPAddress)
-\$allIpsStr = if (\$detectedIps) { (\$detectedIps | Select-Object -Unique) -join ", " } else { "ไม่พบ IP" }
+$allIpsStr = if ($detectedIps) { ($detectedIps | Select-Object -Unique) -join ", " } else { "ไม่พบ IP" }
 
 Write-Host ""
 Write-Host "========================================================================" -ForegroundColor Cyan
@@ -1137,15 +1142,15 @@ Write-Host "      เปิดระบบ Auto-Sync สเปกและ IP �
 Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host " [1] ข้อมูลเครื่องคอมพิวเตอร์ปลายทางที่อัปเดต:" -ForegroundColor Yellow
 Write-Host "     • ชื่อเครื่อง (Computer Name) : " -NoNewline -ForegroundColor Gray
-Write-Host "\$compName" -ForegroundColor White
+Write-Host "$compName" -ForegroundColor White
 Write-Host "     • ผู้ใช้งาน (Username)       : " -NoNewline -ForegroundColor Gray
-Write-Host "\$userName" -ForegroundColor White
+Write-Host "$userName" -ForegroundColor White
 Write-Host "     • หมายเลข IP Address          : " -NoNewline -ForegroundColor Gray
-Write-Host "\$allIpsStr" -ForegroundColor Green
+Write-Host "$allIpsStr" -ForegroundColor Green
 Write-Host "     • สเปก CPU                    : " -NoNewline -ForegroundColor Gray
-Write-Host "\$cpuInfo" -ForegroundColor White
+Write-Host "$cpuInfo" -ForegroundColor White
 Write-Host "     • ขนาดหน่วยความจำ RAM        : " -NoNewline -ForegroundColor Gray
-Write-Host "\$ramInfo" -ForegroundColor White
+Write-Host "$ramInfo" -ForegroundColor White
 Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
 Write-Host " [2] สถานะระบบ Auto-Sync อัตโนมัติ (Reboot / Startup Sync):" -ForegroundColor Yellow
 Write-Host "     • สถานะ                      : " -NoNewline -ForegroundColor Gray
@@ -1157,20 +1162,26 @@ Write-Host "ไม่ต้องติดตั้งหรือรันแ�
 Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host ""
 
-\$popupText = "เปิดระบบ Auto-Sync สำหรับเครื่องนี้สำเร็จแล้ว!`n`n" +
+$popupText = "เปิดระบบ Auto-Sync สำหรับเครื่องนี้สำเร็จแล้ว!`n`n" +
     "================ ข้อมูลเครื่องปลายทางที่อัปเดต ================`n" +
-    "• ชื่อเครื่อง (Computer Name) : \$compName`n" +
-    "• ผู้ใช้งาน (Username)       : \$userName`n" +
-    "• หมายเลข IP Address        : \$allIpsStr`n" +
-    "• สเปก CPU                 : \$cpuInfo`n" +
-    "• ขนาด RAM                 : \$ramInfo`n`n" +
+    "• ชื่อเครื่อง (Computer Name) : $compName`n" +
+    "• ผู้ใช้งาน (Username)       : $userName`n" +
+    "• หมายเลข IP Address        : $allIpsStr`n" +
+    "• สเปก CPU                 : $cpuInfo`n" +
+    "• ขนาด RAM                 : $ramInfo`n`n" +
     "================ คุณสมบัติ Auto-Sync ================`n" +
     "• ต่อไปนี้ ทุกครั้งที่มีการเปิดเครื่องหรือรีสตาร์ตเครื่อง`n" +
     "  ข้อมูล IP และสเปกจะถูกส่งไปอัปเดตที่หน้า Admin อัตโนมัติ`n" +
     "• ไม่จำเป็นต้องติดตั้งหรือรันแอปใหม่อีกต่อไป"
 
-\$ws.Popup(\$popupText, 0, "{$appName} - เปิดระบบ Auto-Sync สำเร็จ", 64)
+$ws.Popup($popupText, 0, "{{APP_NAME}} - เปิดระบบ Auto-Sync สำเร็จ", 64)
 POWERSHELL;
+
+        $psScript = str_replace(
+            ['{{APP_NAME}}', '{{APP_URL}}'],
+            [$appName, $appUrl],
+            $psTemplate
+        );
 
         $encodedCommand = base64_encode(mb_convert_encoding($psScript, 'UTF-16LE', 'UTF-8'));
 
