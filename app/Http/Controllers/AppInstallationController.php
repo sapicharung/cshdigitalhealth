@@ -576,9 +576,9 @@ try {
     }
     foreach ($ud in $userDirs) {
         $dPath = Join-Path $ud.FullName "Desktop"
-        if (Test-Path $dPath) { $targetDesktops += $dPath }
+        try { if (Test-Path $dPath -ErrorAction SilentlyContinue) { $targetDesktops += $dPath } } catch {}
         $oPath = Join-Path $ud.FullName "OneDrive\Desktop"
-        if (Test-Path $oPath) { $targetDesktops += $oPath }
+        try { if (Test-Path $oPath -ErrorAction SilentlyContinue) { $targetDesktops += $oPath } } catch {}
     }
 } catch {}
 
@@ -1130,6 +1130,7 @@ POWERSHELL;
 
         $batContent = "@echo off\r\n"
             . "chcp 65001 >nul\r\n"
+            . "cd /d \"%~dp0\"\r\n"
             . "title {$appName} - ตัวติดตั้งและตั้งค่าระบบ Auto-Sync\r\n"
             . "echo ========================================================================\r\n"
             . "echo    {$appName} - Chiang Saen Hospital\r\n"
@@ -1137,11 +1138,11 @@ POWERSHELL;
             . "echo ========================================================================\r\n"
             . "echo.\r\n"
             . "\r\n"
-            . ":: ตรวจสอบสิทธิ์ Administrator หากยังไม่มี ให้เรียกขอสิทธิ์อัตโนมัติ (UAC)\r\n"
+            . "REM ตรวจสอบสิทธิ์ Administrator หากยังไม่มี ให้เรียกขอสิทธิ์อัตโนมัติ\r\n"
             . "net session >nul 2>&1\r\n"
             . "if %errorlevel% neq 0 (\r\n"
-            . "    echo กำลังร้องขอสิทธิ์ Administrator (UAC)...\r\n"
-            . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Start-Process cmd.exe -ArgumentList '/c `\\\"%~f0`\\\"' -Verb RunAs\"\r\n"
+            . "    echo กำลังร้องขอสิทธิ์ Administrator เพื่อติดตั้งระบบ...\r\n"
+            . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"try { Start-Process -FilePath '%~f0' -Verb RunAs } catch {}\"\r\n"
             . "    exit /b\r\n"
             . ")\r\n"
             . "\r\n"
@@ -1162,8 +1163,8 @@ POWERSHELL;
             . "\r\n"
             . "echo.\r\n"
             . "echo ------------------------------------------------------------------------\r\n"
-            . "echo กดปุ่มใดๆ เพื่อปิดหน้าต่างนี้ (หรือหน้าต่างจะปิดอัตโนมัติใน 10 วินาที)...\r\n"
-            . "timeout /t 10\r\n"
+            . "echo การติดตั้งเสร็จสมบูรณ์ กดปุ่มใดๆ เพื่อปิดหน้าต่างนี้...\r\n"
+            . "pause >nul\r\n"
             . "exit /b %PS_EXIT%\r\n"
             . "\r\n"
             . "-----BEGIN CERTIFICATE-----\r\n"
@@ -1432,6 +1433,7 @@ POWERSHELL;
 
         $batContent = "@echo off\r\n"
             . "chcp 65001 >nul\r\n"
+            . "cd /d \"%~dp0\"\r\n"
             . "title {$appName} - เปิดระบบ Auto-Sync เมื่อเปิดเครื่อง\r\n"
             . "echo ========================================================================\r\n"
             . "echo    {$appName} - Chiang Saen Hospital\r\n"
@@ -1439,11 +1441,11 @@ POWERSHELL;
             . "echo ========================================================================\r\n"
             . "echo.\r\n"
             . "\r\n"
-            . ":: ตรวจสอบสิทธิ์ Administrator หากยังไม่มี ให้เรียกขอสิทธิ์อัตโนมัติ (UAC)\r\n"
+            . "REM ตรวจสอบสิทธิ์ Administrator หากยังไม่มี ให้เรียกขอสิทธิ์อัตโนมัติ\r\n"
             . "net session >nul 2>&1\r\n"
             . "if %errorlevel% neq 0 (\r\n"
-            . "    echo กำลังร้องขอสิทธิ์ Administrator (UAC)...\r\n"
-            . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Start-Process cmd.exe -ArgumentList '/c `\\\"%~f0`\\\"' -Verb RunAs\"\r\n"
+            . "    echo กำลังร้องขอสิทธิ์ Administrator เพื่อเปิดระบบ Auto-Sync...\r\n"
+            . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"try { Start-Process -FilePath '%~f0' -Verb RunAs } catch {}\"\r\n"
             . "    exit /b\r\n"
             . ")\r\n"
             . "\r\n"
@@ -1464,8 +1466,8 @@ POWERSHELL;
             . "\r\n"
             . "echo.\r\n"
             . "echo ------------------------------------------------------------------------\r\n"
-            . "echo กดปุ่มใดๆ เพื่อปิดหน้าต่างนี้ (หรือหน้าต่างจะปิดอัตโนมัติใน 10 วินาที)...\r\n"
-            . "timeout /t 10\r\n"
+            . "echo การตั้งค่าเสร็จสมบูรณ์ กดปุ่มใดๆ เพื่อปิดหน้าต่างนี้...\r\n"
+            . "pause >nul\r\n"
             . "exit /b %PS_EXIT%\r\n"
             . "\r\n"
             . "-----BEGIN CERTIFICATE-----\r\n"
@@ -1593,6 +1595,7 @@ POWERSHELL;
 
         $batContent = "@echo off\r\n"
             . "chcp 65001 >nul\r\n"
+            . "cd /d \"%~dp0\"\r\n"
             . "title {$appName} - ถอนการติดตั้งและลบไฟล์ระบบ\r\n"
             . "echo ========================================================================\r\n"
             . "echo    {$appName} - Chiang Saen Hospital\r\n"
@@ -1600,11 +1603,11 @@ POWERSHELL;
             . "echo ========================================================================\r\n"
             . "echo.\r\n"
             . "\r\n"
-            . ":: ตรวจสอบสิทธิ์ Administrator หากยังไม่มี ให้เรียกขอสิทธิ์อัตโนมัติ (UAC)\r\n"
+            . "REM ตรวจสอบสิทธิ์ Administrator หากยังไม่มี ให้เรียกขอสิทธิ์อัตโนมัติ\r\n"
             . "net session >nul 2>&1\r\n"
             . "if %errorlevel% neq 0 (\r\n"
-            . "    echo กำลังร้องขอสิทธิ์ Administrator (UAC)...\r\n"
-            . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Start-Process cmd.exe -ArgumentList '/c `\\\"%~f0`\\\"' -Verb RunAs\"\r\n"
+            . "    echo กำลังร้องขอสิทธิ์ Administrator เพื่อถอนการติดตั้ง...\r\n"
+            . "    powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"try { Start-Process -FilePath '%~f0' -Verb RunAs } catch {}\"\r\n"
             . "    exit /b\r\n"
             . ")\r\n"
             . "\r\n"
