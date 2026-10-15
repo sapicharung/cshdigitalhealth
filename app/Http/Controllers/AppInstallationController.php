@@ -281,7 +281,8 @@ class AppInstallationController extends Controller
                 'CPU (หน่วยประมวลผล)',
                 'RAM (หน่วยความจำ)',
                 'DISK (พื้นที่จัดเก็บข้อมูล)',
-                'Remote Desktop (RDP)',
+                'Remote VNC (Port 5900)',
+                'Remote (RDP)',
                 'ประเภท',
                 'จำนวนครั้งที่เปิดใช้งาน',
                 'ติดตั้งครั้งแรกเมื่อ',
@@ -304,7 +305,8 @@ class AppInstallationController extends Controller
                         $item->cpu ?? '-',
                         $item->ram ?? '-',
                         $item->disk ?? '-',
-                        $item->remote_ready ? 'พร้อม Remote' : 'ไม่ระบุ',
+                        $item->remote_ready ? 'พร้อม VNC (Port 5900)' : 'ไม่ระบุ',
+                        $item->remote_ready ? 'พร้อม RDP' : 'ไม่ระบุ',
                         $item->install_type === 'installed' ? 'ติดตั้งลงเครื่อง' : 'เปิดผ่านเบราว์เซอร์',
                         $item->launch_count,
                         $item->first_installed_at ? $item->first_installed_at->format('Y-m-d H:i:s') : '-',
@@ -513,7 +515,47 @@ try {
     \$diskInfo = "ไม่สามารถระบุ DISK"
 }
 
-# --- Enable Internal Windows Remote Desktop & Remote Assistance ---
+# --- Install & Configure VNC Server (TightVNC - Screen Share, No Logout) ---
+\$vncInstalled = \$false
+try {
+    \$tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+    if (\$tvnSvc) {
+        \$vncInstalled = \$true
+    }
+} catch {}
+
+if (-not \$vncInstalled) {
+    try {
+        \$is64 = [Environment]::Is64BitOperatingSystem
+        \$msiFile = if (\$is64) { "tightvnc-64bit.msi" } else { "tightvnc-32bit.msi" }
+        \$msiUrl = "{$appUrl}/downloads/" + \$msiFile
+        \$msiLocal = Join-Path \$appDir \$msiFile
+
+        if (-not (Test-Path \$msiLocal)) {
+            Invoke-WebRequest -Uri \$msiUrl -OutFile \$msiLocal -UseBasicParsing -TimeoutSec 20 -ErrorAction SilentlyContinue
+        }
+
+        if (Test-Path \$msiLocal) {
+            # Silent install TightVNC as service with standard password 'cshos123'
+            \$vncPass = "cshos123"
+            \$msiArgs = "/i `"\$msiLocal`" /quiet /norestart ADDLOCAL=Server SERVER_REGISTER_AS_SERVICE=1 SERVER_ADD_FIREWALL_EXCEPTION=1 SET_USEVNCAUTHENTICATION=1 VALUE_OF_USEVNCAUTHENTICATION=1 SET_PASSWORD=1 VALUE_OF_PASSWORD=`"\$vncPass`""
+            Start-Process msiexec.exe -ArgumentList \$msiArgs -Wait -NoNewWindow -ErrorAction SilentlyContinue
+        }
+    } catch {}
+}
+
+# Ensure tvnserver service is running and set to Automatic
+try {
+    Set-Service -Name "tvnserver" -StartupType Automatic -ErrorAction SilentlyContinue
+    Start-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+} catch {}
+
+# Ensure Windows Firewall allows Port 5900
+try {
+    netsh advfirewall firewall add rule name="TightVNC Server Port 5900" dir=in action=allow protocol=TCP localport=5900 | Out-Null
+} catch {}
+
+# --- Also Enable Internal Windows Remote Desktop & Remote Assistance as backup ---
 try {
     Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -ErrorAction SilentlyContinue
     Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
@@ -557,17 +599,18 @@ try {
 Write-Host ""
 Write-Host "====================================================" -ForegroundColor Cyan
 Write-Host "   CSHOS DATACENTER - โรงพยาบาลเชียงแสน" -ForegroundColor White
-Write-Host "   ติดตั้งไอคอนแอป และลงทะเบียนสเปกเครื่องสำเร็จ!" -ForegroundColor Green
+Write-Host "   ติดตั้งไอคอนแอป และระบบ Remote VNC สำเร็จ!" -ForegroundColor Green
 Write-Host "----------------------------------------------------" -ForegroundColor DarkGray
 Write-Host "   ชื่อคอมพิวเตอร์ : \$compName (ผู้ใช้: \$userName)" -ForegroundColor Yellow
 Write-Host "   CPU             : \$cpuInfo" -ForegroundColor White
 Write-Host "   RAM             : \$ramInfo" -ForegroundColor White
 Write-Host "   DISK            : \$diskInfo" -ForegroundColor White
-Write-Host "   ระบบ Remote     : พร้อมเชื่อมต่อ (Remote Desktop)" -ForegroundColor Green
+Write-Host "   ระบบ Remote     : VNC พร้อมเชื่อมต่อ (พอร์ต 5900 / รหัส: cshos123)" -ForegroundColor Green
+Write-Host "   (หน้าจอไม่ดับ คนหน้าเครื่องและไอทีทำงานพร้อมกันได้)" -ForegroundColor DarkCyan
 Write-Host "====================================================" -ForegroundColor Cyan
 Write-Host ""
 
-\$popupText = "ติดตั้งไอคอน {$appName} บนหน้าจอ Desktop เรียบร้อยแล้ว!`n`n[ข้อมูลเครื่องคอมพิวเตอร์]`nชื่อเครื่อง: \$compName (\$userName)`nCPU: \$cpuInfo`nRAM: \$ramInfo`nDISK: \$diskInfo`n`nเปิดระบบ Remote ภายในเรียบร้อยแล้ว"
+\$popupText = "ติดตั้งไอคอน {$appName} บนหน้าจอ Desktop เรียบร้อยแล้ว!`n`n[ข้อมูลเครื่องคอมพิวเตอร์]`nชื่อเครื่อง: \$compName (\$userName)`nCPU: \$cpuInfo`nRAM: \$ramInfo`nDISK: \$diskInfo`n`nเปิดระบบ Remote VNC ภายในเรียบร้อยแล้ว`n(พอร์ต 5900 / รหัสผ่าน: cshos123 - หน้าจอไม่ดับ)"
 \$ws.Popup(\$popupText, 0, "{$appName} - โรงพยาบาลเชียงแสน", 64)
 POWERSHELL;
 
@@ -587,6 +630,44 @@ POWERSHELL;
         return response($batContent, 200, [
             'Content-Type'        => 'application/x-bat',
             'Content-Disposition' => 'attachment; filename="Install-CSHOS-Desktop.bat"',
+            'Cache-Control'       => 'no-cache, no-store, must-revalidate',
+        ]);
+    }
+
+    /**
+     * Download VNC configuration file (.vnc) for client computer.
+     */
+    public function downloadVnc($id)
+    {
+        $installation = AppInstallation::findOrFail($id);
+        $target = $installation->ip_address ?: $installation->hostname;
+        if (!$target) {
+            return back()->with('error', 'ไม่พบ IP Address หรือ Hostname ของเครื่องนี้สำหรับเชื่อมต่อ VNC');
+        }
+
+        $cleanName = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $installation->hostname ?: $installation->ip_address);
+        $fileName = "remote-{$cleanName}.vnc";
+
+        // Pre-hashed DES password for 'cshos123': 14874f2d7c3aa34a
+        $vncContent = "[connection]\r\n"
+            . "host={$target}\r\n"
+            . "port=5900\r\n"
+            . "password=14874f2d7c3aa34a\r\n"
+            . "\r\n"
+            . "[options]\r\n"
+            . "use_encoding_0=1\r\n"
+            . "use_encoding_1=1\r\n"
+            . "use_encoding_2=1\r\n"
+            . "use_encoding_7=1\r\n"
+            . "viewonly=0\r\n"
+            . "fullscreen=0\r\n"
+            . "fitwindow=1\r\n"
+            . "shared=1\r\n"
+            . "belldeiconify=0\r\n";
+
+        return response($vncContent, 200, [
+            'Content-Type'        => 'application/x-vnc',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
             'Cache-Control'       => 'no-cache, no-store, must-revalidate',
         ]);
     }

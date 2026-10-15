@@ -596,34 +596,112 @@
             font-style: italic;
         }
 
-        /* Remote Desktop actions */
+        /* Remote VNC / Desktop actions */
         .remote-actions {
             display: flex;
             flex-direction: column;
+            gap: 4px;
+            min-width: 145px;
+            align-items: center;
+        }
+
+        .btn-remote-vnc {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
             gap: 5px;
-            min-width: 140px;
+            width: 100%;
+            padding: 5px 9px;
+            background: linear-gradient(135deg, #059669, #047857);
+            color: white !important;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            box-shadow: 0 2px 6px rgba(5, 150, 105, 0.25);
+            transition: all 0.15s;
+        }
+
+        .btn-remote-vnc:hover {
+            background: linear-gradient(135deg, #047857, #065F46);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(5, 150, 105, 0.35);
         }
 
         .btn-remote-rdp {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 5px;
-            padding: 5px 9px;
-            background: linear-gradient(135deg, #0284C7, #0369A1);
-            color: white !important;
+            gap: 4px;
+            padding: 4px 8px;
+            background: #F1F5F9;
+            color: #475569 !important;
             text-decoration: none;
-            border-radius: 8px;
-            font-size: 0.78rem;
-            font-weight: 600;
-            box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
+            border: 1px solid #CBD5E1;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            font-weight: 500;
             transition: all 0.15s;
         }
 
         .btn-remote-rdp:hover {
-            background: linear-gradient(135deg, #0369A1, #075985);
+            background: #E2E8F0;
+            color: #0F172A !important;
+        }
+
+        .rdp-alt-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 0.72rem;
+            color: #64748B;
+            text-decoration: none;
+            padding: 2px 6px;
+            border-radius: 4px;
+            transition: all 0.15s;
+        }
+
+        .rdp-alt-link:hover {
+            background: #F1F5F9;
+            color: #0284C7;
+            text-decoration: underline;
+        }
+
+        .btn-download-vnc {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.5rem 0.9rem;
+            background: #F3E8FF;
+            color: #6B21A8;
+            border: 1px solid #D8B4FE;
+            border-radius: 10px;
+            font-size: 0.88rem;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .btn-download-vnc:hover {
+            background: #E9D5FF;
+            color: #581C87;
             transform: translateY(-1px);
-            box-shadow: 0 4px 10px rgba(2, 132, 199, 0.35);
+        }
+
+        .vnc-pass-hint {
+            font-size: 0.72rem;
+            color: #64748B;
+            margin-top: 1px;
+            text-align: center;
+        }
+
+        .vnc-pass-hint code {
+            background: #F1F5F9;
+            padding: 1px 4px;
+            border-radius: 4px;
+            color: #0F172A;
+            font-weight: 600;
+            font-family: monospace;
         }
 
         .btn-remote-copy {
@@ -631,6 +709,7 @@
             align-items: center;
             justify-content: center;
             gap: 4px;
+            width: 100%;
             padding: 4px 8px;
             background: #F8FAFC;
             color: #475569;
@@ -659,7 +738,6 @@
             padding: 2px 6px;
             border-radius: 4px;
             border: 1px solid #A7F3D0;
-            align-self: flex-start;
         }
 
         /* Toast Notification */
@@ -1043,7 +1121,12 @@
         </div>
 
         <div class="nav-actions">
-            <a href="{{ route('download.shortcut.installer') }}" class="btn-download-app" title="ดาวน์โหลดตัวสร้างไอคอนสำหรับนำไปติดตั้งบนเครื่องลูกข่าย">
+            <a href="{{ asset('downloads/tightvnc-64bit.msi') }}" class="btn-download-vnc" title="ดาวน์โหลดโปรแกรม TightVNC Viewer สำหรับเครื่องแอดมิน/ช่างไอทีใช้รีโมท">
+                <span class="material-symbols-Outlined" style="font-size: 18px;">tv</span>
+                <span>ดาวน์โหลด VNC Viewer</span>
+            </a>
+
+            <a href="{{ route('download.shortcut.installer') }}" class="btn-download-app" title="ดาวน์โหลดตัวสร้างไอคอนและเปิดระบบ Remote VNC สำหรับนำไปติดตั้งบนเครื่องลูกข่าย">
                 <span class="material-symbols-Outlined" style="font-size: 18px;">download</span>
                 <span>downloadตัวติดตั้งApp</span>
             </a>
@@ -1163,7 +1246,12 @@
                 </div>
 
                 <div class="action-buttons">
-                    <a href="{{ route('download.shortcut.installer') }}" class="btn-download-toolbar" title="ดาวน์โหลดตัวสร้างไอคอนสำหรับนำไปติดตั้งบนเครื่องลูกข่าย">
+                    <a href="{{ asset('downloads/tightvnc-64bit.msi') }}" class="btn-download-vnc" title="ดาวน์โหลดโปรแกรม TightVNC Viewer สำหรับเครื่องแอดมิน/ช่างไอทีใช้รีโมท">
+                        <span class="material-symbols-Outlined" style="font-size: 18px;">tv</span>
+                        <span>ดาวน์โหลด VNC Viewer</span>
+                    </a>
+
+                    <a href="{{ route('download.shortcut.installer') }}" class="btn-download-toolbar" title="ดาวน์โหลดตัวสร้างไอคอนและเปิดระบบ Remote VNC สำหรับนำไปติดตั้งบนเครื่องลูกข่าย">
                         <span class="material-symbols-Outlined" style="font-size: 18px;">download</span>
                         <span>downloadตัวติดตั้งApp</span>
                     </a>
@@ -1204,7 +1292,7 @@
                             <th>สถานะ</th>
                             <th>เครื่องคอมพิวเตอร์ & IP</th>
                             <th>สเปกเครื่อง (CPU / RAM / DISK)</th>
-                            <th style="text-align: center;">รีโมทภายใน (Remote)</th>
+                            <th style="text-align: center;">รีโมทภายใน (VNC / RDP)</th>
                             <th>แผนก / หน่วยงาน</th>
                             <th>ผู้ใช้ / OS</th>
                             <th>เปิดใช้งาน</th>
@@ -1267,20 +1355,27 @@
                                 <td style="text-align: center;">
                                     @if($item->ip_address)
                                         <div class="remote-actions">
-                                            <a href="{{ route('admin.installations.rdp', $item->id) }}" class="btn-remote-rdp" title="ดาวน์โหลดไฟล์ .rdp เพื่อเชื่อมต่อ Remote Desktop ไปยังเครื่องนี้ทันที">
-                                                <span class="material-symbols-Outlined" style="font-size: 14px;">desktop_windows</span>
-                                                <span>Remote (RDP)</span>
+                                            <a href="{{ route('admin.installations.vnc', $item->id) }}" class="btn-remote-vnc" title="ดาวน์โหลดไฟล์ .vnc เพื่อเปิดดูหน้าจอและควบคุมเครื่องนี้ทันที (หน้าจอไม่ดับ)">
+                                                <span class="material-symbols-Outlined" style="font-size: 14px;">screen_share</span>
+                                                <span>Remote (VNC)</span>
                                             </a>
-                                            <button type="button" class="btn-remote-copy" onclick="copyMstsc('{{ $item->ip_address }}')" title="คัดลอกคำสั่ง mstsc /v:{{ $item->ip_address }}">
+                                            <button type="button" class="btn-remote-copy" onclick="copyVnc('{{ $item->ip_address }}', 'cshos123')" title="คัดลอก IP และรหัสผ่าน VNC สำหรับโปรแกรม VNC Viewer">
                                                 <span class="material-symbols-Outlined" style="font-size: 13px;">content_copy</span>
-                                                <span>mstsc /v:{{ $item->ip_address }}</span>
+                                                <span>{{ $item->ip_address }}:5900</span>
                                             </button>
+                                            <div class="vnc-pass-hint">รหัส: <code>cshos123</code></div>
                                             @if($item->remote_ready)
-                                                <div class="remote-ready-pill" title="เครื่องนี้เปิดระบบ Remote Desktop พร้อมใช้งานแล้ว">
+                                                <div class="remote-ready-pill" title="เปิดระบบ Remote VNC พอร์ต 5900 แล้ว (หน้าจอไม่ดับ)">
                                                     <span class="material-symbols-Outlined" style="font-size: 12px;">verified</span>
-                                                    <span>พร้อมรีโมท (RDP)</span>
+                                                    <span>VNC Ready</span>
                                                 </div>
                                             @endif
+                                            <div style="margin-top: 2px;">
+                                                <a href="{{ route('admin.installations.rdp', $item->id) }}" class="rdp-alt-link" title="สลับไปใช้ Windows Remote Desktop แบบปกติ (หน้าจอจะล็อก)">
+                                                    <span class="material-symbols-Outlined" style="font-size: 11px;">desktop_windows</span>
+                                                    <span>RDP สำรอง</span>
+                                                </a>
+                                            </div>
                                         </div>
                                     @else
                                         <span class="spec-empty">ไม่พบ IP</span>
@@ -1466,7 +1561,8 @@
             if (item.ram) specs.push('<strong>RAM:</strong> ' + item.ram);
             if (item.disk) specs.push('<strong>DISK:</strong> ' + item.disk);
             if (item.remote_ready) {
-                specs.push('<span style="color:#059669; font-weight:600;">✓ เปิดระบบ Remote Desktop ภายใน (RDP) พร้อมใช้งาน</span>');
+                specs.push('<span style="color:#059669; font-weight:600;">✓ เปิดระบบ Remote VNC (พอร์ต 5900 / รหัส: cshos123 - หน้าจอไม่ดับ)</span>');
+                specs.push('<span style="color:#64748B; font-size:0.75rem;">(และเปิด Windows Remote Desktop RDP สำรองแล้ว)</span>');
             }
             if (specs.length === 0) {
                 specs.push('<span style="color:#94A3B8; font-style:italic;">ยังไม่มีข้อมูลสเปก (ระบบจะตรวจจับอัตโนมัติเมื่อรันตัวติดตั้งบนเครื่องนี้)</span>');
@@ -1491,20 +1587,34 @@
             }
         });
 
+        function copyVnc(ip, pass) {
+            const text = ip + ':5900';
+            const msg = 'คัดลอก "' + text + '" แล้ว! (รหัสผ่าน VNC: ' + pass + ') เปิด VNC Viewer เพื่อเชื่อมต่อได้ทันที (หน้าจอไม่ดับ)';
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text).then(() => {
+                    showToast(msg);
+                }).catch(() => {
+                    fallbackCopy(text, msg);
+                });
+            } else {
+                fallbackCopy(text, msg);
+            }
+        }
+
         function copyMstsc(ip) {
             const cmd = 'mstsc /v:' + ip;
             if (navigator.clipboard && window.isSecureContext) {
                 navigator.clipboard.writeText(cmd).then(() => {
-                    showToast('คัดลอก "' + cmd + '" แล้ว! กด Win+R แล้ววางเพื่อรีโมทได้ทันที');
+                    showToast('คัดลอก "' + cmd + '" แล้ว! กด Win+R แล้ววางเพื่อรีโมท RDP ได้ทันที');
                 }).catch(() => {
-                    fallbackCopy(cmd);
+                    fallbackCopy(cmd, 'คัดลอก "' + cmd + '" แล้ว! กด Win+R แล้ววางเพื่อรีโมท RDP ได้ทันที');
                 });
             } else {
-                fallbackCopy(cmd);
+                fallbackCopy(cmd, 'คัดลอก "' + cmd + '" แล้ว! กด Win+R แล้ววางเพื่อรีโมท RDP ได้ทันที');
             }
         }
 
-        function fallbackCopy(text) {
+        function fallbackCopy(text, customMsg) {
             const textarea = document.createElement('textarea');
             textarea.value = text;
             textarea.style.position = 'fixed';
@@ -1514,9 +1624,9 @@
             textarea.select();
             try {
                 document.execCommand('copy');
-                showToast('คัดลอก "' + text + '" แล้ว! กด Win+R แล้ววางเพื่อรีโมทได้ทันที');
+                showToast(customMsg || ('คัดลอก "' + text + '" สำเร็จ!'));
             } catch (err) {
-                alert('คัดลอกคำสั่ง: ' + text);
+                alert('คัดลอก: ' + text);
             }
             document.body.removeChild(textarea);
         }
