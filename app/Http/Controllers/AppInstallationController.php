@@ -38,8 +38,14 @@ class AppInstallationController extends Controller
         // If client reported its own detected LAN IP address, prioritize it when request is local or proxy
         $clientReportedIp = trim($data['ip_address'] ?? '');
         if ($clientReportedIp && filter_var($clientReportedIp, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
-            if (in_array($ip, ['127.0.0.1', '::1']) || empty($ip) || !filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE)) {
-                $ip = $clientReportedIp;
+            // Check if client reported IP belongs to a virtual host-only adapter (e.g. VMware 192.168.233.x, VirtualBox 192.168.56.x)
+            $isVirtualReported = (bool) preg_match('/^(127\.|169\.254\.|192\.168\.(233|56)\.)/', $clientReportedIp);
+            if (in_array($ip, ['127.0.0.1', '::1', '172.17.0.1', '172.18.0.1']) || empty($ip)) {
+                if (!$isVirtualReported || empty($ip)) {
+                    $ip = $clientReportedIp;
+                }
+            } elseif ($isVirtualReported) {
+                // Retain genuine TCP connection IP, reject virtual adapter IP
             }
         }
 
@@ -417,7 +423,7 @@ class AppInstallationController extends Controller
             if ($isLocal && (!$record->cpu || !$record->hostname)) {
                 $record->hostname = gethostname();
                 try {
-                    $specCmd = 'powershell -NoProfile -Command "$cpu=(Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1).Name; $ram=[math]::Round((Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory/1GB,1); $disk=Get-CimInstance Win32_LogicalDisk -Filter \"DeviceID=\'C:\'\" -ErrorAction SilentlyContinue; $free=[math]::Round($disk.FreeSpace/1GB,1); $tot=[math]::Round($disk.Size/1GB,1); Write-Output \"$cpu|||$ram GB|||C: $free/$tot GB\""';
+                    $specCmd = 'powershell -NoProfile -Command "$cpuObj=Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1; $clk=if($cpuObj.MaxClockSpeed){[math]::Round(($cpuObj.MaxClockSpeed/1000),2)}else{0}; $cores=if($cpuObj.NumberOfCores){$cpuObj.NumberOfCores}else{0}; $thr=if($cpuObj.NumberOfLogicalProcessors){$cpuObj.NumberOfLogicalProcessors}else{0}; $cpu=$cpuObj.Name.Trim(); if($clk -gt 0 -and $cpu -notmatch \'@\'){$cpu=\"$cpu @ $clk GHz\"}; if($cores -gt 0){$cpu=\"$cpu ($cores Cores, $thr Threads)\"}; $ram=[math]::Round((Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory/1GB,1); $disk=Get-CimInstance Win32_LogicalDisk -Filter \"DeviceID=\'C:\'\" -ErrorAction SilentlyContinue; $free=[math]::Round($disk.FreeSpace/1GB,1); $tot=[math]::Round($disk.Size/1GB,1); Write-Output \"$cpu|||$ram GB|||C: $free/$tot GB\""';
                     $specOut = trim(shell_exec($specCmd) ?: '');
                     if (str_contains($specOut, '|||')) {
                         $parts = explode('|||', $specOut);
@@ -494,7 +500,86 @@ Write-Host ""
 Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host "      CSHOS DIGITAL HEALTH - CLIENT INSTALLER & SETUP" -ForegroundColor White
 Write-Host "========================================================================" -ForegroundColor Cyan
-Write-Host " [Step 1/5] Setting up Desktop shortcuts..." -ForegroundColor Yellow
+Write-Host " [Step 1/6] Checking for previous version & cleaning up old components..." -ForegroundColor Yellow
+
+# --- Previous Version Cleanup (Upgrade Mode) ---
+$sysDir = "$env:ProgramData\CSHOS"
+$userSysDir = "$env:LOCALAPPDATA\CSHOS"
+$commonDesktop = [Environment]::GetFolderPath('CommonDesktopDirectory')
+if (-not $commonDesktop -or -not (Test-Path $commonDesktop)) { $commonDesktop = "C:\Users\Public\Desktop" }
+$userDesktop = [Environment]::GetFolderPath('Desktop')
+
+$previousFound = $false
+if ((Test-Path "$sysDir\cshos_sync.ps1") -or (Test-Path "$userSysDir\cshos_sync.ps1") -or 
+    (Test-Path "$commonDesktop\$shortcutName.lnk") -or ($userDesktop -and (Test-Path "$userDesktop\$shortcutName.lnk"))) {
+    $previousFound = $true
+}
+if (-not $previousFound) {
+    try {
+        $existingTask = schtasks /query /tn "CSHOS-AutoSync-Startup" 2>&1
+        if ($LASTEXITCODE -eq 0) { $previousFound = $true }
+    } catch {}
+}
+
+if ($previousFound) {
+    Write-Host "       -> พบโปรแกรมหรือระบบ CSHOS เวอร์ชั่นเดิม กำลังลบและทำความสะอาด..." -ForegroundColor Cyan
+
+    # 1. Terminate running background sync processes
+    try {
+        Get-WmiObject Win32_Process -Filter "CommandLine LIKE '%cshos_sync%'" -ErrorAction SilentlyContinue | ForEach-Object {
+            Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+        }
+    } catch {}
+
+    # 2. Delete old scheduled tasks
+    try {
+        schtasks /delete /tn "CSHOS-AutoSync-Startup" /f >$null 2>&1
+        schtasks /delete /tn "CSHOS-AutoSync-Logon" /f >$null 2>&1
+        schtasks /delete /tn "CSHOS-Startup-Sync" /f >$null 2>&1
+        schtasks /delete /tn "CSHOS_AutoSync" /f >$null 2>&1
+    } catch {}
+
+    # 3. Delete old registry run keys
+    try {
+        reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /f >$null 2>&1
+        reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /f >$null 2>&1
+    } catch {}
+
+    # 4. Remove all previous desktop shortcuts from all user profiles and desktops
+    try {
+        $legacyNames = @("$shortcutName.lnk", "CSH DIGITAL HEALTH.lnk", "CSHOS.lnk", "CSHOS DATACENTER.lnk", "CSHOS.url")
+        foreach ($name in $legacyNames) {
+            Remove-Item -Path "$commonDesktop\$name" -Force -ErrorAction SilentlyContinue
+            if ($userDesktop) { Remove-Item -Path "$userDesktop\$name" -Force -ErrorAction SilentlyContinue }
+            Remove-Item -Path "$env:USERPROFILE\OneDrive\Desktop\$name" -Force -ErrorAction SilentlyContinue
+            Remove-Item -Path "C:\Users\Public\Desktop\$name" -Force -ErrorAction SilentlyContinue
+        }
+        Get-ChildItem -Path "C:\Users" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+            foreach ($name in $legacyNames) {
+                Remove-Item -Path "$($_.FullName)\Desktop\$name" -Force -ErrorAction SilentlyContinue
+                Remove-Item -Path "$($_.FullName)\OneDrive\Desktop\$name" -Force -ErrorAction SilentlyContinue
+            }
+        }
+    } catch {}
+
+    # 5. Clean old script files, temporary files, old logs (preserve existing device_id if present)
+    try {
+        $savedId = ""
+        if (Test-Path "$sysDir\device_id.txt") { $savedId = (Get-Content "$sysDir\device_id.txt" -Raw).Trim() }
+        elseif (Test-Path "$userSysDir\device_id.txt") { $savedId = (Get-Content "$userSysDir\device_id.txt" -Raw).Trim() }
+
+        Get-ChildItem -Path $sysDir -Exclude "device_id.txt" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -Path $userSysDir -Exclude "device_id.txt" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+        if ($savedId -and (Test-Path $sysDir)) { Set-Content -Path "$sysDir\device_id.txt" -Value $savedId -Force }
+    } catch {}
+
+    Write-Host "       -> ลบเวอร์ชั่นเดิมออกเรียบร้อยแล้ว! กำลังติดตั้งเวอร์ชั่นล่าสุดแทน..." -ForegroundColor Green
+} else {
+    Write-Host "       -> ตรวจไม่พบเวอร์ชั่นเดิม กำลังติดตั้งโปรแกรมเวอร์ชั่นล่าสุด..." -ForegroundColor Green
+}
+
+Write-Host " [Step 2/6] Setting up Desktop shortcuts..." -ForegroundColor Yellow
 
 # Locate Google Chrome or Microsoft Edge
 $browserExe = ""
@@ -591,7 +676,7 @@ try { & ie4uinit.exe -show | Out-Null } catch {}
 Write-Host "       -> Desktop shortcut installed successfully (1 icon on Desktop)." -ForegroundColor Green
 
 # --- Collect Computer Specs ---
-Write-Host " [Step 2/5] Detecting machine specifications (CPU, RAM, Disk, OS, Office)..." -ForegroundColor Yellow
+Write-Host " [Step 3/6] Detecting machine specifications (CPU Speed, Cores, RAM, Disk, OS, Office)..." -ForegroundColor Yellow
 $compName = $env:COMPUTERNAME
 $userName = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
 if (-not $userName) { $userName = $env:USERNAME }
@@ -600,8 +685,35 @@ $osInfo = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).
 if (-not $osInfo) { $osInfo = [System.Environment]::OSVersion.VersionString }
 
 $cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $cpuObj) {
+    $cpuObj = Get-WmiObject Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
+}
 if ($cpuObj -and $cpuObj.Name) {
-    $cpuInfo = $cpuObj.Name.Trim()
+    $rawName = ($cpuObj.Name -replace '\s+', ' ').Trim()
+    $clock = 0
+    if ($cpuObj.MaxClockSpeed) { $clock = [int]$cpuObj.MaxClockSpeed }
+    elseif ($cpuObj.CurrentClockSpeed) { $clock = [int]$cpuObj.CurrentClockSpeed }
+    
+    $cores = if ($cpuObj.NumberOfCores) { [int]$cpuObj.NumberOfCores } else { 0 }
+    $threads = if ($cpuObj.NumberOfLogicalProcessors) { [int]$cpuObj.NumberOfLogicalProcessors } else { 0 }
+
+    $speedStr = ""
+    if ($clock -gt 0 -and $rawName -notmatch '@\s*[0-9\.]+\s*GHz') {
+        $ghz = [math]::Round(($clock / 1000), 2)
+        $speedStr = "@ $ghz GHz"
+    }
+
+    $coreStr = ""
+    if ($cores -gt 0 -and $threads -gt 0) {
+        $coreStr = "($cores Cores, $threads Threads)"
+    } elseif ($cores -gt 0) {
+        $coreStr = "($cores Cores)"
+    }
+
+    $cpuParts = @($rawName)
+    if ($speedStr) { $cpuParts += $speedStr }
+    if ($coreStr) { $cpuParts += $coreStr }
+    $cpuInfo = $cpuParts -join " "
 } else {
     $cpuInfo = "Unknown CPU"
 }
@@ -609,44 +721,62 @@ if ($cpuObj -and $cpuObj.Name) {
 # RAM Specs & Bus Speed
 try {
     $totalRamBytes = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
-    $ramGB = [math]::Round(($totalRamBytes / 1GB), 1)
-    
-    $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
-    if ($memSticks -and $memSticks.Count -gt 0) {
-        $first = $memSticks[0]
-        $clock = if ($first.ConfiguredClockSpeed) { $first.ConfiguredClockSpeed } elseif ($first.Speed) { $first.Speed } else { 0 }
-        $smb = $first.SMBIOSMemoryType
-        $memType = switch ($smb) {
-            20 { "DDR" }
-            21 { "DDR2" }
-            24 { "DDR3" }
-            26 { "DDR4" }
-            34 { "DDR5" }
-            default {
-                if ($clock -ge 4800) { "DDR5" }
-                elseif ($clock -ge 2133) { "DDR4" }
-                elseif ($clock -ge 800) { "DDR3" }
-                else { "RAM" }
+    if (-not $totalRamBytes) {
+        $totalRamBytes = ((Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).TotalVisibleMemorySize) * 1KB
+    }
+    $ramGB = if ($totalRamBytes) { [math]::Round(($totalRamBytes / 1GB), 1) } else { 0 }
+    $ramInfo = if ($ramGB -gt 0) { "$ramGB GB" } else { "Unknown RAM" }
+
+    try {
+        $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+        if (-not $memSticks -or $memSticks.Count -eq 0) {
+            $memSticks = @(Get-WmiObject Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+        }
+
+        if ($memSticks -and $memSticks.Count -gt 0) {
+            $first = $memSticks[0]
+            $clock = 0
+            if ($first.ConfiguredClockSpeed) { $clock = [int]$first.ConfiguredClockSpeed }
+            elseif ($first.Speed) { $clock = [int]$first.Speed }
+
+            $smb = if ($first.SMBIOSMemoryType) { [int]$first.SMBIOSMemoryType } else { 0 }
+            $memType = switch ($smb) {
+                20 { "DDR" }
+                21 { "DDR2" }
+                24 { "DDR3" }
+                26 { "DDR4" }
+                34 { "DDR5" }
+                default {
+                    if ($clock -ge 4800) { "DDR5" }
+                    elseif ($clock -ge 2133) { "DDR4" }
+                    elseif ($clock -ge 800) { "DDR3" }
+                    else { "RAM" }
+                }
+            }
+            $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
+            $part = if ($first.PartNumber) { ($first.PartNumber -as [string]).Trim() } else { "" }
+            $brand = if ($first.Manufacturer) { ($first.Manufacturer -as [string]).Trim() } else { "" }
+            if ($brand -match '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $brand = "" }
+            
+            $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
+            $stickCount = $memSticks.Count
+            $descList = New-Object System.Collections.Generic.List[string]
+            if ($memType) { $descList.Add($memType) }
+            if ($busStr) { $descList.Add($busStr) }
+            if ($stickCount -gt 1) {
+                $detailStr = if ($modelInfo) { " - $modelInfo" } else { "" }
+                $descList.Add("($stickCount ช่อง$detailStr)")
+            } elseif ($modelInfo) {
+                $descList.Add("($modelInfo)")
+            }
+            $details = $descList -join " "
+            if ($ramGB -gt 0) {
+                $ramInfo = "$ramGB GB $details".Trim()
+            } elseif ($details) {
+                $ramInfo = $details
             }
         }
-        $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
-        $part = if ($first.PartNumber) { $first.PartNumber.Trim() } else { "" }
-        $brand = if ($first.Manufacturer -and $first.Manufacturer -notmatch '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $first.Manufacturer.Trim() } else { "" }
-        $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
-        
-        $stickCount = $memSticks.Count
-        $desc = @()
-        if ($memType) { $desc += $memType }
-        if ($busStr) { $desc += $busStr }
-        if ($stickCount -gt 1) {
-            $desc += "($stickCount ช่อง" + (if ($modelInfo) { " - $modelInfo" } else { "" }) + ")"
-        } elseif ($modelInfo) {
-            $desc += "($modelInfo)"
-        }
-        $ramInfo = "$ramGB GB " + ($desc -join " ")
-    } else {
-        $ramInfo = "$ramGB GB"
-    }
+    } catch {}
 } catch {
     $ramInfo = "Unknown RAM"
 }
@@ -700,24 +830,67 @@ try {
 
 # --- Detect Target Machine IP Address (IPv4) ---
 $detectedIps = @()
+
+# 1. Prefer active physical interface with Default Gateway route (0.0.0.0/0)
 try {
-    $detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
-        $_.InterfaceAlias -notmatch 'Loopback|vEthernet|Virtual|Pseudo' -and 
-        $_.IPAddress -notmatch '^169\.254\.' -and 
-        $_.IPAddress -ne '127.0.0.1' 
-    } | Select-Object -ExpandProperty IPAddress)
+    $gwRoutes = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -AddressFamily IPv4 -ErrorAction SilentlyContinue | Sort-Object RouteMetric)
+    foreach ($route in $gwRoutes) {
+        $adapter = Get-NetAdapter -InterfaceIndex $route.InterfaceIndex -ErrorAction SilentlyContinue
+        if ($adapter) {
+            $desc = "$($adapter.InterfaceDescription) $($adapter.Name)"
+            if ($desc -match 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN|WireGuard|Tailscale|ZeroTier') {
+                continue
+            }
+            $ipObj = Get-NetIPAddress -InterfaceIndex $route.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
+                     Where-Object { $_.IPAddress -notmatch '^(169\.254\.|127\.)' } | Select-Object -First 1
+            if ($ipObj -and $ipObj.IPAddress) {
+                $detectedIps += $ipObj.IPAddress
+            }
+        }
+    }
 } catch {}
 
+# 2. Physical adapters that are 'Up' without gateway filter if method 1 found nothing
+if (-not $detectedIps -or $detectedIps.Count -eq 0) {
+    try {
+        $upAdapters = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { 
+            $_.Status -eq 'Up' -and 
+            $_.InterfaceDescription -notmatch 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN|WireGuard|Tailscale|ZeroTier' -and
+            $_.Name -notmatch 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth'
+        }
+        foreach ($ad in $upAdapters) {
+            $ips = @(Get-NetIPAddress -InterfaceIndex $ad.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
+                     Where-Object { $_.IPAddress -notmatch '^(169\.254\.|127\.)' } | Select-Object -ExpandProperty IPAddress)
+            $detectedIps += $ips
+        }
+    } catch {}
+}
+
+# 3. Fallback via Win32_NetworkAdapterConfiguration (excluding virtual)
 if (-not $detectedIps -or $detectedIps.Count -eq 0) {
     try {
         $netConfigs = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
         foreach ($nc in $netConfigs) {
+            $desc = "$($nc.Description)"
+            if ($desc -match 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN') {
+                continue
+            }
             foreach ($ip in $nc.IPAddress) {
                 if ($ip -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$' -and $ip -ne '127.0.0.1' -and $ip -notmatch '^169\.254\.') {
                     $detectedIps += $ip
                 }
             }
         }
+    } catch {}
+}
+
+# 4. Ultimate fallback (any IPv4 not loopback)
+if (-not $detectedIps -or $detectedIps.Count -eq 0) {
+    try {
+        $detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
+            $_.InterfaceAlias -notmatch 'Loopback' -and 
+            $_.IPAddress -notmatch '^(169\.254\.|127\.)' 
+        } | Select-Object -ExpandProperty IPAddress)
     } catch {}
 }
 
@@ -790,7 +963,7 @@ try {
 Write-Host "       -> Host: $compName ($clientIp) | $ramInfo RAM | $officeFinal" -ForegroundColor Green
 
 # --- Install & Configure VNC Server (TightVNC - Screen Share, No Logout) ---
-Write-Host " [Step 3/5] Configuring Remote Desktop & TightVNC service..." -ForegroundColor Yellow
+Write-Host " [Step 4/6] Configuring Remote Desktop & TightVNC service..." -ForegroundColor Yellow
 $vncInstalled = $false
 try {
     $tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
@@ -878,6 +1051,7 @@ if (-not $devId) {
 try { Set-Content -Path $devIdFile -Value $devId -Force } catch {}
 
 # --- Setup Background Auto-Sync Script for System Restart / Boot / Logon ---
+Write-Host " [Step 5/6] Setting up persistent background auto-sync system..." -ForegroundColor Yellow
 $syncScriptPath = Join-Path $sysDir "cshos_sync.ps1"
 $syncCode = @'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -888,18 +1062,50 @@ $waited = 0
 $detectedIps = @()
 
 while ($waited -lt $maxWait) {
+    # 1. Prefer active physical interface with Default Gateway route (0.0.0.0/0)
     try {
-        $detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
-            $_.InterfaceAlias -notmatch 'Loopback|vEthernet|Virtual|Pseudo' -and 
-            $_.IPAddress -notmatch '^169\.254\.' -and 
-            $_.IPAddress -ne '127.0.0.1' 
-        } | Select-Object -ExpandProperty IPAddress)
+        $gwRoutes = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -AddressFamily IPv4 -ErrorAction SilentlyContinue | Sort-Object RouteMetric)
+        foreach ($route in $gwRoutes) {
+            $adapter = Get-NetAdapter -InterfaceIndex $route.InterfaceIndex -ErrorAction SilentlyContinue
+            if ($adapter) {
+                $desc = "$($adapter.InterfaceDescription) $($adapter.Name)"
+                if ($desc -match 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN|WireGuard|Tailscale|ZeroTier') {
+                    continue
+                }
+                $ipObj = Get-NetIPAddress -InterfaceIndex $route.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
+                         Where-Object { $_.IPAddress -notmatch '^(169\.254\.|127\.)' } | Select-Object -First 1
+                if ($ipObj -and $ipObj.IPAddress) {
+                    $detectedIps += $ipObj.IPAddress
+                }
+            }
+        }
     } catch {}
 
+    # 2. Physical adapters that are 'Up' without gateway filter
+    if (-not $detectedIps -or $detectedIps.Count -eq 0) {
+        try {
+            $upAdapters = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { 
+                $_.Status -eq 'Up' -and 
+                $_.InterfaceDescription -notmatch 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN|WireGuard|Tailscale|ZeroTier' -and
+                $_.Name -notmatch 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth'
+            }
+            foreach ($ad in $upAdapters) {
+                $ips = @(Get-NetIPAddress -InterfaceIndex $ad.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
+                         Where-Object { $_.IPAddress -notmatch '^(169\.254\.|127\.)' } | Select-Object -ExpandProperty IPAddress)
+                $detectedIps += $ips
+            }
+        } catch {}
+    }
+
+    # 3. Fallback via Win32_NetworkAdapterConfiguration (excluding virtual)
     if (-not $detectedIps -or $detectedIps.Count -eq 0) {
         try {
             $netConfigs = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
             foreach ($nc in $netConfigs) {
+                $desc = "$($nc.Description)"
+                if ($desc -match 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN') {
+                    continue
+                }
                 foreach ($ip in $nc.IPAddress) {
                     if ($ip -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$' -and $ip -ne '127.0.0.1' -and $ip -notmatch '^169\.254\.') {
                         $detectedIps += $ip
@@ -941,49 +1147,98 @@ $osInfo = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).
 if (-not $osInfo) { $osInfo = [System.Environment]::OSVersion.VersionString }
 
 $cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
-$cpuInfo = if ($cpuObj -and $cpuObj.Name) { $cpuObj.Name.Trim() } else { "ไม่สามารถระบุ CPU" }
+if (-not $cpuObj) {
+    $cpuObj = Get-WmiObject Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
+}
+if ($cpuObj -and $cpuObj.Name) {
+    $rawName = ($cpuObj.Name -replace '\s+', ' ').Trim()
+    $clock = 0
+    if ($cpuObj.MaxClockSpeed) { $clock = [int]$cpuObj.MaxClockSpeed }
+    elseif ($cpuObj.CurrentClockSpeed) { $clock = [int]$cpuObj.CurrentClockSpeed }
+    
+    $cores = if ($cpuObj.NumberOfCores) { [int]$cpuObj.NumberOfCores } else { 0 }
+    $threads = if ($cpuObj.NumberOfLogicalProcessors) { [int]$cpuObj.NumberOfLogicalProcessors } else { 0 }
+
+    $speedStr = ""
+    if ($clock -gt 0 -and $rawName -notmatch '@\s*[0-9\.]+\s*GHz') {
+        $ghz = [math]::Round(($clock / 1000), 2)
+        $speedStr = "@ $ghz GHz"
+    }
+
+    $coreStr = ""
+    if ($cores -gt 0 -and $threads -gt 0) {
+        $coreStr = "($cores Cores, $threads Threads)"
+    } elseif ($cores -gt 0) {
+        $coreStr = "($cores Cores)"
+    }
+
+    $cpuParts = @($rawName)
+    if ($speedStr) { $cpuParts += $speedStr }
+    if ($coreStr) { $cpuParts += $coreStr }
+    $cpuInfo = $cpuParts -join " "
+} else {
+    $cpuInfo = "ไม่สามารถระบุ CPU"
+}
 
 # RAM Specs & Bus Speed
 try {
     $totalRamBytes = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
-    $ramGB = [math]::Round(($totalRamBytes / 1GB), 1)
-    
-    $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
-    if ($memSticks -and $memSticks.Count -gt 0) {
-        $first = $memSticks[0]
-        $clock = if ($first.ConfiguredClockSpeed) { $first.ConfiguredClockSpeed } elseif ($first.Speed) { $first.Speed } else { 0 }
-        $smb = $first.SMBIOSMemoryType
-        $memType = switch ($smb) {
-            20 { "DDR" }
-            21 { "DDR2" }
-            24 { "DDR3" }
-            26 { "DDR4" }
-            34 { "DDR5" }
-            default {
-                if ($clock -ge 4800) { "DDR5" }
-                elseif ($clock -ge 2133) { "DDR4" }
-                elseif ($clock -ge 800) { "DDR3" }
-                else { "RAM" }
+    if (-not $totalRamBytes) {
+        $totalRamBytes = ((Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).TotalVisibleMemorySize) * 1KB
+    }
+    $ramGB = if ($totalRamBytes) { [math]::Round(($totalRamBytes / 1GB), 1) } else { 0 }
+    $ramInfo = if ($ramGB -gt 0) { "$ramGB GB" } else { "ไม่สามารถระบุ RAM" }
+
+    try {
+        $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+        if (-not $memSticks -or $memSticks.Count -eq 0) {
+            $memSticks = @(Get-WmiObject Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+        }
+
+        if ($memSticks -and $memSticks.Count -gt 0) {
+            $first = $memSticks[0]
+            $clock = 0
+            if ($first.ConfiguredClockSpeed) { $clock = [int]$first.ConfiguredClockSpeed }
+            elseif ($first.Speed) { $clock = [int]$first.Speed }
+
+            $smb = if ($first.SMBIOSMemoryType) { [int]$first.SMBIOSMemoryType } else { 0 }
+            $memType = switch ($smb) {
+                20 { "DDR" }
+                21 { "DDR2" }
+                24 { "DDR3" }
+                26 { "DDR4" }
+                34 { "DDR5" }
+                default {
+                    if ($clock -ge 4800) { "DDR5" }
+                    elseif ($clock -ge 2133) { "DDR4" }
+                    elseif ($clock -ge 800) { "DDR3" }
+                    else { "RAM" }
+                }
+            }
+            $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
+            $part = if ($first.PartNumber) { ($first.PartNumber -as [string]).Trim() } else { "" }
+            $brand = if ($first.Manufacturer) { ($first.Manufacturer -as [string]).Trim() } else { "" }
+            if ($brand -match '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $brand = "" }
+            
+            $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
+            $stickCount = $memSticks.Count
+            $descList = New-Object System.Collections.Generic.List[string]
+            if ($memType) { $descList.Add($memType) }
+            if ($busStr) { $descList.Add($busStr) }
+            if ($stickCount -gt 1) {
+                $detailStr = if ($modelInfo) { " - $modelInfo" } else { "" }
+                $descList.Add("($stickCount ช่อง$detailStr)")
+            } elseif ($modelInfo) {
+                $descList.Add("($modelInfo)")
+            }
+            $details = $descList -join " "
+            if ($ramGB -gt 0) {
+                $ramInfo = "$ramGB GB $details".Trim()
+            } elseif ($details) {
+                $ramInfo = $details
             }
         }
-        $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
-        $part = if ($first.PartNumber) { $first.PartNumber.Trim() } else { "" }
-        $brand = if ($first.Manufacturer -and $first.Manufacturer -notmatch '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $first.Manufacturer.Trim() } else { "" }
-        $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
-        
-        $stickCount = $memSticks.Count
-        $desc = @()
-        if ($memType) { $desc += $memType }
-        if ($busStr) { $desc += $busStr }
-        if ($stickCount -gt 1) {
-            $desc += "($stickCount ช่อง" + (if ($modelInfo) { " - $modelInfo" } else { "" }) + ")"
-        } elseif ($modelInfo) {
-            $desc += "($modelInfo)"
-        }
-        $ramInfo = "$ramGB GB " + ($desc -join " ")
-    } else {
-        $ramInfo = "$ramGB GB"
-    }
+    } catch {}
 } catch {
     $ramInfo = "ไม่สามารถระบุ RAM"
 }
@@ -1212,7 +1467,7 @@ Write-Host "       -> Auto-Sync background task configured successfully." -Foreg
 
 
 # --- Report Hardware Specs & Remote Status to CSHOS Server ---
-Write-Host " [Step 5/5] Synchronizing machine status with CSHOS Server..." -ForegroundColor Yellow
+Write-Host " [Step 6/6] Synchronizing machine status with CSHOS Server..." -ForegroundColor Yellow
 $reportObj = @{
     device_id      = $devId
     hostname       = $compName
@@ -1442,18 +1697,50 @@ $waited = 0
 $detectedIps = @()
 
 while ($waited -lt $maxWait) {
+    # 1. Prefer active physical interface with Default Gateway route (0.0.0.0/0)
     try {
-        $detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
-            $_.InterfaceAlias -notmatch 'Loopback|vEthernet|Virtual|Pseudo' -and 
-            $_.IPAddress -notmatch '^169\.254\.' -and 
-            $_.IPAddress -ne '127.0.0.1' 
-        } | Select-Object -ExpandProperty IPAddress)
+        $gwRoutes = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -AddressFamily IPv4 -ErrorAction SilentlyContinue | Sort-Object RouteMetric)
+        foreach ($route in $gwRoutes) {
+            $adapter = Get-NetAdapter -InterfaceIndex $route.InterfaceIndex -ErrorAction SilentlyContinue
+            if ($adapter) {
+                $desc = "$($adapter.InterfaceDescription) $($adapter.Name)"
+                if ($desc -match 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN|WireGuard|Tailscale|ZeroTier') {
+                    continue
+                }
+                $ipObj = Get-NetIPAddress -InterfaceIndex $route.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
+                         Where-Object { $_.IPAddress -notmatch '^(169\.254\.|127\.)' } | Select-Object -First 1
+                if ($ipObj -and $ipObj.IPAddress) {
+                    $detectedIps += $ipObj.IPAddress
+                }
+            }
+        }
     } catch {}
 
+    # 2. Physical adapters that are 'Up' without gateway filter
+    if (-not $detectedIps -or $detectedIps.Count -eq 0) {
+        try {
+            $upAdapters = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { 
+                $_.Status -eq 'Up' -and 
+                $_.InterfaceDescription -notmatch 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN|WireGuard|Tailscale|ZeroTier' -and
+                $_.Name -notmatch 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth'
+            }
+            foreach ($ad in $upAdapters) {
+                $ips = @(Get-NetIPAddress -InterfaceIndex $ad.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
+                         Where-Object { $_.IPAddress -notmatch '^(169\.254\.|127\.)' } | Select-Object -ExpandProperty IPAddress)
+                $detectedIps += $ips
+            }
+        } catch {}
+    }
+
+    # 3. Fallback via Win32_NetworkAdapterConfiguration (excluding virtual)
     if (-not $detectedIps -or $detectedIps.Count -eq 0) {
         try {
             $netConfigs = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
             foreach ($nc in $netConfigs) {
+                $desc = "$($nc.Description)"
+                if ($desc -match 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN') {
+                    continue
+                }
                 foreach ($ip in $nc.IPAddress) {
                     if ($ip -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$' -and $ip -ne '127.0.0.1' -and $ip -notmatch '^169\.254\.') {
                         $detectedIps += $ip
@@ -1495,49 +1782,98 @@ $osInfo = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).
 if (-not $osInfo) { $osInfo = [System.Environment]::OSVersion.VersionString }
 
 $cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
-$cpuInfo = if ($cpuObj -and $cpuObj.Name) { $cpuObj.Name.Trim() } else { "ไม่สามารถระบุ CPU" }
+if (-not $cpuObj) {
+    $cpuObj = Get-WmiObject Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
+}
+if ($cpuObj -and $cpuObj.Name) {
+    $rawName = ($cpuObj.Name -replace '\s+', ' ').Trim()
+    $clock = 0
+    if ($cpuObj.MaxClockSpeed) { $clock = [int]$cpuObj.MaxClockSpeed }
+    elseif ($cpuObj.CurrentClockSpeed) { $clock = [int]$cpuObj.CurrentClockSpeed }
+    
+    $cores = if ($cpuObj.NumberOfCores) { [int]$cpuObj.NumberOfCores } else { 0 }
+    $threads = if ($cpuObj.NumberOfLogicalProcessors) { [int]$cpuObj.NumberOfLogicalProcessors } else { 0 }
+
+    $speedStr = ""
+    if ($clock -gt 0 -and $rawName -notmatch '@\s*[0-9\.]+\s*GHz') {
+        $ghz = [math]::Round(($clock / 1000), 2)
+        $speedStr = "@ $ghz GHz"
+    }
+
+    $coreStr = ""
+    if ($cores -gt 0 -and $threads -gt 0) {
+        $coreStr = "($cores Cores, $threads Threads)"
+    } elseif ($cores -gt 0) {
+        $coreStr = "($cores Cores)"
+    }
+
+    $cpuParts = @($rawName)
+    if ($speedStr) { $cpuParts += $speedStr }
+    if ($coreStr) { $cpuParts += $coreStr }
+    $cpuInfo = $cpuParts -join " "
+} else {
+    $cpuInfo = "ไม่สามารถระบุ CPU"
+}
 
 # RAM Specs & Bus Speed
 try {
     $totalRamBytes = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
-    $ramGB = [math]::Round(($totalRamBytes / 1GB), 1)
-    
-    $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
-    if ($memSticks -and $memSticks.Count -gt 0) {
-        $first = $memSticks[0]
-        $clock = if ($first.ConfiguredClockSpeed) { $first.ConfiguredClockSpeed } elseif ($first.Speed) { $first.Speed } else { 0 }
-        $smb = $first.SMBIOSMemoryType
-        $memType = switch ($smb) {
-            20 { "DDR" }
-            21 { "DDR2" }
-            24 { "DDR3" }
-            26 { "DDR4" }
-            34 { "DDR5" }
-            default {
-                if ($clock -ge 4800) { "DDR5" }
-                elseif ($clock -ge 2133) { "DDR4" }
-                elseif ($clock -ge 800) { "DDR3" }
-                else { "RAM" }
+    if (-not $totalRamBytes) {
+        $totalRamBytes = ((Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).TotalVisibleMemorySize) * 1KB
+    }
+    $ramGB = if ($totalRamBytes) { [math]::Round(($totalRamBytes / 1GB), 1) } else { 0 }
+    $ramInfo = if ($ramGB -gt 0) { "$ramGB GB" } else { "ไม่สามารถระบุ RAM" }
+
+    try {
+        $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+        if (-not $memSticks -or $memSticks.Count -eq 0) {
+            $memSticks = @(Get-WmiObject Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+        }
+
+        if ($memSticks -and $memSticks.Count -gt 0) {
+            $first = $memSticks[0]
+            $clock = 0
+            if ($first.ConfiguredClockSpeed) { $clock = [int]$first.ConfiguredClockSpeed }
+            elseif ($first.Speed) { $clock = [int]$first.Speed }
+
+            $smb = if ($first.SMBIOSMemoryType) { [int]$first.SMBIOSMemoryType } else { 0 }
+            $memType = switch ($smb) {
+                20 { "DDR" }
+                21 { "DDR2" }
+                24 { "DDR3" }
+                26 { "DDR4" }
+                34 { "DDR5" }
+                default {
+                    if ($clock -ge 4800) { "DDR5" }
+                    elseif ($clock -ge 2133) { "DDR4" }
+                    elseif ($clock -ge 800) { "DDR3" }
+                    else { "RAM" }
+                }
+            }
+            $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
+            $part = if ($first.PartNumber) { ($first.PartNumber -as [string]).Trim() } else { "" }
+            $brand = if ($first.Manufacturer) { ($first.Manufacturer -as [string]).Trim() } else { "" }
+            if ($brand -match '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $brand = "" }
+            
+            $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
+            $stickCount = $memSticks.Count
+            $descList = New-Object System.Collections.Generic.List[string]
+            if ($memType) { $descList.Add($memType) }
+            if ($busStr) { $descList.Add($busStr) }
+            if ($stickCount -gt 1) {
+                $detailStr = if ($modelInfo) { " - $modelInfo" } else { "" }
+                $descList.Add("($stickCount ช่อง$detailStr)")
+            } elseif ($modelInfo) {
+                $descList.Add("($modelInfo)")
+            }
+            $details = $descList -join " "
+            if ($ramGB -gt 0) {
+                $ramInfo = "$ramGB GB $details".Trim()
+            } elseif ($details) {
+                $ramInfo = $details
             }
         }
-        $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
-        $part = if ($first.PartNumber) { $first.PartNumber.Trim() } else { "" }
-        $brand = if ($first.Manufacturer -and $first.Manufacturer -notmatch '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $first.Manufacturer.Trim() } else { "" }
-        $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
-        
-        $stickCount = $memSticks.Count
-        $desc = @()
-        if ($memType) { $desc += $memType }
-        if ($busStr) { $desc += $busStr }
-        if ($stickCount -gt 1) {
-            $desc += "($stickCount ช่อง" + (if ($modelInfo) { " - $modelInfo" } else { "" }) + ")"
-        } elseif ($modelInfo) {
-            $desc += "($modelInfo)"
-        }
-        $ramInfo = "$ramGB GB " + ($desc -join " ")
-    } else {
-        $ramInfo = "$ramGB GB"
-    }
+    } catch {}
 } catch {
     $ramInfo = "ไม่สามารถระบุ RAM"
 }
@@ -1718,49 +2054,98 @@ $compName = $env:COMPUTERNAME
 $userName = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
 if (-not $userName) { $userName = $env:USERNAME }
 $cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
-$cpuInfo = if ($cpuObj -and $cpuObj.Name) { $cpuObj.Name.Trim() } else { "-" }
+if (-not $cpuObj) {
+    $cpuObj = Get-WmiObject Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
+}
+if ($cpuObj -and $cpuObj.Name) {
+    $rawName = ($cpuObj.Name -replace '\s+', ' ').Trim()
+    $clock = 0
+    if ($cpuObj.MaxClockSpeed) { $clock = [int]$cpuObj.MaxClockSpeed }
+    elseif ($cpuObj.CurrentClockSpeed) { $clock = [int]$cpuObj.CurrentClockSpeed }
+    
+    $cores = if ($cpuObj.NumberOfCores) { [int]$cpuObj.NumberOfCores } else { 0 }
+    $threads = if ($cpuObj.NumberOfLogicalProcessors) { [int]$cpuObj.NumberOfLogicalProcessors } else { 0 }
+
+    $speedStr = ""
+    if ($clock -gt 0 -and $rawName -notmatch '@\s*[0-9\.]+\s*GHz') {
+        $ghz = [math]::Round(($clock / 1000), 2)
+        $speedStr = "@ $ghz GHz"
+    }
+
+    $coreStr = ""
+    if ($cores -gt 0 -and $threads -gt 0) {
+        $coreStr = "($cores Cores, $threads Threads)"
+    } elseif ($cores -gt 0) {
+        $coreStr = "($cores Cores)"
+    }
+
+    $cpuParts = @($rawName)
+    if ($speedStr) { $cpuParts += $speedStr }
+    if ($coreStr) { $cpuParts += $coreStr }
+    $cpuInfo = $cpuParts -join " "
+} else {
+    $cpuInfo = "-"
+}
 
 # RAM Specs & Bus Speed
 try {
     $totalRamBytes = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
-    $ramGB = [math]::Round(($totalRamBytes / 1GB), 1)
-    
-    $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
-    if ($memSticks -and $memSticks.Count -gt 0) {
-        $first = $memSticks[0]
-        $clock = if ($first.ConfiguredClockSpeed) { $first.ConfiguredClockSpeed } elseif ($first.Speed) { $first.Speed } else { 0 }
-        $smb = $first.SMBIOSMemoryType
-        $memType = switch ($smb) {
-            20 { "DDR" }
-            21 { "DDR2" }
-            24 { "DDR3" }
-            26 { "DDR4" }
-            34 { "DDR5" }
-            default {
-                if ($clock -ge 4800) { "DDR5" }
-                elseif ($clock -ge 2133) { "DDR4" }
-                elseif ($clock -ge 800) { "DDR3" }
-                else { "RAM" }
+    if (-not $totalRamBytes) {
+        $totalRamBytes = ((Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).TotalVisibleMemorySize) * 1KB
+    }
+    $ramGB = if ($totalRamBytes) { [math]::Round(($totalRamBytes / 1GB), 1) } else { 0 }
+    $ramInfo = if ($ramGB -gt 0) { "$ramGB GB" } else { "-" }
+
+    try {
+        $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+        if (-not $memSticks -or $memSticks.Count -eq 0) {
+            $memSticks = @(Get-WmiObject Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+        }
+
+        if ($memSticks -and $memSticks.Count -gt 0) {
+            $first = $memSticks[0]
+            $clock = 0
+            if ($first.ConfiguredClockSpeed) { $clock = [int]$first.ConfiguredClockSpeed }
+            elseif ($first.Speed) { $clock = [int]$first.Speed }
+
+            $smb = if ($first.SMBIOSMemoryType) { [int]$first.SMBIOSMemoryType } else { 0 }
+            $memType = switch ($smb) {
+                20 { "DDR" }
+                21 { "DDR2" }
+                24 { "DDR3" }
+                26 { "DDR4" }
+                34 { "DDR5" }
+                default {
+                    if ($clock -ge 4800) { "DDR5" }
+                    elseif ($clock -ge 2133) { "DDR4" }
+                    elseif ($clock -ge 800) { "DDR3" }
+                    else { "RAM" }
+                }
+            }
+            $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
+            $part = if ($first.PartNumber) { ($first.PartNumber -as [string]).Trim() } else { "" }
+            $brand = if ($first.Manufacturer) { ($first.Manufacturer -as [string]).Trim() } else { "" }
+            if ($brand -match '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $brand = "" }
+            
+            $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
+            $stickCount = $memSticks.Count
+            $descList = New-Object System.Collections.Generic.List[string]
+            if ($memType) { $descList.Add($memType) }
+            if ($busStr) { $descList.Add($busStr) }
+            if ($stickCount -gt 1) {
+                $detailStr = if ($modelInfo) { " - $modelInfo" } else { "" }
+                $descList.Add("($stickCount ช่อง$detailStr)")
+            } elseif ($modelInfo) {
+                $descList.Add("($modelInfo)")
+            }
+            $details = $descList -join " "
+            if ($ramGB -gt 0) {
+                $ramInfo = "$ramGB GB $details".Trim()
+            } elseif ($details) {
+                $ramInfo = $details
             }
         }
-        $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
-        $part = if ($first.PartNumber) { $first.PartNumber.Trim() } else { "" }
-        $brand = if ($first.Manufacturer -and $first.Manufacturer -notmatch '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $first.Manufacturer.Trim() } else { "" }
-        $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
-        
-        $stickCount = $memSticks.Count
-        $desc = @()
-        if ($memType) { $desc += $memType }
-        if ($busStr) { $desc += $busStr }
-        if ($stickCount -gt 1) {
-            $desc += "($stickCount ช่อง" + (if ($modelInfo) { " - $modelInfo" } else { "" }) + ")"
-        } elseif ($modelInfo) {
-            $desc += "($modelInfo)"
-        }
-        $ramInfo = "$ramGB GB " + ($desc -join " ")
-    } else {
-        $ramInfo = "$ramGB GB"
-    }
+    } catch {}
 } catch {
     $ramInfo = "-"
 }
@@ -1812,11 +2197,72 @@ try {
     $diskInfo = "-"
 }
 
-$detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
-    $_.InterfaceAlias -notmatch 'Loopback|vEthernet|Virtual|Pseudo' -and 
-    $_.IPAddress -notmatch '^169\.254\.' -and 
-    $_.IPAddress -ne '127.0.0.1' 
-} | Select-Object -ExpandProperty IPAddress)
+# --- Detect Target Machine IP Address (IPv4) ---
+$detectedIps = @()
+
+# 1. Prefer active physical interface with Default Gateway route (0.0.0.0/0)
+try {
+    $gwRoutes = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -AddressFamily IPv4 -ErrorAction SilentlyContinue | Sort-Object RouteMetric)
+    foreach ($route in $gwRoutes) {
+        $adapter = Get-NetAdapter -InterfaceIndex $route.InterfaceIndex -ErrorAction SilentlyContinue
+        if ($adapter) {
+            $desc = "$($adapter.InterfaceDescription) $($adapter.Name)"
+            if ($desc -match 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN|WireGuard|Tailscale|ZeroTier') {
+                continue
+            }
+            $ipObj = Get-NetIPAddress -InterfaceIndex $route.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
+                     Where-Object { $_.IPAddress -notmatch '^(169\.254\.|127\.)' } | Select-Object -First 1
+            if ($ipObj -and $ipObj.IPAddress) {
+                $detectedIps += $ipObj.IPAddress
+            }
+        }
+    }
+} catch {}
+
+# 2. Physical adapters that are 'Up' without gateway filter
+if (-not $detectedIps -or $detectedIps.Count -eq 0) {
+    try {
+        $upAdapters = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { 
+            $_.Status -eq 'Up' -and 
+            $_.InterfaceDescription -notmatch 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN|WireGuard|Tailscale|ZeroTier' -and
+            $_.Name -notmatch 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth'
+        }
+        foreach ($ad in $upAdapters) {
+            $ips = @(Get-NetIPAddress -InterfaceIndex $ad.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
+                     Where-Object { $_.IPAddress -notmatch '^(169\.254\.|127\.)' } | Select-Object -ExpandProperty IPAddress)
+            $detectedIps += $ips
+        }
+    } catch {}
+}
+
+# 3. Fallback via Win32_NetworkAdapterConfiguration (excluding virtual)
+if (-not $detectedIps -or $detectedIps.Count -eq 0) {
+    try {
+        $netConfigs = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
+        foreach ($nc in $netConfigs) {
+            $desc = "$($nc.Description)"
+            if ($desc -match 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN') {
+                continue
+            }
+            foreach ($ip in $nc.IPAddress) {
+                if ($ip -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$' -and $ip -ne '127.0.0.1' -and $ip -notmatch '^169\.254\.') {
+                    $detectedIps += $ip
+                }
+            }
+        }
+    } catch {}
+}
+
+# 4. Ultimate fallback (any IPv4 not loopback)
+if (-not $detectedIps -or $detectedIps.Count -eq 0) {
+    try {
+        $detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
+            $_.InterfaceAlias -notmatch 'Loopback' -and 
+            $_.IPAddress -notmatch '^(169\.254\.|127\.)' 
+        } | Select-Object -ExpandProperty IPAddress)
+    } catch {}
+}
+
 $allIpsStr = if ($detectedIps) { ($detectedIps | Select-Object -Unique) -join ", " } else { "No IP (DHCP)" }
 
 $osInfo = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
