@@ -116,11 +116,11 @@ class AppInstallationController extends Controller
         }
 
         if (!empty($data['ram'])) {
-            $installation->ram = $data['ram'];
+            $installation->ram = mb_substr($data['ram'], 0, 255);
         }
 
         if (!empty($data['disk'])) {
-            $installation->disk = $data['disk'];
+            $installation->disk = mb_substr($data['disk'], 0, 255);
         }
 
         if (isset($data['remote_ready'])) {
@@ -532,58 +532,43 @@ try {
     }
 } catch {}
 
-# --- Detect All Target Desktops (Public Desktop + Logged-in User Desktops) ---
-$targetDesktops = @()
-
-# 1. Common / Public Desktop (Displays on ALL users' screens immediately)
+# --- Setup Desktop Shortcut (Install exactly 1 icon on Public Desktop for all users) ---
+# In Windows, Desktop aggregates Public Desktop and Current User Desktop.
+# Installing to Public Desktop ensures all users see 1 icon, while removing duplicates.
 $commonDesktop = [Environment]::GetFolderPath('CommonDesktopDirectory')
-if ($commonDesktop -and (Test-Path $commonDesktop)) {
-    $targetDesktops += $commonDesktop
+if (-not $commonDesktop -or -not (Test-Path $commonDesktop)) {
+    $commonDesktop = "C:\Users\Public\Desktop"
 }
-
-# 2. Current User Desktop
 $userDesktop = [Environment]::GetFolderPath('Desktop')
-if ($userDesktop -and (Test-Path $userDesktop)) {
-    $targetDesktops += $userDesktop
-}
 
-# 3. Interactive Logged-in Console User Desktop
-try {
-    $activeUser = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
-    if ($activeUser) {
-        $uName = $activeUser.Split('\')[-1]
-        $uDesk = "C:\Users\$uName\Desktop"
-        if (Test-Path $uDesk) { $targetDesktops += $uDesk }
-        $uOneDesk = "C:\Users\$uName\OneDrive\Desktop"
-        if (Test-Path $uOneDesk) { $targetDesktops += $uOneDesk }
-    }
-} catch {}
-
-# 4. Current Profile OneDrive Desktop
-if (Test-Path "$env:USERPROFILE\OneDrive\Desktop") {
-    $targetDesktops += "$env:USERPROFILE\OneDrive\Desktop"
-}
-
-# 5. All existing user profiles under C:\Users
-try {
-    $userDirs = Get-ChildItem -Path "C:\Users" -Directory -ErrorAction SilentlyContinue | Where-Object { 
-        $_.Name -notmatch '^(Public|Default|Default User|All Users)$' 
-    }
-    foreach ($ud in $userDirs) {
-        $dPath = Join-Path $ud.FullName "Desktop"
-        try { if (Test-Path $dPath -ErrorAction SilentlyContinue) { $targetDesktops += $dPath } } catch {}
-        $oPath = Join-Path $ud.FullName "OneDrive\Desktop"
-        try { if (Test-Path $oPath -ErrorAction SilentlyContinue) { $targetDesktops += $oPath } } catch {}
-    }
-} catch {}
-
-$targetDesktops = $targetDesktops | Select-Object -Unique
-
-# --- Install Desktop Shortcut to All Detected Desktops ---
-$installedCount = 0
-foreach ($desk in $targetDesktops) {
+$targetDesktop = ""
+if (Test-Path $commonDesktop) {
+    $targetDesktop = $commonDesktop
+    # Clean up duplicate shortcuts from personal user folders so Windows shows only 1 icon
     try {
-        $shortcutPath = Join-Path $desk "$shortcutName.lnk"
+        if ($userDesktop -and (Test-Path (Join-Path $userDesktop "$shortcutName.lnk"))) {
+            Remove-Item -Path (Join-Path $userDesktop "$shortcutName.lnk") -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path "$env:USERPROFILE\OneDrive\Desktop\$shortcutName.lnk") {
+            Remove-Item -Path "$env:USERPROFILE\OneDrive\Desktop\$shortcutName.lnk" -Force -ErrorAction SilentlyContinue
+        }
+        Get-ChildItem -Path "C:\Users" -Directory -ErrorAction SilentlyContinue | Where-Object { 
+            $_.Name -notmatch '^(Public|Default|Default User|All Users)$' 
+        } | ForEach-Object {
+            $uDesk = Join-Path $_.FullName "Desktop\$shortcutName.lnk"
+            $uOneDesk = Join-Path $_.FullName "OneDrive\Desktop\$shortcutName.lnk"
+            if (Test-Path $uDesk) { Remove-Item -Path $uDesk -Force -ErrorAction SilentlyContinue }
+            if (Test-Path $uOneDesk) { Remove-Item -Path $uOneDesk -Force -ErrorAction SilentlyContinue }
+        }
+    } catch {}
+} elseif ($userDesktop -and (Test-Path $userDesktop)) {
+    $targetDesktop = $userDesktop
+}
+
+$installedCount = 0
+if ($targetDesktop) {
+    try {
+        $shortcutPath = Join-Path $targetDesktop "$shortcutName.lnk"
         $sc = $ws.CreateShortcut($shortcutPath)
         if ($browserExe) {
             $sc.TargetPath = $browserExe
@@ -597,13 +582,13 @@ foreach ($desk in $targetDesktops) {
             $sc.IconLocation = "$icoPath,0"
         }
         $sc.Save()
-        $installedCount++
+        $installedCount = 1
     } catch {}
 }
 
 # Refresh Windows Explorer desktop icon cache
 try { & ie4uinit.exe -show | Out-Null } catch {}
-Write-Host "       -> Desktop shortcuts installed for all users ($installedCount locations)." -ForegroundColor Green
+Write-Host "       -> Desktop shortcut installed successfully (1 icon on Desktop)." -ForegroundColor Green
 
 # --- Collect Computer Specs ---
 Write-Host " [Step 2/5] Detecting machine specifications (CPU, RAM, Disk, OS, Office)..." -ForegroundColor Yellow
@@ -621,22 +606,94 @@ if ($cpuObj -and $cpuObj.Name) {
     $cpuInfo = "Unknown CPU"
 }
 
+# RAM Specs & Bus Speed
 try {
-    $totalRam = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
-    $ramGB = [math]::Round(($totalRam / 1GB), 1)
-    $ramInfo = "$ramGB GB"
+    $totalRamBytes = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
+    $ramGB = [math]::Round(($totalRamBytes / 1GB), 1)
+    
+    $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+    if ($memSticks -and $memSticks.Count -gt 0) {
+        $first = $memSticks[0]
+        $clock = if ($first.ConfiguredClockSpeed) { $first.ConfiguredClockSpeed } elseif ($first.Speed) { $first.Speed } else { 0 }
+        $smb = $first.SMBIOSMemoryType
+        $memType = switch ($smb) {
+            20 { "DDR" }
+            21 { "DDR2" }
+            24 { "DDR3" }
+            26 { "DDR4" }
+            34 { "DDR5" }
+            default {
+                if ($clock -ge 4800) { "DDR5" }
+                elseif ($clock -ge 2133) { "DDR4" }
+                elseif ($clock -ge 800) { "DDR3" }
+                else { "RAM" }
+            }
+        }
+        $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
+        $part = if ($first.PartNumber) { $first.PartNumber.Trim() } else { "" }
+        $brand = if ($first.Manufacturer -and $first.Manufacturer -notmatch '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $first.Manufacturer.Trim() } else { "" }
+        $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
+        
+        $stickCount = $memSticks.Count
+        $desc = @()
+        if ($memType) { $desc += $memType }
+        if ($busStr) { $desc += $busStr }
+        if ($stickCount -gt 1) {
+            $desc += "($stickCount ช่อง" + (if ($modelInfo) { " - $modelInfo" } else { "" }) + ")"
+        } elseif ($modelInfo) {
+            $desc += "($modelInfo)"
+        }
+        $ramInfo = "$ramGB GB " + ($desc -join " ")
+    } else {
+        $ramInfo = "$ramGB GB"
+    }
 } catch {
     $ramInfo = "Unknown RAM"
 }
 
+# Harddisk Type (SSD, NVMe M.2, SATA, HDD) & Capacity
 try {
+    $physDict = @{}
+    try {
+        Get-PhysicalDisk -ErrorAction SilentlyContinue | ForEach-Object {
+            $key = $_.FriendlyName
+            $mt = if ($_.MediaType) { $_.MediaType } else { "" }
+            $bt = if ($_.BusType) { $_.BusType } else { "" }
+            $physDict[$key] = @{ Media = $mt; Bus = $bt }
+        }
+    } catch {}
+
+    $diskMap = @{}
+    try {
+        Get-Disk -ErrorAction SilentlyContinue | ForEach-Object {
+            $d = $_
+            $bt = if ($d.BusType) { $d.BusType } else { "" }
+            $mt = if ($physDict.ContainsKey($d.FriendlyName)) { $physDict[$d.FriendlyName].Media } else { "" }
+            if (-not $bt -and $physDict.ContainsKey($d.FriendlyName)) { $bt = $physDict[$d.FriendlyName].Bus }
+            
+            $typeLabel = if ($bt -match 'NVMe') { "SSD NVMe M.2" }
+                         elseif ($mt -eq "SSD" -and $bt) { "SSD $bt" }
+                         elseif ($mt -eq "SSD") { "SSD" }
+                         elseif ($mt -eq "HDD" -and $bt) { "HDD $bt" }
+                         elseif ($mt -eq "HDD") { "HDD" }
+                         elseif ($bt) { "$bt" }
+                         else { "" }
+                         
+            Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue | Where-Object { $_.DriveLetter } | ForEach-Object {
+                $ltr = "$($_.DriveLetter):"
+                $diskMap[$ltr] = $typeLabel
+            }
+        }
+    } catch {}
+
     $diskItems = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | ForEach-Object {
         $dId = $_.DeviceID
         $free = [math]::Round($_.FreeSpace / 1GB, 1)
         $total = [math]::Round($_.Size / 1GB, 1)
-        "$dId Free $free/$total GB"
+        $type = if ($diskMap.ContainsKey($dId) -and $diskMap[$dId]) { " (" + $diskMap[$dId] + ")" } else { "" }
+        "$dId$type ว่าง $free/$total GB"
     }
-    $diskInfo = $diskItems -join ", "
+    $diskInfo = if ($diskItems) { $diskItems -join ", " } else { "N/A" }
 } catch {
     $diskInfo = "N/A"
 }
@@ -886,22 +943,94 @@ if (-not $osInfo) { $osInfo = [System.Environment]::OSVersion.VersionString }
 $cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
 $cpuInfo = if ($cpuObj -and $cpuObj.Name) { $cpuObj.Name.Trim() } else { "ไม่สามารถระบุ CPU" }
 
+# RAM Specs & Bus Speed
 try {
-    $totalRam = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
-    $ramGB = [math]::Round(($totalRam / 1GB), 1)
-    $ramInfo = "$ramGB GB"
+    $totalRamBytes = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
+    $ramGB = [math]::Round(($totalRamBytes / 1GB), 1)
+    
+    $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+    if ($memSticks -and $memSticks.Count -gt 0) {
+        $first = $memSticks[0]
+        $clock = if ($first.ConfiguredClockSpeed) { $first.ConfiguredClockSpeed } elseif ($first.Speed) { $first.Speed } else { 0 }
+        $smb = $first.SMBIOSMemoryType
+        $memType = switch ($smb) {
+            20 { "DDR" }
+            21 { "DDR2" }
+            24 { "DDR3" }
+            26 { "DDR4" }
+            34 { "DDR5" }
+            default {
+                if ($clock -ge 4800) { "DDR5" }
+                elseif ($clock -ge 2133) { "DDR4" }
+                elseif ($clock -ge 800) { "DDR3" }
+                else { "RAM" }
+            }
+        }
+        $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
+        $part = if ($first.PartNumber) { $first.PartNumber.Trim() } else { "" }
+        $brand = if ($first.Manufacturer -and $first.Manufacturer -notmatch '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $first.Manufacturer.Trim() } else { "" }
+        $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
+        
+        $stickCount = $memSticks.Count
+        $desc = @()
+        if ($memType) { $desc += $memType }
+        if ($busStr) { $desc += $busStr }
+        if ($stickCount -gt 1) {
+            $desc += "($stickCount ช่อง" + (if ($modelInfo) { " - $modelInfo" } else { "" }) + ")"
+        } elseif ($modelInfo) {
+            $desc += "($modelInfo)"
+        }
+        $ramInfo = "$ramGB GB " + ($desc -join " ")
+    } else {
+        $ramInfo = "$ramGB GB"
+    }
 } catch {
     $ramInfo = "ไม่สามารถระบุ RAM"
 }
 
+# Harddisk Type (SSD, NVMe M.2, SATA, HDD) & Capacity
 try {
+    $physDict = @{}
+    try {
+        Get-PhysicalDisk -ErrorAction SilentlyContinue | ForEach-Object {
+            $key = $_.FriendlyName
+            $mt = if ($_.MediaType) { $_.MediaType } else { "" }
+            $bt = if ($_.BusType) { $_.BusType } else { "" }
+            $physDict[$key] = @{ Media = $mt; Bus = $bt }
+        }
+    } catch {}
+
+    $diskMap = @{}
+    try {
+        Get-Disk -ErrorAction SilentlyContinue | ForEach-Object {
+            $d = $_
+            $bt = if ($d.BusType) { $d.BusType } else { "" }
+            $mt = if ($physDict.ContainsKey($d.FriendlyName)) { $physDict[$d.FriendlyName].Media } else { "" }
+            if (-not $bt -and $physDict.ContainsKey($d.FriendlyName)) { $bt = $physDict[$d.FriendlyName].Bus }
+            
+            $typeLabel = if ($bt -match 'NVMe') { "SSD NVMe M.2" }
+                         elseif ($mt -eq "SSD" -and $bt) { "SSD $bt" }
+                         elseif ($mt -eq "SSD") { "SSD" }
+                         elseif ($mt -eq "HDD" -and $bt) { "HDD $bt" }
+                         elseif ($mt -eq "HDD") { "HDD" }
+                         elseif ($bt) { "$bt" }
+                         else { "" }
+                         
+            Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue | Where-Object { $_.DriveLetter } | ForEach-Object {
+                $ltr = "$($_.DriveLetter):"
+                $diskMap[$ltr] = $typeLabel
+            }
+        }
+    } catch {}
+
     $diskItems = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | ForEach-Object {
         $dId = $_.DeviceID
         $free = [math]::Round($_.FreeSpace / 1GB, 1)
         $total = [math]::Round($_.Size / 1GB, 1)
-        "$dId ว่าง $free/$total GB"
+        $type = if ($diskMap.ContainsKey($dId) -and $diskMap[$dId]) { " (" + $diskMap[$dId] + ")" } else { "" }
+        "$dId$type ว่าง $free/$total GB"
     }
-    $diskInfo = $diskItems -join ", "
+    $diskInfo = if ($diskItems) { $diskItems -join ", " } else { "ไม่สามารถระบุ DISK" }
 } catch {
     $diskInfo = "ไม่สามารถระบุ DISK"
 }
@@ -1052,7 +1181,6 @@ If fso.FileExists("C:\ProgramData\CSHOS\vnc_password.txt") Then
     pf.Close
     On Error Goto 0
 End If
-If Len(pass) > 8 Then pass = Left(pass, 8)
 targetPart = rawUrl
 If InStr(targetPart, ":") > 0 Then
     hParts = Split(targetPart, ":")
@@ -1369,22 +1497,94 @@ if (-not $osInfo) { $osInfo = [System.Environment]::OSVersion.VersionString }
 $cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
 $cpuInfo = if ($cpuObj -and $cpuObj.Name) { $cpuObj.Name.Trim() } else { "ไม่สามารถระบุ CPU" }
 
+# RAM Specs & Bus Speed
 try {
-    $totalRam = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
-    $ramGB = [math]::Round(($totalRam / 1GB), 1)
-    $ramInfo = "$ramGB GB"
+    $totalRamBytes = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
+    $ramGB = [math]::Round(($totalRamBytes / 1GB), 1)
+    
+    $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+    if ($memSticks -and $memSticks.Count -gt 0) {
+        $first = $memSticks[0]
+        $clock = if ($first.ConfiguredClockSpeed) { $first.ConfiguredClockSpeed } elseif ($first.Speed) { $first.Speed } else { 0 }
+        $smb = $first.SMBIOSMemoryType
+        $memType = switch ($smb) {
+            20 { "DDR" }
+            21 { "DDR2" }
+            24 { "DDR3" }
+            26 { "DDR4" }
+            34 { "DDR5" }
+            default {
+                if ($clock -ge 4800) { "DDR5" }
+                elseif ($clock -ge 2133) { "DDR4" }
+                elseif ($clock -ge 800) { "DDR3" }
+                else { "RAM" }
+            }
+        }
+        $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
+        $part = if ($first.PartNumber) { $first.PartNumber.Trim() } else { "" }
+        $brand = if ($first.Manufacturer -and $first.Manufacturer -notmatch '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $first.Manufacturer.Trim() } else { "" }
+        $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
+        
+        $stickCount = $memSticks.Count
+        $desc = @()
+        if ($memType) { $desc += $memType }
+        if ($busStr) { $desc += $busStr }
+        if ($stickCount -gt 1) {
+            $desc += "($stickCount ช่อง" + (if ($modelInfo) { " - $modelInfo" } else { "" }) + ")"
+        } elseif ($modelInfo) {
+            $desc += "($modelInfo)"
+        }
+        $ramInfo = "$ramGB GB " + ($desc -join " ")
+    } else {
+        $ramInfo = "$ramGB GB"
+    }
 } catch {
     $ramInfo = "ไม่สามารถระบุ RAM"
 }
 
+# Harddisk Type (SSD, NVMe M.2, SATA, HDD) & Capacity
 try {
+    $physDict = @{}
+    try {
+        Get-PhysicalDisk -ErrorAction SilentlyContinue | ForEach-Object {
+            $key = $_.FriendlyName
+            $mt = if ($_.MediaType) { $_.MediaType } else { "" }
+            $bt = if ($_.BusType) { $_.BusType } else { "" }
+            $physDict[$key] = @{ Media = $mt; Bus = $bt }
+        }
+    } catch {}
+
+    $diskMap = @{}
+    try {
+        Get-Disk -ErrorAction SilentlyContinue | ForEach-Object {
+            $d = $_
+            $bt = if ($d.BusType) { $d.BusType } else { "" }
+            $mt = if ($physDict.ContainsKey($d.FriendlyName)) { $physDict[$d.FriendlyName].Media } else { "" }
+            if (-not $bt -and $physDict.ContainsKey($d.FriendlyName)) { $bt = $physDict[$d.FriendlyName].Bus }
+            
+            $typeLabel = if ($bt -match 'NVMe') { "SSD NVMe M.2" }
+                         elseif ($mt -eq "SSD" -and $bt) { "SSD $bt" }
+                         elseif ($mt -eq "SSD") { "SSD" }
+                         elseif ($mt -eq "HDD" -and $bt) { "HDD $bt" }
+                         elseif ($mt -eq "HDD") { "HDD" }
+                         elseif ($bt) { "$bt" }
+                         else { "" }
+                         
+            Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue | Where-Object { $_.DriveLetter } | ForEach-Object {
+                $ltr = "$($_.DriveLetter):"
+                $diskMap[$ltr] = $typeLabel
+            }
+        }
+    } catch {}
+
     $diskItems = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | ForEach-Object {
         $dId = $_.DeviceID
         $free = [math]::Round($_.FreeSpace / 1GB, 1)
         $total = [math]::Round($_.Size / 1GB, 1)
-        "$dId ว่าง $free/$total GB"
+        $type = if ($diskMap.ContainsKey($dId) -and $diskMap[$dId]) { " (" + $diskMap[$dId] + ")" } else { "" }
+        "$dId$type ว่าง $free/$total GB"
     }
-    $diskInfo = $diskItems -join ", "
+    $diskInfo = if ($diskItems) { $diskItems -join ", " } else { "ไม่สามารถระบุ DISK" }
 } catch {
     $diskInfo = "ไม่สามารถระบุ DISK"
 }
@@ -1519,8 +1719,98 @@ $userName = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue)
 if (-not $userName) { $userName = $env:USERNAME }
 $cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
 $cpuInfo = if ($cpuObj -and $cpuObj.Name) { $cpuObj.Name.Trim() } else { "-" }
-$totalRam = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
-$ramInfo = [math]::Round(($totalRam / 1GB), 1).ToString() + " GB"
+
+# RAM Specs & Bus Speed
+try {
+    $totalRamBytes = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
+    $ramGB = [math]::Round(($totalRamBytes / 1GB), 1)
+    
+    $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+    if ($memSticks -and $memSticks.Count -gt 0) {
+        $first = $memSticks[0]
+        $clock = if ($first.ConfiguredClockSpeed) { $first.ConfiguredClockSpeed } elseif ($first.Speed) { $first.Speed } else { 0 }
+        $smb = $first.SMBIOSMemoryType
+        $memType = switch ($smb) {
+            20 { "DDR" }
+            21 { "DDR2" }
+            24 { "DDR3" }
+            26 { "DDR4" }
+            34 { "DDR5" }
+            default {
+                if ($clock -ge 4800) { "DDR5" }
+                elseif ($clock -ge 2133) { "DDR4" }
+                elseif ($clock -ge 800) { "DDR3" }
+                else { "RAM" }
+            }
+        }
+        $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
+        $part = if ($first.PartNumber) { $first.PartNumber.Trim() } else { "" }
+        $brand = if ($first.Manufacturer -and $first.Manufacturer -notmatch '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $first.Manufacturer.Trim() } else { "" }
+        $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
+        
+        $stickCount = $memSticks.Count
+        $desc = @()
+        if ($memType) { $desc += $memType }
+        if ($busStr) { $desc += $busStr }
+        if ($stickCount -gt 1) {
+            $desc += "($stickCount ช่อง" + (if ($modelInfo) { " - $modelInfo" } else { "" }) + ")"
+        } elseif ($modelInfo) {
+            $desc += "($modelInfo)"
+        }
+        $ramInfo = "$ramGB GB " + ($desc -join " ")
+    } else {
+        $ramInfo = "$ramGB GB"
+    }
+} catch {
+    $ramInfo = "-"
+}
+
+# Harddisk Type (SSD, NVMe M.2, SATA, HDD) & Capacity
+try {
+    $physDict = @{}
+    try {
+        Get-PhysicalDisk -ErrorAction SilentlyContinue | ForEach-Object {
+            $key = $_.FriendlyName
+            $mt = if ($_.MediaType) { $_.MediaType } else { "" }
+            $bt = if ($_.BusType) { $_.BusType } else { "" }
+            $physDict[$key] = @{ Media = $mt; Bus = $bt }
+        }
+    } catch {}
+
+    $diskMap = @{}
+    try {
+        Get-Disk -ErrorAction SilentlyContinue | ForEach-Object {
+            $d = $_
+            $bt = if ($d.BusType) { $d.BusType } else { "" }
+            $mt = if ($physDict.ContainsKey($d.FriendlyName)) { $physDict[$d.FriendlyName].Media } else { "" }
+            if (-not $bt -and $physDict.ContainsKey($d.FriendlyName)) { $bt = $physDict[$d.FriendlyName].Bus }
+            
+            $typeLabel = if ($bt -match 'NVMe') { "SSD NVMe M.2" }
+                         elseif ($mt -eq "SSD" -and $bt) { "SSD $bt" }
+                         elseif ($mt -eq "SSD") { "SSD" }
+                         elseif ($mt -eq "HDD" -and $bt) { "HDD $bt" }
+                         elseif ($mt -eq "HDD") { "HDD" }
+                         elseif ($bt) { "$bt" }
+                         else { "" }
+                         
+            Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue | Where-Object { $_.DriveLetter } | ForEach-Object {
+                $ltr = "$($_.DriveLetter):"
+                $diskMap[$ltr] = $typeLabel
+            }
+        }
+    } catch {}
+
+    $diskItems = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | ForEach-Object {
+        $dId = $_.DeviceID
+        $free = [math]::Round($_.FreeSpace / 1GB, 1)
+        $total = [math]::Round($_.Size / 1GB, 1)
+        $type = if ($diskMap.ContainsKey($dId) -and $diskMap[$dId]) { " (" + $diskMap[$dId] + ")" } else { "" }
+        "$dId$type ว่าง $free/$total GB"
+    }
+    $diskInfo = if ($diskItems) { $diskItems -join ", " } else { "-" }
+} catch {
+    $diskInfo = "-"
+}
 
 $detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
     $_.InterfaceAlias -notmatch 'Loopback|vEthernet|Virtual|Pseudo' -and 
@@ -1608,6 +1898,8 @@ Write-Host "     * Processor (CPU)             : " -NoNewline -ForegroundColor G
 Write-Host "$cpuInfo" -ForegroundColor White
 Write-Host "     * Memory (RAM)                : " -NoNewline -ForegroundColor Gray
 Write-Host "$ramInfo" -ForegroundColor White
+Write-Host "     * Hard Disk (DISK)            : " -NoNewline -ForegroundColor Gray
+Write-Host "$diskInfo" -ForegroundColor White
 Write-Host "     * Operating System (OS)       : " -NoNewline -ForegroundColor Gray
 Write-Host "$osVerStr" -ForegroundColor White
 Write-Host "     * Microsoft Office            : " -NoNewline -ForegroundColor Gray
@@ -1630,6 +1922,7 @@ $popupText = "เปิดระบบ Auto-Sync สำหรับเครื�
     "• หมายเลข IP Address        : $allIpsStr`n" +
     "• สเปก CPU                 : $cpuInfo`n" +
     "• ขนาด RAM                 : $ramInfo`n" +
+    "• พื้นที่ DISK              : $diskInfo`n" +
     "• ระบบปฏิบัติการ OS        : $osVerStr`n" +
     "• โปรแกรม Microsoft Office  : $officeFinal`n`n" +
     "================ คุณสมบัติ Auto-Sync ================`n" +
@@ -1880,12 +2173,12 @@ POWERSHELL;
     }
 
     /**
-     * Get configured VNC password from .env / config (max 8 chars per VNC standard).
+     * Get configured VNC password from .env / config (full password).
      */
     public function getVncPassword(): string
     {
-        $pass = (string) config('services.vnc.password', env('VNC_PASSWORD', 'cshos123'));
-        return substr(trim($pass) ?: 'cshos123', 0, 8);
+        $pass = env('VNC_PASSWORD') ?: config('services.vnc.password', '4Sh0sp@remote');
+        return trim((string) $pass) ?: '4Sh0sp@remote';
     }
 
     /**
@@ -1894,8 +2187,9 @@ POWERSHELL;
     public function getVncPasswordHash(): string
     {
         $pass = $this->getVncPassword();
-        return \Illuminate\Support\Facades\Cache::remember('vnc_hash_' . md5($pass), 86400 * 30, function () use ($pass) {
-            $pSafe = addslashes($pass);
+        $p8 = substr($pass, 0, 8);
+        return \Illuminate\Support\Facades\Cache::remember('vnc_hash_' . md5($p8), 86400 * 30, function () use ($p8) {
+            $pSafe = addslashes($p8);
             $psCmd = 'powershell.exe -NoProfile -Command "$des=[System.Security.Cryptography.DES]::Create(); $des.Mode=[System.Security.Cryptography.CipherMode]::CBC; $des.Padding=[System.Security.Cryptography.PaddingMode]::None; $des.Key=[byte[]]@(0xe8,0x4a,0xd6,0x60,0xc4,0x72,0x1a,0xe0); $des.IV=[byte[]]::new(8); $pBytes=[System.Text.Encoding]::ASCII.GetBytes(\'' . $pSafe . '\'.PadRight(8, [char]0).Substring(0,8)); $enc=$des.CreateEncryptor(); $res=$enc.TransformFinalBlock($pBytes,0,8); [System.BitConverter]::ToString($res).Replace(\'-\',\'\').ToLower()"';
             $out = trim(shell_exec($psCmd) ?: '');
             if (preg_match('/^[a-f0-9]{16}$/i', $out)) {
