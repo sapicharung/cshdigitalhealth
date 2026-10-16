@@ -490,6 +490,12 @@ $ws = New-Object -ComObject WScript.Shell
 $shortcutName = "{{APP_NAME}}"
 $appUrl = '{{APP_URL}}'
 
+Write-Host ""
+Write-Host "========================================================================" -ForegroundColor Cyan
+Write-Host "      CSHOS DIGITAL HEALTH - CLIENT INSTALLER & SETUP" -ForegroundColor White
+Write-Host "========================================================================" -ForegroundColor Cyan
+Write-Host " [Step 1/5] Setting up Desktop shortcuts..." -ForegroundColor Yellow
+
 # Locate Google Chrome or Microsoft Edge
 $browserExe = ""
 $browserCandidates = @(
@@ -516,26 +522,15 @@ if (-not (Test-Path $sysDir)) {
     if (-not (Test-Path $sysDir)) { New-Item -ItemType Directory -Path $sysDir -Force | Out-Null }
 }
 
-# --- Download App Icon ---
+# --- Download App Icon (Fast timeout max 5s) ---
 $icoPath = Join-Path $sysDir "app-icon.ico"
 $iconDownloaded = $false
 try {
-    $wc = New-Object System.Net.WebClient
-    $wc.Headers.Add("User-Agent", "CSHOS-Installer")
-    $wc.DownloadFile('{{ICON_URL}}', $icoPath)
+    Invoke-WebRequest -Uri '{{ICON_URL}}' -OutFile $icoPath -UseBasicParsing -TimeoutSec 5 -ErrorAction SilentlyContinue
     if ((Test-Path $icoPath) -and ((Get-Item $icoPath).Length -gt 100)) {
         $iconDownloaded = $true
     }
 } catch {}
-
-if (-not $iconDownloaded) {
-    try {
-        Invoke-WebRequest -Uri '{{ICON_URL}}' -OutFile $icoPath -UseBasicParsing -TimeoutSec 15 -ErrorAction SilentlyContinue
-        if ((Test-Path $icoPath) -and ((Get-Item $icoPath).Length -gt 100)) {
-            $iconDownloaded = $true
-        }
-    } catch {}
-}
 
 # --- Detect All Target Desktops (Public Desktop + Logged-in User Desktops) ---
 $targetDesktops = @()
@@ -608,8 +603,10 @@ foreach ($desk in $targetDesktops) {
 
 # Refresh Windows Explorer desktop icon cache
 try { & ie4uinit.exe -show | Out-Null } catch {}
+Write-Host "       -> Desktop shortcuts installed for all users ($installedCount locations)." -ForegroundColor Green
 
 # --- Collect Computer Specs ---
+Write-Host " [Step 2/5] Detecting machine specifications (CPU, RAM, Disk, OS, Office)..." -ForegroundColor Yellow
 $compName = $env:COMPUTERNAME
 $userName = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
 if (-not $userName) { $userName = $env:USERNAME }
@@ -670,7 +667,73 @@ if (-not $detectedIps -or $detectedIps.Count -eq 0) {
 $clientIp = if ($detectedIps -and $detectedIps.Count -gt 0) { $detectedIps[0] } else { "" }
 $allIpsStr = if ($detectedIps -and $detectedIps.Count -gt 0) { ($detectedIps | Select-Object -Unique) -join ", " } else { "No IP (DHCP)" }
 
+# Detect OS Version
+$osCaption = ($osInfo -replace 'Microsoft\s*', '').Trim()
+$osVerStr = $osCaption
+try {
+    $regNT = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -ErrorAction SilentlyContinue
+    $dispVer = if ($regNT.DisplayVersion) { $regNT.DisplayVersion } elseif ($regNT.ReleaseId) { $regNT.ReleaseId } else { "" }
+    $build = $regNT.CurrentBuild
+    $arch = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture
+    if ($dispVer) { $osVerStr += " $dispVer" }
+    if ($arch -or $build) {
+        $p = @()
+        if ($arch) { $p += $arch }
+        if ($build) { $p += "Build $build" }
+        $osVerStr += " (" + ($p -join ", ") + ")"
+    }
+} catch {}
+
+# Detect Microsoft Office Version
+$officeFinal = "Not Installed"
+try {
+    $c2r = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" -ErrorAction SilentlyContinue
+    if ($c2r -and $c2r.ProductReleaseIds) {
+        $idStr = "$($c2r.ProductReleaseIds)"
+        $verReport = $c2r.VersionToReport
+        $platform = $c2r.Platform
+        $friendly = if ($idStr -match '2024') { "Microsoft Office 2024" }
+                    elseif ($idStr -match '2021') { "Microsoft Office 2021" }
+                    elseif ($idStr -match '2019') { "Microsoft Office 2019" }
+                    elseif ($idStr -match 'O365|M365|365') { "Microsoft 365 Apps" }
+                    elseif ($idStr -match '2016') { "Microsoft Office 2016" }
+                    elseif ($idStr -match '2013') { "Microsoft Office 2013" }
+                    elseif ($idStr -match '2010') { "Microsoft Office 2010" }
+                    else { "Microsoft Office" }
+        $edition = if ($idStr -match 'ProPlus') { " Professional Plus" }
+                   elseif ($idStr -match 'Standard') { " Standard" }
+                   elseif ($idStr -match 'HomeBusiness') { " Home & Business" }
+                   elseif ($idStr -match 'HomeStudent') { " Home & Student" }
+                   else { "" }
+        $officeFinal = "$friendly$edition"
+        if ($verReport) { $officeFinal += " ($verReport" + (if ($platform) { " $platform" } else { "" }) + ")" }
+    }
+    if ($officeFinal -eq "Not Installed") {
+        $keys = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
+        $installed = Get-ItemProperty $keys -ErrorAction SilentlyContinue | Where-Object { 
+            $_.DisplayName -match '^Microsoft Office (Professional|Standard|Home|Personal|365|Enterprise)' -or
+            $_.DisplayName -match '^Microsoft 365'
+        } | Select-Object -First 1
+        if ($installed) {
+            $officeFinal = $installed.DisplayName + (if ($installed.DisplayVersion) { " ($($installed.DisplayVersion))" } else { "" })
+        }
+    }
+    if ($officeFinal -eq "Not Installed") {
+        $appPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\excel.exe" -ErrorAction SilentlyContinue).'(Default)'
+        if (-not $appPath) { $appPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\winword.exe" -ErrorAction SilentlyContinue).'(Default)' }
+        if ($appPath -and (Test-Path $appPath)) {
+            $vi = (Get-Item $appPath -ErrorAction SilentlyContinue).VersionInfo
+            $m = $vi.ProductMajorPart
+            $known = switch ($m) { 16 { "Microsoft Office 2016/2019/365" } 15 { "Microsoft Office 2013" } 14 { "Microsoft Office 2010" } 12 { "Microsoft Office 2007" } default { "Microsoft Office" } }
+            $officeFinal = "$known" + (if ($vi.ProductVersion) { " ($($vi.ProductVersion))" } else { "" })
+        }
+    }
+} catch {}
+
+Write-Host "       -> Host: $compName ($clientIp) | $ramInfo RAM | $officeFinal" -ForegroundColor Green
+
 # --- Install & Configure VNC Server (TightVNC - Screen Share, No Logout) ---
+Write-Host " [Step 3/5] Configuring Remote Desktop & TightVNC service..." -ForegroundColor Yellow
 $vncInstalled = $false
 try {
     $tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
@@ -687,18 +750,22 @@ if (-not $vncInstalled) {
         $msiLocal = Join-Path $sysDir $msiFile
 
         if (-not (Test-Path $msiLocal)) {
+            Write-Host "       -> Downloading TightVNC Server package ($msiFile)..." -ForegroundColor Cyan
             try {
-                $wc = New-Object System.Net.WebClient
-                $wc.DownloadFile($msiUrl, $msiLocal)
+                Invoke-WebRequest -Uri $msiUrl -OutFile $msiLocal -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop
             } catch {
-                Invoke-WebRequest -Uri $msiUrl -OutFile $msiLocal -UseBasicParsing -TimeoutSec 25 -ErrorAction SilentlyContinue
+                Write-Host "       -> Notice: TightVNC download skipped (Network timeout or offline)." -ForegroundColor Gray
             }
         }
 
         if (Test-Path $msiLocal) {
+            Write-Host "       -> Installing TightVNC Server service..." -ForegroundColor Cyan
             $vncPass = "{{VNC_PASSWORD}}"
             $msiArgs = "/i `"$msiLocal`" /quiet /norestart ADDLOCAL=Server SERVER_REGISTER_AS_SERVICE=1 SERVER_ADD_FIREWALL_EXCEPTION=1 SET_USEVNCAUTHENTICATION=1 VALUE_OF_USEVNCAUTHENTICATION=1 SET_PASSWORD=1 VALUE_OF_PASSWORD=`"$vncPass`""
-            Start-Process msiexec.exe -ArgumentList $msiArgs -Wait -NoNewWindow -ErrorAction SilentlyContinue
+            $p = Start-Process msiexec.exe -ArgumentList $msiArgs -NoNewWindow -PassThru -ErrorAction SilentlyContinue
+            if ($p) {
+                $p.WaitForExit(20000)
+            }
         }
     } catch {}
 }
@@ -721,7 +788,8 @@ try {
 # Ensure tvnserver service is running and restarted to load new password
 try {
     Set-Service -Name "tvnserver" -StartupType Automatic -ErrorAction SilentlyContinue
-    Restart-Service -Name "tvnserver" -Force -ErrorAction SilentlyContinue
+    Stop-Service -Name "tvnserver" -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
     Start-Service -Name "tvnserver" -ErrorAction SilentlyContinue
 } catch {}
 
@@ -739,6 +807,7 @@ try {
     Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Remote Assistance' -Name "fAllowToGetHelp" -Value 1 -ErrorAction SilentlyContinue
     Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Remote Assistance' -Name "fAllowFullControl" -Value 1 -ErrorAction SilentlyContinue
 } catch {}
+Write-Host "       -> Remote VNC service configured and ready." -ForegroundColor Green
 
 # --- Persistent Device UUID ---
 $devIdFile = Join-Path $sysDir "device_id.txt"
@@ -934,6 +1003,7 @@ try {
 }
 '@
 
+Write-Host " [Step 4/5] Setting up Auto-Sync background task (Task Scheduler & Registry)..." -ForegroundColor Yellow
 try {
     Set-Content -Path $syncScriptPath -Value $syncCode -Encoding UTF8 -Force
 } catch {}
@@ -1010,21 +1080,25 @@ shell.Run cmd, 1, False
     reg add "HKCU\Software\Classes\vnc" /v "URL Protocol" /t REG_SZ /d "" /f | Out-Null
     reg add "HKCU\Software\Classes\vnc\shell\open\command" /ve /t REG_SZ /d "wscript.exe `"$vncLauncherVbs`" `"%1`"" /f | Out-Null
 } catch {}
+Write-Host "       -> Auto-Sync background task configured successfully." -ForegroundColor Green
 
 
 # --- Report Hardware Specs & Remote Status to CSHOS Server ---
+Write-Host " [Step 5/5] Synchronizing machine status with CSHOS Server..." -ForegroundColor Yellow
 $reportObj = @{
-    device_id    = $devId
-    hostname     = $compName
-    device_name  = $userName
-    ip_address   = $clientIp
-    os           = $osInfo
-    cpu          = $cpuInfo
-    ram          = $ramInfo
-    disk         = $diskInfo
-    remote_ready = 1
-    install_type = 'installed'
-    browser      = 'Desktop App'
+    device_id      = $devId
+    hostname       = $compName
+    device_name    = $userName
+    ip_address     = $clientIp
+    os             = $osInfo
+    os_version     = $osVerStr
+    office_version = $officeFinal
+    cpu            = $cpuInfo
+    ram            = $ramInfo
+    disk           = $diskInfo
+    remote_ready   = 1
+    install_type   = 'installed'
+    browser        = 'Desktop App'
 }
 $jsonPayload = $reportObj | ConvertTo-Json
 
@@ -1041,6 +1115,7 @@ try {
 } catch {
     $serverSyncStatus = "Saved locally on machine (CSHOS Server offline/unreachable)"
 }
+Write-Host "       -> $serverSyncStatus" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "========================================================================" -ForegroundColor Cyan
@@ -1117,7 +1192,7 @@ $popupText = "ติดตั้งไอคอนแอปและอัปเ
     "• สถานะระบบ : $serverSyncStatus"
 
 try {
-    $ws.Popup($popupText, 0, "{{APP_NAME}} - ข้อมูลเครื่องปลายทาง", 64)
+    $ws.Popup($popupText, 10, "{{APP_NAME}} - ข้อมูลเครื่องปลายทาง", 64)
 } catch {}
 POWERSHELL;
 
@@ -1322,18 +1397,81 @@ try {
     }
 } catch {}
 
+$osCaption = ($osInfo -replace 'Microsoft\s*', '').Trim()
+$osVerStr = $osCaption
+try {
+    $regNT = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -ErrorAction SilentlyContinue
+    $dispVer = if ($regNT.DisplayVersion) { $regNT.DisplayVersion } elseif ($regNT.ReleaseId) { $regNT.ReleaseId } else { "" }
+    $build = $regNT.CurrentBuild
+    $arch = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture
+    if ($dispVer) { $osVerStr += " $dispVer" }
+    if ($arch -or $build) {
+        $p = @()
+        if ($arch) { $p += $arch }
+        if ($build) { $p += "Build $build" }
+        $osVerStr += " (" + ($p -join ", ") + ")"
+    }
+} catch {}
+
+$officeFinal = "Not Installed"
+try {
+    $c2r = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" -ErrorAction SilentlyContinue
+    if ($c2r -and $c2r.ProductReleaseIds) {
+        $idStr = "$($c2r.ProductReleaseIds)"
+        $verReport = $c2r.VersionToReport
+        $platform = $c2r.Platform
+        $friendly = if ($idStr -match '2024') { "Microsoft Office 2024" }
+                    elseif ($idStr -match '2021') { "Microsoft Office 2021" }
+                    elseif ($idStr -match '2019') { "Microsoft Office 2019" }
+                    elseif ($idStr -match 'O365|M365|365') { "Microsoft 365 Apps" }
+                    elseif ($idStr -match '2016') { "Microsoft Office 2016" }
+                    elseif ($idStr -match '2013') { "Microsoft Office 2013" }
+                    elseif ($idStr -match '2010') { "Microsoft Office 2010" }
+                    else { "Microsoft Office" }
+        $edition = if ($idStr -match 'ProPlus') { " Professional Plus" }
+                   elseif ($idStr -match 'Standard') { " Standard" }
+                   elseif ($idStr -match 'HomeBusiness') { " Home & Business" }
+                   elseif ($idStr -match 'HomeStudent') { " Home & Student" }
+                   else { "" }
+        $officeFinal = "$friendly$edition"
+        if ($verReport) { $officeFinal += " ($verReport" + (if ($platform) { " $platform" } else { "" }) + ")" }
+    }
+    if ($officeFinal -eq "Not Installed") {
+        $keys = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
+        $installed = Get-ItemProperty $keys -ErrorAction SilentlyContinue | Where-Object { 
+            $_.DisplayName -match '^Microsoft Office (Professional|Standard|Home|Personal|365|Enterprise)' -or
+            $_.DisplayName -match '^Microsoft 365'
+        } | Select-Object -First 1
+        if ($installed) {
+            $officeFinal = $installed.DisplayName + (if ($installed.DisplayVersion) { " ($($installed.DisplayVersion))" } else { "" })
+        }
+    }
+    if ($officeFinal -eq "Not Installed") {
+        $appPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\excel.exe" -ErrorAction SilentlyContinue).'(Default)'
+        if (-not $appPath) { $appPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\winword.exe" -ErrorAction SilentlyContinue).'(Default)' }
+        if ($appPath -and (Test-Path $appPath)) {
+            $vi = (Get-Item $appPath -ErrorAction SilentlyContinue).VersionInfo
+            $m = $vi.ProductMajorPart
+            $known = switch ($m) { 16 { "Microsoft Office 2016/2019/365" } 15 { "Microsoft Office 2013" } 14 { "Microsoft Office 2010" } 12 { "Microsoft Office 2007" } default { "Microsoft Office" } }
+            $officeFinal = "$known" + (if ($vi.ProductVersion) { " ($($vi.ProductVersion))" } else { "" })
+        }
+    }
+} catch {}
+
 $reportObj = @{
-    device_id    = $devId
-    hostname     = $compName
-    device_name  = $userName
-    ip_address   = $clientIp
-    os           = $osInfo
-    cpu          = $cpuInfo
-    ram          = $ramInfo
-    disk         = $diskInfo
-    remote_ready = $remoteReady
-    install_type = 'installed'
-    browser      = 'AutoSync Service'
+    device_id      = $devId
+    hostname       = $compName
+    device_name    = $userName
+    ip_address     = $clientIp
+    os             = $osInfo
+    os_version     = $osVerStr
+    office_version = $officeFinal
+    cpu            = $cpuInfo
+    ram            = $ramInfo
+    disk           = $diskInfo
+    remote_ready   = $remoteReady
+    install_type   = 'installed'
+    browser        = 'AutoSync Service'
 }
 $jsonPayload = $reportObj | ConvertTo-Json
 
@@ -1391,6 +1529,69 @@ $detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyConti
 } | Select-Object -ExpandProperty IPAddress)
 $allIpsStr = if ($detectedIps) { ($detectedIps | Select-Object -Unique) -join ", " } else { "No IP (DHCP)" }
 
+$osInfo = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
+if (-not $osInfo) { $osInfo = [System.Environment]::OSVersion.VersionString }
+$osCaption = ($osInfo -replace 'Microsoft\s*', '').Trim()
+$osVerStr = $osCaption
+try {
+    $regNT = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -ErrorAction SilentlyContinue
+    $dispVer = if ($regNT.DisplayVersion) { $regNT.DisplayVersion } elseif ($regNT.ReleaseId) { $regNT.ReleaseId } else { "" }
+    $build = $regNT.CurrentBuild
+    $arch = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture
+    if ($dispVer) { $osVerStr += " $dispVer" }
+    if ($arch -or $build) {
+        $p = @()
+        if ($arch) { $p += $arch }
+        if ($build) { $p += "Build $build" }
+        $osVerStr += " (" + ($p -join ", ") + ")"
+    }
+} catch {}
+
+$officeFinal = "Not Installed"
+try {
+    $c2r = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" -ErrorAction SilentlyContinue
+    if ($c2r -and $c2r.ProductReleaseIds) {
+        $idStr = "$($c2r.ProductReleaseIds)"
+        $verReport = $c2r.VersionToReport
+        $platform = $c2r.Platform
+        $friendly = if ($idStr -match '2024') { "Microsoft Office 2024" }
+                    elseif ($idStr -match '2021') { "Microsoft Office 2021" }
+                    elseif ($idStr -match '2019') { "Microsoft Office 2019" }
+                    elseif ($idStr -match 'O365|M365|365') { "Microsoft 365 Apps" }
+                    elseif ($idStr -match '2016') { "Microsoft Office 2016" }
+                    elseif ($idStr -match '2013') { "Microsoft Office 2013" }
+                    elseif ($idStr -match '2010') { "Microsoft Office 2010" }
+                    else { "Microsoft Office" }
+        $edition = if ($idStr -match 'ProPlus') { " Professional Plus" }
+                   elseif ($idStr -match 'Standard') { " Standard" }
+                   elseif ($idStr -match 'HomeBusiness') { " Home & Business" }
+                   elseif ($idStr -match 'HomeStudent') { " Home & Student" }
+                   else { "" }
+        $officeFinal = "$friendly$edition"
+        if ($verReport) { $officeFinal += " ($verReport" + (if ($platform) { " $platform" } else { "" }) + ")" }
+    }
+    if ($officeFinal -eq "Not Installed") {
+        $keys = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
+        $installed = Get-ItemProperty $keys -ErrorAction SilentlyContinue | Where-Object { 
+            $_.DisplayName -match '^Microsoft Office (Professional|Standard|Home|Personal|365|Enterprise)' -or
+            $_.DisplayName -match '^Microsoft 365'
+        } | Select-Object -First 1
+        if ($installed) {
+            $officeFinal = $installed.DisplayName + (if ($installed.DisplayVersion) { " ($($installed.DisplayVersion))" } else { "" })
+        }
+    }
+    if ($officeFinal -eq "Not Installed") {
+        $appPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\excel.exe" -ErrorAction SilentlyContinue).'(Default)'
+        if (-not $appPath) { $appPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\winword.exe" -ErrorAction SilentlyContinue).'(Default)' }
+        if ($appPath -and (Test-Path $appPath)) {
+            $vi = (Get-Item $appPath -ErrorAction SilentlyContinue).VersionInfo
+            $m = $vi.ProductMajorPart
+            $known = switch ($m) { 16 { "Microsoft Office 2016/2019/365" } 15 { "Microsoft Office 2013" } 14 { "Microsoft Office 2010" } 12 { "Microsoft Office 2007" } default { "Microsoft Office" } }
+            $officeFinal = "$known" + (if ($vi.ProductVersion) { " ($($vi.ProductVersion))" } else { "" })
+        }
+    }
+} catch {}
+
 Write-Host ""
 Write-Host "========================================================================" -ForegroundColor Cyan
 Write-Host "      CSHOS DIGITAL HEALTH - CHIANG SAEN HOSPITAL" -ForegroundColor White
@@ -1436,7 +1637,9 @@ $popupText = "เปิดระบบ Auto-Sync สำหรับเครื�
     "  ข้อมูล IP และสเปกจะถูกส่งไปอัปเดตที่หน้า Admin อัตโนมัติ`n" +
     "• ไม่จำเป็นต้องติดตั้งหรือรันแอปใหม่อีกต่อไป"
 
-$ws.Popup($popupText, 0, "{{APP_NAME}} - เปิดระบบ Auto-Sync สำเร็จ", 64)
+try {
+    $ws.Popup($popupText, 10, "{{APP_NAME}} - เปิดระบบ Auto-Sync สำเร็จ", 64)
+} catch {}
 POWERSHELL;
 
         $psScript = str_replace(
