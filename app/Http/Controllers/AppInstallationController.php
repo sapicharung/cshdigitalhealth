@@ -1472,8 +1472,8 @@ try {
 # 2. Register Windows Registry Run Key (Runs reliably on user logon across all Windows versions)
 try {
     $regCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
-    $null | & reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d $regCmd /f 2>&1 | Out-Null
-    $null | & reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d $regCmd /f 2>&1 | Out-Null
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "CSHOS_AutoSync" -Value $regCmd -Force -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "CSHOS_AutoSync" -Value $regCmd -Force -ErrorAction SilentlyContinue
 } catch {}
 
 # Trigger initial Auto-Sync immediately in background to verify setup
@@ -1483,7 +1483,7 @@ try {
 
 Write-Host "       -> Background Auto-Sync service successfully registered." -ForegroundColor Green
 
-# 4. Register vnc:// URL protocol for TightVNC Viewer (CSHOS Remote Launcher)
+# 3. Register vnc:// URL protocol for TightVNC Viewer (CSHOS Remote Launcher)
 try {
     $passFile = Join-Path $sysDir "vnc_password.txt"
     Set-Content -Path $passFile -Value "{{VNC_PASSWORD}}" -Encoding ASCII -Force
@@ -1526,11 +1526,19 @@ End If
 shell.Run cmd, 1, False
 '@
     Set-Content -Path $vncLauncherVbs -Value $vbsCode -Encoding ASCII -Force
-    reg add "HKCU\Software\Classes\vnc" /ve /t REG_SZ /d "URL:VNC Protocol" /f | Out-Null
-    reg add "HKCU\Software\Classes\vnc" /v "URL Protocol" /t REG_SZ /d "" /f | Out-Null
-    reg add "HKCU\Software\Classes\vnc\shell\open\command" /ve /t REG_SZ /d "wscript.exe `"$vncLauncherVbs`" `"%1`"" /f | Out-Null
+
+    # Native PowerShell registry configuration (Both HKCU and HKLM, never blocks on stdin)
+    $null = New-Item -Path "HKCU:\Software\Classes\vnc\shell\open\command" -Force -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path "HKCU:\Software\Classes\vnc" -Name "(Default)" -Value "URL:VNC Protocol" -Force -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path "HKCU:\Software\Classes\vnc" -Name "URL Protocol" -Value "" -Force -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path "HKCU:\Software\Classes\vnc\shell\open\command" -Name "(Default)" -Value "wscript.exe `"$vncLauncherVbs`" `"%1`"" -Force -ErrorAction SilentlyContinue
+
+    $null = New-Item -Path "HKLM:\SOFTWARE\Classes\vnc\shell\open\command" -Force -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Classes\vnc" -Name "(Default)" -Value "URL:VNC Protocol" -Force -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Classes\vnc" -Name "URL Protocol" -Value "" -Force -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Classes\vnc\shell\open\command" -Name "(Default)" -Value "wscript.exe `"$vncLauncherVbs`" `"%1`"" -Force -ErrorAction SilentlyContinue
 } catch {}
-Write-Host "       -> Auto-Sync background task configured successfully." -ForegroundColor Green
+Write-Host "       -> Remote vnc:// protocol launcher registered." -ForegroundColor Green
 
 
 # --- Report Hardware Specs & Remote Status to CSHOS Server ---
@@ -2136,8 +2144,8 @@ try {
 # 2. Register Windows Registry Run Key
 try {
     $regCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
-    $null | & reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d $regCmd /f 2>&1 | Out-Null
-    $null | & reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d $regCmd /f 2>&1 | Out-Null
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "CSHOS_AutoSync" -Value $regCmd -Force -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "CSHOS_AutoSync" -Value $regCmd -Force -ErrorAction SilentlyContinue
 } catch {}
 
 # Execute immediate sync test
