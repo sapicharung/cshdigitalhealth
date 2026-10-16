@@ -516,33 +516,38 @@ if ((Test-Path "$sysDir\cshos_sync.ps1") -or (Test-Path "$userSysDir\cshos_sync.
 }
 if (-not $previousFound) {
     try {
-        $existingTask = schtasks /query /tn "CSHOS-AutoSync-Startup" 2>&1
+        $null | & schtasks.exe /query /tn "CSHOS-AutoSync-Startup" 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) { $previousFound = $true }
     } catch {}
 }
 
 if ($previousFound) {
-    Write-Host "       -> พบโปรแกรมหรือระบบ CSHOS เวอร์ชั่นเดิม กำลังลบและทำความสะอาด..." -ForegroundColor Cyan
+    Write-Host "       -> Found previous CSHOS version. Removing old components..." -ForegroundColor Cyan
 
     # 1. Terminate running background sync processes
     try {
+        Get-CimInstance Win32_Process -Filter "CommandLine LIKE '%cshos_sync%'" -ErrorAction SilentlyContinue | ForEach-Object {
+            Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+        }
         Get-WmiObject Win32_Process -Filter "CommandLine LIKE '%cshos_sync%'" -ErrorAction SilentlyContinue | ForEach-Object {
             Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
         }
     } catch {}
 
-    # 2. Delete old scheduled tasks
+    # 2. Delete old scheduled tasks (safe non-blocking)
     try {
-        schtasks /delete /tn "CSHOS-AutoSync-Startup" /f >$null 2>&1
-        schtasks /delete /tn "CSHOS-AutoSync-Logon" /f >$null 2>&1
-        schtasks /delete /tn "CSHOS-Startup-Sync" /f >$null 2>&1
-        schtasks /delete /tn "CSHOS_AutoSync" /f >$null 2>&1
+        $null | & schtasks.exe /end /tn "CSHOS-AutoSync-Startup" 2>&1 | Out-Null
+        $null | & schtasks.exe /end /tn "CSHOS-AutoSync-Logon" 2>&1 | Out-Null
+        $null | & schtasks.exe /delete /tn "CSHOS-AutoSync-Startup" /f 2>&1 | Out-Null
+        $null | & schtasks.exe /delete /tn "CSHOS-AutoSync-Logon" /f 2>&1 | Out-Null
+        $null | & schtasks.exe /delete /tn "CSHOS-Startup-Sync" /f 2>&1 | Out-Null
+        $null | & schtasks.exe /delete /tn "CSHOS_AutoSync" /f 2>&1 | Out-Null
     } catch {}
 
     # 3. Delete old registry run keys
     try {
-        reg delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /f >$null 2>&1
-        reg delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /f >$null 2>&1
+        $null | & reg.exe delete "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /f 2>&1 | Out-Null
+        $null | & reg.exe delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /f 2>&1 | Out-Null
     } catch {}
 
     # 4. Remove all previous desktop shortcuts from all user profiles and desktops
@@ -574,9 +579,9 @@ if ($previousFound) {
         if ($savedId -and (Test-Path $sysDir)) { Set-Content -Path "$sysDir\device_id.txt" -Value $savedId -Force }
     } catch {}
 
-    Write-Host "       -> ลบเวอร์ชั่นเดิมออกเรียบร้อยแล้ว! กำลังติดตั้งเวอร์ชั่นล่าสุดแทน..." -ForegroundColor Green
+    Write-Host "       -> Previous version uninstalled cleanly! Installing latest version..." -ForegroundColor Green
 } else {
-    Write-Host "       -> ตรวจไม่พบเวอร์ชั่นเดิม กำลังติดตั้งโปรแกรมเวอร์ชั่นล่าสุด..." -ForegroundColor Green
+    Write-Host "       -> First-time installation detected. Installing latest version..." -ForegroundColor Green
 }
 
 Write-Host " [Step 2/6] Setting up Desktop shortcuts..." -ForegroundColor Yellow
@@ -720,65 +725,98 @@ if ($cpuObj -and $cpuObj.Name) {
 
 # RAM Specs & Bus Speed
 try {
-    $totalRamBytes = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
-    if (-not $totalRamBytes) {
-        $totalRamBytes = ((Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).TotalVisibleMemorySize) * 1KB
+    # 1. Query physical memory sticks (try CIM then WMI)
+    $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+    if (-not $memSticks -or $memSticks.Count -eq 0) {
+        $memSticks = @(Get-WmiObject Win32_PhysicalMemory -ErrorAction SilentlyContinue)
     }
-    $ramGB = if ($totalRamBytes) { [math]::Round(($totalRamBytes / 1GB), 1) } else { 0 }
-    $ramInfo = if ($ramGB -gt 0) { "$ramGB GB" } else { "Unknown RAM" }
 
-    try {
-        $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
-        if (-not $memSticks -or $memSticks.Count -eq 0) {
-            $memSticks = @(Get-WmiObject Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+    # 2. Total RAM bytes determination (4-layer cascade)
+    $totalRamBytes = 0
+
+    # Layer 1: Sum capacity of physical sticks (hardware level, e.g. 16GB instead of APU-shared 13.9GB)
+    if ($memSticks -and $memSticks.Count -gt 0) {
+        try {
+            $sumVal = ($memSticks | Measure-Object -Property Capacity -Sum).Sum
+            if ($sumVal -and $sumVal -gt 0) { $totalRamBytes = [double]$sumVal }
+        } catch {}
+    }
+
+    # Layer 2: Win32_ComputerSystem TotalPhysicalMemory (CIM & WMI)
+    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
+        try {
+            $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+            if (-not $cs) { $cs = Get-WmiObject Win32_ComputerSystem -ErrorAction SilentlyContinue }
+            if ($cs -and $cs.TotalPhysicalMemory) { $totalRamBytes = [double]$cs.TotalPhysicalMemory }
+        } catch {}
+    }
+
+    # Layer 3: Kernel Win32 API via ComputerInfo (Direct OS call, never fails even if WMI/CIM broken)
+    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
+        try {
+            Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
+            $ci = New-Object Microsoft.VisualBasic.Devices.ComputerInfo -ErrorAction SilentlyContinue
+            if ($ci -and $ci.TotalPhysicalMemory) { $totalRamBytes = [double]$ci.TotalPhysicalMemory }
+        } catch {}
+    }
+
+    # Layer 4: Win32_OperatingSystem VisibleMemory (CIM & WMI)
+    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
+        try {
+            $os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+            if (-not $os) { $os = Get-WmiObject Win32_OperatingSystem -ErrorAction SilentlyContinue }
+            if ($os -and $os.TotalVisibleMemorySize) { $totalRamBytes = [double]$os.TotalVisibleMemorySize * 1KB }
+        } catch {}
+    }
+
+    $ramGB = if ($totalRamBytes -gt 0) { [math]::Round(($totalRamBytes / 1GB), 1) } else { 0 }
+    $ramInfo = if ($ramGB -gt 0) { "$ramGB GB" } else { "ไม่สามารถระบุ RAM" }
+
+    if ($memSticks -and $memSticks.Count -gt 0) {
+        $first = $memSticks[0]
+        $clock = 0
+        if ($first.ConfiguredClockSpeed) { $clock = [int]$first.ConfiguredClockSpeed }
+        elseif ($first.Speed) { $clock = [int]$first.Speed }
+
+        $smb = if ($first.SMBIOSMemoryType) { [int]$first.SMBIOSMemoryType } else { 0 }
+        $memType = switch ($smb) {
+            20 { "DDR" }
+            21 { "DDR2" }
+            24 { "DDR3" }
+            26 { "DDR4" }
+            34 { "DDR5" }
+            default {
+                if ($clock -ge 4800) { "DDR5" }
+                elseif ($clock -ge 2133) { "DDR4" }
+                elseif ($clock -ge 800) { "DDR3" }
+                else { "" }
+            }
         }
-
-        if ($memSticks -and $memSticks.Count -gt 0) {
-            $first = $memSticks[0]
-            $clock = 0
-            if ($first.ConfiguredClockSpeed) { $clock = [int]$first.ConfiguredClockSpeed }
-            elseif ($first.Speed) { $clock = [int]$first.Speed }
-
-            $smb = if ($first.SMBIOSMemoryType) { [int]$first.SMBIOSMemoryType } else { 0 }
-            $memType = switch ($smb) {
-                20 { "DDR" }
-                21 { "DDR2" }
-                24 { "DDR3" }
-                26 { "DDR4" }
-                34 { "DDR5" }
-                default {
-                    if ($clock -ge 4800) { "DDR5" }
-                    elseif ($clock -ge 2133) { "DDR4" }
-                    elseif ($clock -ge 800) { "DDR3" }
-                    else { "RAM" }
-                }
-            }
-            $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
-            $part = if ($first.PartNumber) { ($first.PartNumber -as [string]).Trim() } else { "" }
-            $brand = if ($first.Manufacturer) { ($first.Manufacturer -as [string]).Trim() } else { "" }
-            if ($brand -match '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $brand = "" }
-            
-            $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
-            $stickCount = $memSticks.Count
-            $descList = New-Object System.Collections.Generic.List[string]
-            if ($memType) { $descList.Add($memType) }
-            if ($busStr) { $descList.Add($busStr) }
-            if ($stickCount -gt 1) {
-                $detailStr = if ($modelInfo) { " - $modelInfo" } else { "" }
-                $descList.Add("($stickCount ช่อง$detailStr)")
-            } elseif ($modelInfo) {
-                $descList.Add("($modelInfo)")
-            }
-            $details = $descList -join " "
-            if ($ramGB -gt 0) {
-                $ramInfo = "$ramGB GB $details".Trim()
-            } elseif ($details) {
-                $ramInfo = $details
-            }
+        $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
+        $part = if ($first.PartNumber) { ($first.PartNumber -as [string]).Trim() } else { "" }
+        $brand = if ($first.Manufacturer) { ($first.Manufacturer -as [string]).Trim() } else { "" }
+        if ($brand -match '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $brand = "" }
+        
+        $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
+        $stickCount = $memSticks.Count
+        $descList = New-Object System.Collections.Generic.List[string]
+        if ($memType) { $descList.Add($memType) }
+        if ($busStr) { $descList.Add($busStr) }
+        if ($stickCount -gt 1) {
+            $detailStr = if ($modelInfo) { " - $modelInfo" } else { "" }
+            $descList.Add("($stickCount ช่อง$detailStr)")
+        } elseif ($modelInfo) {
+            $descList.Add("($modelInfo)")
         }
-    } catch {}
+        $details = $descList -join " "
+        if ($ramGB -gt 0) {
+            if ($details) { $ramInfo = "$ramGB GB $details" } else { $ramInfo = "$ramGB GB" }
+        } elseif ($details) {
+            $ramInfo = $details
+        }
+    }
 } catch {
-    $ramInfo = "Unknown RAM"
+    $ramInfo = "ไม่สามารถระบุ RAM"
 }
 
 # Harddisk Type (SSD, NVMe M.2, SATA, HDD) & Capacity
@@ -960,7 +998,7 @@ try {
     }
 } catch {}
 
-Write-Host "       -> Host: $compName ($clientIp) | $ramInfo RAM | $officeFinal" -ForegroundColor Green
+Write-Host "       -> Host: $compName ($clientIp) | $ramInfo | $officeFinal" -ForegroundColor Green
 
 # --- Install & Configure VNC Server (TightVNC - Screen Share, No Logout) ---
 Write-Host " [Step 4/6] Configuring Remote Desktop & TightVNC service..." -ForegroundColor Yellow
@@ -1182,63 +1220,96 @@ if ($cpuObj -and $cpuObj.Name) {
 
 # RAM Specs & Bus Speed
 try {
-    $totalRamBytes = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
-    if (-not $totalRamBytes) {
-        $totalRamBytes = ((Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).TotalVisibleMemorySize) * 1KB
+    # 1. Query physical memory sticks (try CIM then WMI)
+    $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+    if (-not $memSticks -or $memSticks.Count -eq 0) {
+        $memSticks = @(Get-WmiObject Win32_PhysicalMemory -ErrorAction SilentlyContinue)
     }
-    $ramGB = if ($totalRamBytes) { [math]::Round(($totalRamBytes / 1GB), 1) } else { 0 }
+
+    # 2. Total RAM bytes determination (4-layer cascade)
+    $totalRamBytes = 0
+
+    # Layer 1: Sum capacity of physical sticks (hardware level, e.g. 16GB instead of APU-shared 13.9GB)
+    if ($memSticks -and $memSticks.Count -gt 0) {
+        try {
+            $sumVal = ($memSticks | Measure-Object -Property Capacity -Sum).Sum
+            if ($sumVal -and $sumVal -gt 0) { $totalRamBytes = [double]$sumVal }
+        } catch {}
+    }
+
+    # Layer 2: Win32_ComputerSystem TotalPhysicalMemory (CIM & WMI)
+    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
+        try {
+            $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+            if (-not $cs) { $cs = Get-WmiObject Win32_ComputerSystem -ErrorAction SilentlyContinue }
+            if ($cs -and $cs.TotalPhysicalMemory) { $totalRamBytes = [double]$cs.TotalPhysicalMemory }
+        } catch {}
+    }
+
+    # Layer 3: Kernel Win32 API via ComputerInfo (Direct OS call, never fails even if WMI/CIM broken)
+    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
+        try {
+            Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
+            $ci = New-Object Microsoft.VisualBasic.Devices.ComputerInfo -ErrorAction SilentlyContinue
+            if ($ci -and $ci.TotalPhysicalMemory) { $totalRamBytes = [double]$ci.TotalPhysicalMemory }
+        } catch {}
+    }
+
+    # Layer 4: Win32_OperatingSystem VisibleMemory (CIM & WMI)
+    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
+        try {
+            $os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+            if (-not $os) { $os = Get-WmiObject Win32_OperatingSystem -ErrorAction SilentlyContinue }
+            if ($os -and $os.TotalVisibleMemorySize) { $totalRamBytes = [double]$os.TotalVisibleMemorySize * 1KB }
+        } catch {}
+    }
+
+    $ramGB = if ($totalRamBytes -gt 0) { [math]::Round(($totalRamBytes / 1GB), 1) } else { 0 }
     $ramInfo = if ($ramGB -gt 0) { "$ramGB GB" } else { "ไม่สามารถระบุ RAM" }
 
-    try {
-        $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
-        if (-not $memSticks -or $memSticks.Count -eq 0) {
-            $memSticks = @(Get-WmiObject Win32_PhysicalMemory -ErrorAction SilentlyContinue)
-        }
+    if ($memSticks -and $memSticks.Count -gt 0) {
+        $first = $memSticks[0]
+        $clock = 0
+        if ($first.ConfiguredClockSpeed) { $clock = [int]$first.ConfiguredClockSpeed }
+        elseif ($first.Speed) { $clock = [int]$first.Speed }
 
-        if ($memSticks -and $memSticks.Count -gt 0) {
-            $first = $memSticks[0]
-            $clock = 0
-            if ($first.ConfiguredClockSpeed) { $clock = [int]$first.ConfiguredClockSpeed }
-            elseif ($first.Speed) { $clock = [int]$first.Speed }
-
-            $smb = if ($first.SMBIOSMemoryType) { [int]$first.SMBIOSMemoryType } else { 0 }
-            $memType = switch ($smb) {
-                20 { "DDR" }
-                21 { "DDR2" }
-                24 { "DDR3" }
-                26 { "DDR4" }
-                34 { "DDR5" }
-                default {
-                    if ($clock -ge 4800) { "DDR5" }
-                    elseif ($clock -ge 2133) { "DDR4" }
-                    elseif ($clock -ge 800) { "DDR3" }
-                    else { "RAM" }
-                }
-            }
-            $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
-            $part = if ($first.PartNumber) { ($first.PartNumber -as [string]).Trim() } else { "" }
-            $brand = if ($first.Manufacturer) { ($first.Manufacturer -as [string]).Trim() } else { "" }
-            if ($brand -match '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $brand = "" }
-            
-            $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
-            $stickCount = $memSticks.Count
-            $descList = New-Object System.Collections.Generic.List[string]
-            if ($memType) { $descList.Add($memType) }
-            if ($busStr) { $descList.Add($busStr) }
-            if ($stickCount -gt 1) {
-                $detailStr = if ($modelInfo) { " - $modelInfo" } else { "" }
-                $descList.Add("($stickCount ช่อง$detailStr)")
-            } elseif ($modelInfo) {
-                $descList.Add("($modelInfo)")
-            }
-            $details = $descList -join " "
-            if ($ramGB -gt 0) {
-                $ramInfo = "$ramGB GB $details".Trim()
-            } elseif ($details) {
-                $ramInfo = $details
+        $smb = if ($first.SMBIOSMemoryType) { [int]$first.SMBIOSMemoryType } else { 0 }
+        $memType = switch ($smb) {
+            20 { "DDR" }
+            21 { "DDR2" }
+            24 { "DDR3" }
+            26 { "DDR4" }
+            34 { "DDR5" }
+            default {
+                if ($clock -ge 4800) { "DDR5" }
+                elseif ($clock -ge 2133) { "DDR4" }
+                elseif ($clock -ge 800) { "DDR3" }
+                else { "" }
             }
         }
-    } catch {}
+        $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
+        $part = if ($first.PartNumber) { ($first.PartNumber -as [string]).Trim() } else { "" }
+        $brand = if ($first.Manufacturer) { ($first.Manufacturer -as [string]).Trim() } else { "" }
+        if ($brand -match '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $brand = "" }
+        
+        $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
+        $stickCount = $memSticks.Count
+        $descList = New-Object System.Collections.Generic.List[string]
+        if ($memType) { $descList.Add($memType) }
+        if ($busStr) { $descList.Add($busStr) }
+        if ($stickCount -gt 1) {
+            $detailStr = if ($modelInfo) { " - $modelInfo" } else { "" }
+            $descList.Add("($stickCount ช่อง$detailStr)")
+        } elseif ($modelInfo) {
+            $descList.Add("($modelInfo)")
+        }
+        $details = $descList -join " "
+        if ($ramGB -gt 0) {
+            if ($details) { $ramInfo = "$ramGB GB $details" } else { $ramInfo = "$ramGB GB" }
+        } elseif ($details) {
+            $ramInfo = $details
+        }
+    }
 } catch {
     $ramInfo = "ไม่สามารถระบุ RAM"
 }
@@ -1387,34 +1458,30 @@ try {
 }
 '@
 
-Write-Host " [Step 4/5] Setting up Auto-Sync background task (Task Scheduler & Registry)..." -ForegroundColor Yellow
 try {
     Set-Content -Path $syncScriptPath -Value $syncCode -Encoding UTF8 -Force
 } catch {}
 
-# 1. Register Task Scheduler: Startup (ONSTART with 30s delay)
+# 1. Register Task Scheduler: Startup & Logon under SYSTEM (Never prompts for password, runs reliably)
 try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
-    schtasks /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:30 /ru SYSTEM /f | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:30 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /ru "SYSTEM" /f 2>&1 | Out-Null
 } catch {}
 
-# 2. Register Task Scheduler: Logon (ONLOGON with 15s delay)
-try {
-    $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
-    schtasks /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /delay 0000:15 /rl HIGHEST /f | Out-Null
-} catch {}
-
-# 3. Register Windows Registry Run Key
+# 2. Register Windows Registry Run Key (Runs reliably on user logon across all Windows versions)
 try {
     $regCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
-    reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d $regCmd /f | Out-Null
-    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d $regCmd /f | Out-Null
+    $null | & reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d $regCmd /f 2>&1 | Out-Null
+    $null | & reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d $regCmd /f 2>&1 | Out-Null
 } catch {}
 
 # Trigger initial Auto-Sync immediately in background to verify setup
 try {
     Start-Process powershell.exe -ArgumentList "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`"" -WindowStyle Hidden
 } catch {}
+
+Write-Host "       -> Background Auto-Sync service successfully registered." -ForegroundColor Green
 
 # 4. Register vnc:// URL protocol for TightVNC Viewer (CSHOS Remote Launcher)
 try {
@@ -1817,63 +1884,96 @@ if ($cpuObj -and $cpuObj.Name) {
 
 # RAM Specs & Bus Speed
 try {
-    $totalRamBytes = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
-    if (-not $totalRamBytes) {
-        $totalRamBytes = ((Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).TotalVisibleMemorySize) * 1KB
+    # 1. Query physical memory sticks (try CIM then WMI)
+    $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+    if (-not $memSticks -or $memSticks.Count -eq 0) {
+        $memSticks = @(Get-WmiObject Win32_PhysicalMemory -ErrorAction SilentlyContinue)
     }
-    $ramGB = if ($totalRamBytes) { [math]::Round(($totalRamBytes / 1GB), 1) } else { 0 }
+
+    # 2. Total RAM bytes determination (4-layer cascade)
+    $totalRamBytes = 0
+
+    # Layer 1: Sum capacity of physical sticks (hardware level, e.g. 16GB instead of APU-shared 13.9GB)
+    if ($memSticks -and $memSticks.Count -gt 0) {
+        try {
+            $sumVal = ($memSticks | Measure-Object -Property Capacity -Sum).Sum
+            if ($sumVal -and $sumVal -gt 0) { $totalRamBytes = [double]$sumVal }
+        } catch {}
+    }
+
+    # Layer 2: Win32_ComputerSystem TotalPhysicalMemory (CIM & WMI)
+    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
+        try {
+            $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+            if (-not $cs) { $cs = Get-WmiObject Win32_ComputerSystem -ErrorAction SilentlyContinue }
+            if ($cs -and $cs.TotalPhysicalMemory) { $totalRamBytes = [double]$cs.TotalPhysicalMemory }
+        } catch {}
+    }
+
+    # Layer 3: Kernel Win32 API via ComputerInfo (Direct OS call, never fails even if WMI/CIM broken)
+    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
+        try {
+            Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
+            $ci = New-Object Microsoft.VisualBasic.Devices.ComputerInfo -ErrorAction SilentlyContinue
+            if ($ci -and $ci.TotalPhysicalMemory) { $totalRamBytes = [double]$ci.TotalPhysicalMemory }
+        } catch {}
+    }
+
+    # Layer 4: Win32_OperatingSystem VisibleMemory (CIM & WMI)
+    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
+        try {
+            $os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+            if (-not $os) { $os = Get-WmiObject Win32_OperatingSystem -ErrorAction SilentlyContinue }
+            if ($os -and $os.TotalVisibleMemorySize) { $totalRamBytes = [double]$os.TotalVisibleMemorySize * 1KB }
+        } catch {}
+    }
+
+    $ramGB = if ($totalRamBytes -gt 0) { [math]::Round(($totalRamBytes / 1GB), 1) } else { 0 }
     $ramInfo = if ($ramGB -gt 0) { "$ramGB GB" } else { "ไม่สามารถระบุ RAM" }
 
-    try {
-        $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
-        if (-not $memSticks -or $memSticks.Count -eq 0) {
-            $memSticks = @(Get-WmiObject Win32_PhysicalMemory -ErrorAction SilentlyContinue)
-        }
+    if ($memSticks -and $memSticks.Count -gt 0) {
+        $first = $memSticks[0]
+        $clock = 0
+        if ($first.ConfiguredClockSpeed) { $clock = [int]$first.ConfiguredClockSpeed }
+        elseif ($first.Speed) { $clock = [int]$first.Speed }
 
-        if ($memSticks -and $memSticks.Count -gt 0) {
-            $first = $memSticks[0]
-            $clock = 0
-            if ($first.ConfiguredClockSpeed) { $clock = [int]$first.ConfiguredClockSpeed }
-            elseif ($first.Speed) { $clock = [int]$first.Speed }
-
-            $smb = if ($first.SMBIOSMemoryType) { [int]$first.SMBIOSMemoryType } else { 0 }
-            $memType = switch ($smb) {
-                20 { "DDR" }
-                21 { "DDR2" }
-                24 { "DDR3" }
-                26 { "DDR4" }
-                34 { "DDR5" }
-                default {
-                    if ($clock -ge 4800) { "DDR5" }
-                    elseif ($clock -ge 2133) { "DDR4" }
-                    elseif ($clock -ge 800) { "DDR3" }
-                    else { "RAM" }
-                }
-            }
-            $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
-            $part = if ($first.PartNumber) { ($first.PartNumber -as [string]).Trim() } else { "" }
-            $brand = if ($first.Manufacturer) { ($first.Manufacturer -as [string]).Trim() } else { "" }
-            if ($brand -match '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $brand = "" }
-            
-            $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
-            $stickCount = $memSticks.Count
-            $descList = New-Object System.Collections.Generic.List[string]
-            if ($memType) { $descList.Add($memType) }
-            if ($busStr) { $descList.Add($busStr) }
-            if ($stickCount -gt 1) {
-                $detailStr = if ($modelInfo) { " - $modelInfo" } else { "" }
-                $descList.Add("($stickCount ช่อง$detailStr)")
-            } elseif ($modelInfo) {
-                $descList.Add("($modelInfo)")
-            }
-            $details = $descList -join " "
-            if ($ramGB -gt 0) {
-                $ramInfo = "$ramGB GB $details".Trim()
-            } elseif ($details) {
-                $ramInfo = $details
+        $smb = if ($first.SMBIOSMemoryType) { [int]$first.SMBIOSMemoryType } else { 0 }
+        $memType = switch ($smb) {
+            20 { "DDR" }
+            21 { "DDR2" }
+            24 { "DDR3" }
+            26 { "DDR4" }
+            34 { "DDR5" }
+            default {
+                if ($clock -ge 4800) { "DDR5" }
+                elseif ($clock -ge 2133) { "DDR4" }
+                elseif ($clock -ge 800) { "DDR3" }
+                else { "" }
             }
         }
-    } catch {}
+        $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
+        $part = if ($first.PartNumber) { ($first.PartNumber -as [string]).Trim() } else { "" }
+        $brand = if ($first.Manufacturer) { ($first.Manufacturer -as [string]).Trim() } else { "" }
+        if ($brand -match '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $brand = "" }
+        
+        $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
+        $stickCount = $memSticks.Count
+        $descList = New-Object System.Collections.Generic.List[string]
+        if ($memType) { $descList.Add($memType) }
+        if ($busStr) { $descList.Add($busStr) }
+        if ($stickCount -gt 1) {
+            $detailStr = if ($modelInfo) { " - $modelInfo" } else { "" }
+            $descList.Add("($stickCount ช่อง$detailStr)")
+        } elseif ($modelInfo) {
+            $descList.Add("($modelInfo)")
+        }
+        $details = $descList -join " "
+        if ($ramGB -gt 0) {
+            if ($details) { $ramInfo = "$ramGB GB $details" } else { $ramInfo = "$ramGB GB" }
+        } elseif ($details) {
+            $ramInfo = $details
+        }
+    }
 } catch {
     $ramInfo = "ไม่สามารถระบุ RAM"
 }
@@ -2026,22 +2126,18 @@ try {
     Set-Content -Path $syncScriptPath -Value $syncCode -Encoding UTF8 -Force
 } catch {}
 
-# 1. Register Task Scheduler: Startup (ONSTART with 30s delay)
+# 1. Register Task Scheduler: Startup & Logon under SYSTEM (Never prompts for password, runs reliably)
 try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
-    schtasks /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:30 /ru SYSTEM /f | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:30 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /ru "SYSTEM" /f 2>&1 | Out-Null
 } catch {}
 
-# 2. Register Task Scheduler: Logon (ONLOGON with 15s delay)
-try {
-    $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
-    schtasks /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /delay 0000:15 /rl HIGHEST /f | Out-Null
-} catch {}
-
-# 3. Register Windows Registry Run Key
+# 2. Register Windows Registry Run Key
 try {
     $regCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
-    reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d $regCmd /f | Out-Null
+    $null | & reg.exe add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d $regCmd /f 2>&1 | Out-Null
+    $null | & reg.exe add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /t REG_SZ /d $regCmd /f 2>&1 | Out-Null
 } catch {}
 
 # Execute immediate sync test
@@ -2089,63 +2185,96 @@ if ($cpuObj -and $cpuObj.Name) {
 
 # RAM Specs & Bus Speed
 try {
-    $totalRamBytes = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).TotalPhysicalMemory
-    if (-not $totalRamBytes) {
-        $totalRamBytes = ((Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).TotalVisibleMemorySize) * 1KB
+    # 1. Query physical memory sticks (try CIM then WMI)
+    $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+    if (-not $memSticks -or $memSticks.Count -eq 0) {
+        $memSticks = @(Get-WmiObject Win32_PhysicalMemory -ErrorAction SilentlyContinue)
     }
-    $ramGB = if ($totalRamBytes) { [math]::Round(($totalRamBytes / 1GB), 1) } else { 0 }
+
+    # 2. Total RAM bytes determination (4-layer cascade)
+    $totalRamBytes = 0
+
+    # Layer 1: Sum capacity of physical sticks (hardware level, e.g. 16GB instead of APU-shared 13.9GB)
+    if ($memSticks -and $memSticks.Count -gt 0) {
+        try {
+            $sumVal = ($memSticks | Measure-Object -Property Capacity -Sum).Sum
+            if ($sumVal -and $sumVal -gt 0) { $totalRamBytes = [double]$sumVal }
+        } catch {}
+    }
+
+    # Layer 2: Win32_ComputerSystem TotalPhysicalMemory (CIM & WMI)
+    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
+        try {
+            $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+            if (-not $cs) { $cs = Get-WmiObject Win32_ComputerSystem -ErrorAction SilentlyContinue }
+            if ($cs -and $cs.TotalPhysicalMemory) { $totalRamBytes = [double]$cs.TotalPhysicalMemory }
+        } catch {}
+    }
+
+    # Layer 3: Kernel Win32 API via ComputerInfo (Direct OS call, never fails even if WMI/CIM broken)
+    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
+        try {
+            Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
+            $ci = New-Object Microsoft.VisualBasic.Devices.ComputerInfo -ErrorAction SilentlyContinue
+            if ($ci -and $ci.TotalPhysicalMemory) { $totalRamBytes = [double]$ci.TotalPhysicalMemory }
+        } catch {}
+    }
+
+    # Layer 4: Win32_OperatingSystem VisibleMemory (CIM & WMI)
+    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
+        try {
+            $os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+            if (-not $os) { $os = Get-WmiObject Win32_OperatingSystem -ErrorAction SilentlyContinue }
+            if ($os -and $os.TotalVisibleMemorySize) { $totalRamBytes = [double]$os.TotalVisibleMemorySize * 1KB }
+        } catch {}
+    }
+
+    $ramGB = if ($totalRamBytes -gt 0) { [math]::Round(($totalRamBytes / 1GB), 1) } else { 0 }
     $ramInfo = if ($ramGB -gt 0) { "$ramGB GB" } else { "-" }
 
-    try {
-        $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
-        if (-not $memSticks -or $memSticks.Count -eq 0) {
-            $memSticks = @(Get-WmiObject Win32_PhysicalMemory -ErrorAction SilentlyContinue)
-        }
+    if ($memSticks -and $memSticks.Count -gt 0) {
+        $first = $memSticks[0]
+        $clock = 0
+        if ($first.ConfiguredClockSpeed) { $clock = [int]$first.ConfiguredClockSpeed }
+        elseif ($first.Speed) { $clock = [int]$first.Speed }
 
-        if ($memSticks -and $memSticks.Count -gt 0) {
-            $first = $memSticks[0]
-            $clock = 0
-            if ($first.ConfiguredClockSpeed) { $clock = [int]$first.ConfiguredClockSpeed }
-            elseif ($first.Speed) { $clock = [int]$first.Speed }
-
-            $smb = if ($first.SMBIOSMemoryType) { [int]$first.SMBIOSMemoryType } else { 0 }
-            $memType = switch ($smb) {
-                20 { "DDR" }
-                21 { "DDR2" }
-                24 { "DDR3" }
-                26 { "DDR4" }
-                34 { "DDR5" }
-                default {
-                    if ($clock -ge 4800) { "DDR5" }
-                    elseif ($clock -ge 2133) { "DDR4" }
-                    elseif ($clock -ge 800) { "DDR3" }
-                    else { "RAM" }
-                }
-            }
-            $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
-            $part = if ($first.PartNumber) { ($first.PartNumber -as [string]).Trim() } else { "" }
-            $brand = if ($first.Manufacturer) { ($first.Manufacturer -as [string]).Trim() } else { "" }
-            if ($brand -match '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $brand = "" }
-            
-            $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
-            $stickCount = $memSticks.Count
-            $descList = New-Object System.Collections.Generic.List[string]
-            if ($memType) { $descList.Add($memType) }
-            if ($busStr) { $descList.Add($busStr) }
-            if ($stickCount -gt 1) {
-                $detailStr = if ($modelInfo) { " - $modelInfo" } else { "" }
-                $descList.Add("($stickCount ช่อง$detailStr)")
-            } elseif ($modelInfo) {
-                $descList.Add("($modelInfo)")
-            }
-            $details = $descList -join " "
-            if ($ramGB -gt 0) {
-                $ramInfo = "$ramGB GB $details".Trim()
-            } elseif ($details) {
-                $ramInfo = $details
+        $smb = if ($first.SMBIOSMemoryType) { [int]$first.SMBIOSMemoryType } else { 0 }
+        $memType = switch ($smb) {
+            20 { "DDR" }
+            21 { "DDR2" }
+            24 { "DDR3" }
+            26 { "DDR4" }
+            34 { "DDR5" }
+            default {
+                if ($clock -ge 4800) { "DDR5" }
+                elseif ($clock -ge 2133) { "DDR4" }
+                elseif ($clock -ge 800) { "DDR3" }
+                else { "" }
             }
         }
-    } catch {}
+        $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
+        $part = if ($first.PartNumber) { ($first.PartNumber -as [string]).Trim() } else { "" }
+        $brand = if ($first.Manufacturer) { ($first.Manufacturer -as [string]).Trim() } else { "" }
+        if ($brand -match '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $brand = "" }
+        
+        $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
+        $stickCount = $memSticks.Count
+        $descList = New-Object System.Collections.Generic.List[string]
+        if ($memType) { $descList.Add($memType) }
+        if ($busStr) { $descList.Add($busStr) }
+        if ($stickCount -gt 1) {
+            $detailStr = if ($modelInfo) { " - $modelInfo" } else { "" }
+            $descList.Add("($stickCount ช่อง$detailStr)")
+        } elseif ($modelInfo) {
+            $descList.Add("($modelInfo)")
+        }
+        $details = $descList -join " "
+        if ($ramGB -gt 0) {
+            if ($details) { $ramInfo = "$ramGB GB $details" } else { $ramInfo = "$ramGB GB" }
+        } elseif ($details) {
+            $ramInfo = $details
+        }
+    }
 } catch {
     $ramInfo = "-"
 }
