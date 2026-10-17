@@ -152,18 +152,24 @@ class AppInstallationController extends Controller
             $installation->remote_ready = (bool) $data['remote_ready'];
         }
 
+        $serverVersion = $this->getClientAppVersion();
+
         if (!empty($data['client_version'])) {
             $installation->client_version = mb_substr($data['client_version'], 0, 50);
+        } elseif (!$installation->client_version) {
+            // New installation or client without explicit version defaults to current server version
+            $installation->client_version = $serverVersion;
         }
 
         $installation->user_agent = $request->userAgent();
         $installation->last_active_at = now();
+        $installation->is_online = true;
+        $installation->last_probed_at = now();
         $installation->save();
 
         $this->deduplicateSingleRecord($installation);
 
-        $serverVersion = $this->getClientAppVersion();
-        $clientVer = $installation->client_version ?: ($data['client_version'] ?? '1.0.0');
+        $clientVer = $installation->client_version ?: $serverVersion;
         $isPendingUpdate = (bool) ($installation->pending_update ?? false);
         $isGlobalForce = (bool) Cache::get('cshos_force_all_update', false);
 
@@ -260,7 +266,16 @@ class AppInstallationController extends Controller
         }
 
         // Status filter
-        if ($request->input('status') === 'today') {
+        if ($request->input('status') === 'online') {
+            $query->where('is_online', true)->where('last_active_at', '>=', now()->subMinutes(15));
+        } elseif ($request->input('status') === 'offline') {
+            $query->where(function ($q) {
+                $q->where('is_online', false)
+                  ->orWhereNull('is_online')
+                  ->orWhere('last_active_at', '<', now()->subMinutes(15))
+                  ->orWhereNull('last_active_at');
+            });
+        } elseif ($request->input('status') === 'today') {
             $query->whereDate('last_active_at', today());
         } elseif ($request->input('status') === 'week') {
             $query->where('last_active_at', '>=', now()->subDays(7));
@@ -278,11 +293,13 @@ class AppInstallationController extends Controller
 
         $stats = [
             'total_devices'   => AppInstallation::count(),
+            'online_count'    => AppInstallation::where('is_online', true)->where('last_active_at', '>=', now()->subMinutes(15))->count(),
             'installed_count' => AppInstallation::where('install_type', 'installed')->count(),
             'active_today'    => AppInstallation::whereDate('last_active_at', today())->count(),
             'active_7days'    => AppInstallation::where('last_active_at', '>=', now()->subDays(7))->count(),
             'unique_ips'      => AppInstallation::distinct('ip_address')->count('ip_address'),
             'outdated_count'  => $outdatedCount,
+            'pending_count'   => AppInstallation::where('pending_update', true)->count(),
             'server_version'  => $serverVersion,
         ];
 
@@ -301,6 +318,7 @@ class AppInstallationController extends Controller
         $staffMap = $this->getStaffMapByIps($ipList);
 
         foreach ($installations as $item) {
+            $item->computed_online = (bool) ($item->is_online && $item->last_active_at && $item->last_active_at->diffInMinutes(now()) <= 15);
             if (isset($staffMap[$item->ip_address])) {
                 $info = $staffMap[$item->ip_address];
                 $item->staff_name = $info->staff_name ?: null;
@@ -490,6 +508,77 @@ class AppInstallationController extends Controller
     }
 
     /**
+     * Cancel pending update status for a device.
+     */
+    public function cancelUpdate(Request $request, $id)
+    {
+        $installation = AppInstallation::findOrFail($id);
+        $installation->pending_update = false;
+        $installation->save();
+
+        $name = $installation->hostname ?: ($installation->device_name ?: $installation->ip_address);
+        $msg = "ยกเลิกสถานะรออัพเดทของเครื่อง {$name} เรียบร้อยแล้ว";
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'status'  => 'success',
+                'message' => $msg,
+            ]);
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    /**
+     * Mark device as successfully updated to the target server version.
+     */
+    public function completeUpdate(Request $request, $id)
+    {
+        $installation = AppInstallation::findOrFail($id);
+        $serverVersion = $this->getClientAppVersion();
+        $installation->pending_update = false;
+        $installation->client_version = $serverVersion;
+        $installation->last_active_at = now();
+        $installation->save();
+
+        $name = $installation->hostname ?: ($installation->device_name ?: $installation->ip_address);
+        $msg = "บันทึกสถานะเครื่อง {$name} เป็นเวอร์ชัน v{$serverVersion} เรียบร้อยแล้ว";
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'status'         => 'success',
+                'message'        => $msg,
+                'client_version' => $serverVersion,
+            ]);
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    /**
+     * Clear pending update status across all devices.
+     */
+    public function clearAllPending(Request $request)
+    {
+        $count = AppInstallation::where('pending_update', true)->count();
+        AppInstallation::where('pending_update', true)->update([
+            'pending_update' => false,
+        ]);
+        Cache::forget('cshos_force_all_update');
+
+        $msg = "ล้างสถานะรออัพเดททั้งหมด ({$count} เครื่อง) เรียบร้อยแล้ว";
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'status'  => 'success',
+                'message' => $msg,
+            ]);
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    /**
      * Trigger auto-update broadcast for ALL client machines.
      */
     public function triggerUpdateAll(Request $request)
@@ -574,6 +663,9 @@ class AppInstallationController extends Controller
                 }
             }
 
+            $installation->is_online = $isOnline;
+            $installation->last_probed_at = now();
+
             if ($isOnline) {
                 $installation->last_active_at = now();
                 if ($vncReady) {
@@ -587,6 +679,8 @@ class AppInstallationController extends Controller
                         pclose(popen($cmd, "r"));
                     } catch (\Throwable $e) {}
                 }
+            } else {
+                $installation->remote_ready = false;
             }
         }
 
@@ -614,6 +708,64 @@ class AppInstallationController extends Controller
         }
 
         return back()->with('success', "รีเฟรชข้อมูลเครื่อง {$name} เรียบร้อยแล้ว ({$statusMsg})");
+    }
+
+    /**
+     * Bulk check live online/offline status for displayed devices.
+     */
+    public function checkLiveStatus(Request $request)
+    {
+        $ids = $request->input('ids', []);
+        if (empty($ids) || !is_array($ids)) {
+            return response()->json(['status' => 'success', 'results' => []]);
+        }
+
+        $items = AppInstallation::whereIn('id', $ids)->get();
+        $results = [];
+
+        foreach ($items as $item) {
+            $ip = $item->ip_address;
+            $isOnline = false;
+
+            if ($ip && !in_array($ip, ['127.0.0.1', '::1'])) {
+                // Fast socket probe on port 5900 or 445 (timeout 0.3s)
+                $ports = [5900, 445];
+                foreach ($ports as $port) {
+                    $fp = @fsockopen($ip, $port, $errno, $errstr, 0.3);
+                    if ($fp) {
+                        $isOnline = true;
+                        fclose($fp);
+                        break;
+                    }
+                }
+
+                if (!$isOnline && strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                    exec("ping -n 1 -w 300 " . escapeshellarg($ip), $out, $code);
+                    if ($code === 0) {
+                        $isOnline = true;
+                    }
+                }
+            }
+
+            $item->is_online = $isOnline;
+            $item->last_probed_at = now();
+            if ($isOnline) {
+                $item->last_active_at = now();
+            } else {
+                $item->remote_ready = false;
+            }
+            $item->save();
+
+            $results[$item->id] = [
+                'is_online'  => $isOnline,
+                'last_active'=> $item->last_active_at ? $item->last_active_at->diffForHumans() : '-',
+            ];
+        }
+
+        return response()->json([
+            'status'  => 'success',
+            'results' => $results,
+        ]);
     }
 
     /**
@@ -756,6 +908,8 @@ class AppInstallationController extends Controller
                 $record->first_installed_at = now();
             }
             $record->last_active_at = now();
+            $record->client_version = $this->getClientAppVersion();
+            $record->pending_update = false;
             $record->launch_count = ($record->launch_count ?? 0) + 1;
             if ($request->filled('os')) $record->os = $request->input('os');
             if ($request->filled('browser')) $record->browser = $request->input('browser');
@@ -807,6 +961,42 @@ class AppInstallationController extends Controller
             'update_script_url' => url('/api/client/update-script'),
             'installer_url'     => url('/download-shortcut-installer'),
             'vnc_password'      => $this->getVncPassword(),
+        ]);
+    }
+
+    /**
+     * Unregister / completely remove device installation record when client runs uninstaller.
+     */
+    public function trackUninstall(Request $request)
+    {
+        $deviceId = $request->input('device_id');
+        $hostname = $request->input('hostname');
+        $ip = $request->header('X-Forwarded-For') 
+            ? trim(explode(',', $request->header('X-Forwarded-For'))[0]) 
+            : ($request->input('ip_address') ?: $request->ip());
+
+        $deletedCount = 0;
+
+        if ($deviceId) {
+            $deletedCount += AppInstallation::where('device_id', $deviceId)->delete();
+        }
+
+        if ($deletedCount === 0 && ($hostname || ($ip && !in_array($ip, ['127.0.0.1', '::1'])))) {
+            $query = AppInstallation::query();
+            if ($hostname && $ip && !in_array($ip, ['127.0.0.1', '::1'])) {
+                $query->where('hostname', $hostname)->orWhere('ip_address', $ip);
+            } elseif ($hostname) {
+                $query->where('hostname', $hostname);
+            } elseif ($ip && !in_array($ip, ['127.0.0.1', '::1'])) {
+                $query->where('ip_address', $ip);
+            }
+            $deletedCount += $query->delete();
+        }
+
+        return response()->json([
+            'status'  => 'success',
+            'message' => "ลบข้อมูลการติดตั้งออกจากฐานข้อมูลระบบแล้ว ({$deletedCount} เครื่อง)",
+            'deleted' => $deletedCount
         ]);
     }
 
@@ -913,8 +1103,35 @@ try {
     reg add "HKLM\SOFTWARE\TightVNC\Server" /v RfbPort /t REG_DWORD /d 5900 /f | Out-Null
     reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v Password /t REG_BINARY /d $vncHash /f | Out-Null
     reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v UseVncAuthentication /t REG_DWORD /d 1 /f | Out-Null
-    reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v AcceptRfbConnections /t REG_DWORD /d 1 /f | Out-Null
-    Set-Content -Path (Join-Path $sysDir "vnc_password.txt") -Value $vncPass -Encoding ASCII -Force
+    $passFile = Join-Path $sysDir "vnc_password.txt"
+    if (Test-Path $passFile) { Remove-Item $passFile -Force -ErrorAction SilentlyContinue }
+    $vncLauncherVbs = Join-Path $sysDir "vnc-launcher.vbs"
+    $vbsCode = @'
+Set args = WScript.Arguments
+If args.Count = 0 Then WScript.Quit
+rawUrl = Replace(Replace(args(0), "vnc://", "", 1, -1, 1), "/", "")
+host = ""
+port = "5900"
+targetPart = rawUrl
+If InStr(targetPart, ":") > 0 Then
+    hParts = Split(targetPart, ":")
+    host = hParts(0)
+    port = hParts(1)
+Else
+    host = targetPart
+End If
+Set fso = CreateObject("Scripting.FileSystemObject")
+vncExe = "C:\Program Files\TightVNC\tvnviewer.exe"
+If Not fso.FileExists(vncExe) Then vncExe = "C:\Program Files (x86)\TightVNC\tvnviewer.exe"
+If Not fso.FileExists(vncExe) Then
+    MsgBox "TightVNC Viewer is not installed.", 16, "CSHOS VNC"
+    WScript.Quit
+End If
+Set shell = CreateObject("WScript.Shell")
+cmd = """" & vncExe & """ -host=" & host & " -port=" & port
+shell.Run cmd, 1, False
+'@
+    Set-Content -Path $vncLauncherVbs -Value $vbsCode -Encoding ASCII -Force
 } catch {}
 
 # 5. Update cshos_sync.ps1 to latest sync code
@@ -1352,6 +1569,13 @@ try {
                 Remove-Item -Path $tmpUpd -Force -ErrorAction SilentlyContinue
                 Set-Content -Path $versionFile -Value $serverVer -Force
                 Add-Content -Path (Join-Path $sysDir "sync.log") -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Auto-Update completed successfully to version $serverVer." -ErrorAction SilentlyContinue
+
+                # Send immediate confirmation check-in to server to clear pending_update
+                try {
+                    $reportObj.client_version = $serverVer
+                    $confirmPayload = $reportObj | ConvertTo-Json
+                    Invoke-RestMethod -Uri "{{APP_URL}}/api/track-install" -Method Post -Body $confirmPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 -ErrorAction SilentlyContinue | Out-Null
+                } catch {}
             }
         } catch {
             Add-Content -Path (Join-Path $sysDir "sync.log") -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Auto-Update failed: $($_.Exception.Message)" -ErrorAction SilentlyContinue
@@ -1398,6 +1622,7 @@ SYNC_SCRIPT;
         $appName = "CSHOS STAFF INFO";
         $iconUrl = asset('app-icon.ico');
         
+        $serverVersion = $this->getClientAppVersion();
         $deviceId = $request->query('device_id');
         if ($deviceId) {
             $clientIp = $request->header('X-Forwarded-For') 
@@ -1419,6 +1644,8 @@ SYNC_SCRIPT;
                 $record->first_installed_at = now();
             }
             $record->last_active_at = now();
+            $record->client_version = $serverVersion;
+            $record->pending_update = false;
             $record->launch_count = ($record->launch_count ?? 0) + 1;
             if ($request->filled('os')) $record->os = $request->query('os');
             if ($request->filled('browser')) $record->browser = $request->query('browser');
@@ -1566,6 +1793,11 @@ if (-not (Test-Path $sysDir)) {
     $sysDir = "$env:LOCALAPPDATA\CSHOS"
     if (-not (Test-Path $sysDir)) { New-Item -ItemType Directory -Path $sysDir -Force | Out-Null }
 }
+
+# --- Record Installed Client Version ---
+try {
+    Set-Content -Path (Join-Path $sysDir "version.txt") -Value "{{CLIENT_VERSION}}" -Force
+} catch {}
 
 # --- Download App Icon (Fast timeout max 5s) ---
 $icoPath = Join-Path $sysDir "app-icon.ico"
@@ -2105,7 +2337,7 @@ Write-Host "       -> Background Auto-Sync service successfully registered." -Fo
 # 3. Register vnc:// URL protocol for TightVNC Viewer (CSHOS Remote Launcher)
 try {
     $passFile = Join-Path $sysDir "vnc_password.txt"
-    Set-Content -Path $passFile -Value "{{VNC_PASSWORD}}" -Encoding ASCII -Force
+    if (Test-Path $passFile) { Remove-Item $passFile -Force -ErrorAction SilentlyContinue }
     $vncLauncherVbs = Join-Path $sysDir "vnc-launcher.vbs"
     $vbsCode = @'
 Set args = WScript.Arguments
@@ -2113,15 +2345,6 @@ If args.Count = 0 Then WScript.Quit
 rawUrl = Replace(Replace(args(0), "vnc://", "", 1, -1, 1), "/", "")
 host = ""
 port = "5900"
-pass = "{{VNC_PASSWORD}}"
-Set fso = CreateObject("Scripting.FileSystemObject")
-If fso.FileExists("C:\ProgramData\CSHOS\vnc_password.txt") Then
-    On Error Resume Next
-    Set pf = fso.OpenTextFile("C:\ProgramData\CSHOS\vnc_password.txt", 1)
-    pass = Trim(pf.ReadAll)
-    pf.Close
-    On Error Goto 0
-End If
 targetPart = rawUrl
 If InStr(targetPart, ":") > 0 Then
     hParts = Split(targetPart, ":")
@@ -2130,6 +2353,7 @@ If InStr(targetPart, ":") > 0 Then
 Else
     host = targetPart
 End If
+Set fso = CreateObject("Scripting.FileSystemObject")
 vncExe = "C:\Program Files\TightVNC\tvnviewer.exe"
 If Not fso.FileExists(vncExe) Then vncExe = "C:\Program Files (x86)\TightVNC\tvnviewer.exe"
 If Not fso.FileExists(vncExe) Then
@@ -2137,11 +2361,7 @@ If Not fso.FileExists(vncExe) Then
     WScript.Quit
 End If
 Set shell = CreateObject("WScript.Shell")
-If pass <> "" Then
-    cmd = """" & vncExe & """ -host=" & host & " -port=" & port & " -password=" & pass
-Else
-    cmd = """" & vncExe & """ -host=" & host & " -port=" & port
-End If
+cmd = """" & vncExe & """ -host=" & host & " -port=" & port
 shell.Run cmd, 1, False
 '@
     Set-Content -Path $vncLauncherVbs -Value $vbsCode -Encoding ASCII -Force
@@ -2176,6 +2396,7 @@ $reportObj = @{
     remote_ready   = 1
     install_type   = 'installed'
     browser        = 'Desktop App'
+    client_version = '{{CLIENT_VERSION}}'
 }
 $jsonPayload = $reportObj | ConvertTo-Json
 
@@ -2381,6 +2602,11 @@ if (-not (Test-Path $sysDir)) {
     $sysDir = "$env:LOCALAPPDATA\CSHOS"
     if (-not (Test-Path $sysDir)) { New-Item -ItemType Directory -Path $sysDir -Force | Out-Null }
 }
+
+# --- Record Installed Client Version ---
+try {
+    Set-Content -Path (Join-Path $sysDir "version.txt") -Value "{{CLIENT_VERSION}}" -Force
+} catch {}
 
 $devIdFile = Join-Path $sysDir "device_id.txt"
 $devId = ""
@@ -2750,6 +2976,7 @@ $reportObj = @{
     remote_ready   = $remoteReady
     install_type   = 'installed'
     browser        = 'AutoSync Service'
+    client_version = '{{CLIENT_VERSION}}'
 }
 $jsonPayload = $reportObj | ConvertTo-Json
 
@@ -3152,9 +3379,10 @@ try {
 } catch {}
 POWERSHELL;
 
+        $clientVersion = $this->getClientAppVersion();
         $psScript = str_replace(
-            ['{{APP_NAME}}', '{{APP_URL}}'],
-            [$appName, $appUrl],
+            ['{{APP_NAME}}', '{{APP_URL}}', '{{CLIENT_VERSION}}'],
+            [$appName, $appUrl, $clientVersion],
             $psTemplate
         );
 
@@ -3236,11 +3464,9 @@ POWERSHELL;
         $cleanName = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', $installation->hostname ?: $installation->ip_address);
         $fileName = "remote-{$cleanName}.vnc";
 
-        $vncHash = $this->getVncPasswordHash();
         $vncContent = "[connection]\r\n"
             . "host={$target}\r\n"
             . "port=5900\r\n"
-            . "password={$vncHash}\r\n"
             . "\r\n"
             . "[options]\r\n"
             . "use_encoding_0=1\r\n"
@@ -3327,20 +3553,255 @@ POWERSHELL;
     }
 
     /**
-     * Download Uninstall-CSHOS.bat to completely remove shortcuts, Auto-Sync jobs, and system data.
+     * Download Uninstall-CSHOS.bat to completely remove all installation data, shortcuts, Auto-Sync jobs, TightVNC service, and server registration.
      */
     public function downloadUninstaller(Request $request)
     {
+        $appUrl = url('/');
         $appName = "CSHOS STAFF INFO";
         $fileName = "Uninstall-CSHOS.bat";
+
+        $psTemplate = <<<'POWERSHELL'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
+} catch {}
+
+$ws = New-Object -ComObject WScript.Shell
+$shortcutName = "{{APP_NAME}}"
+$appUrl = '{{APP_URL}}'
+
+Write-Host ""
+Write-Host "========================================================================" -ForegroundColor Red
+Write-Host "      CSHOS STAFF INFO - COMPLETE UNINSTALLER & SYSTEM CLEANUP" -ForegroundColor White
+Write-Host "========================================================================" -ForegroundColor Red
+Write-Host ""
+
+# [Step 1/7] Notifying CSHOS Server to remove device registration from database
+Write-Host " [Step 1/7] Notifying CSHOS Server to remove device registration..." -ForegroundColor Yellow
+$sysDir = "$env:ProgramData\CSHOS"
+$userSysDir = "$env:LOCALAPPDATA\CSHOS"
+
+$devId = ""
+if (Test-Path "$sysDir\device_id.txt") {
+    try { $devId = (Get-Content "$sysDir\device_id.txt" -Raw).Trim() } catch {}
+}
+if (-not $devId -and (Test-Path "$userSysDir\device_id.txt")) {
+    try { $devId = (Get-Content "$userSysDir\device_id.txt" -Raw).Trim() } catch {}
+}
+
+$compName = $env:COMPUTERNAME
+$clientIp = ""
+try {
+    $gwRoutes = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -AddressFamily IPv4 -ErrorAction SilentlyContinue | Sort-Object RouteMetric)
+    foreach ($route in $gwRoutes) {
+        $ipObj = Get-NetIPAddress -InterfaceIndex $route.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
+                 Where-Object { $_.IPAddress -notmatch '^(169\.254\.|127\.)' } | Select-Object -First 1
+        if ($ipObj -and $ipObj.IPAddress) { $clientIp = $ipObj.IPAddress; break }
+    }
+} catch {}
+
+$serverUnregistered = $false
+try {
+    $uninstallReport = @{
+        device_id  = $devId
+        hostname   = $compName
+        ip_address = $clientIp
+    }
+    $jsonPayload = $uninstallReport | ConvertTo-Json
+    $res = Invoke-RestMethod -Uri "$appUrl/api/track-uninstall" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 -ErrorAction Stop
+    if ($res -and $res.status -eq 'success') {
+        $serverUnregistered = $true
+        Write-Host "       -> Successfully removed device record from CSHOS Server database." -ForegroundColor Green
+    }
+} catch {
+    Write-Host "       -> Server unregister notification skipped (offline or unreachable)." -ForegroundColor Gray
+}
+
+# [Step 2/7] Terminating running background sync processes & remote tools
+Write-Host " [Step 2/7] Terminating running background sync processes..." -ForegroundColor Yellow
+try {
+    Get-CimInstance Win32_Process -Filter "CommandLine LIKE '%cshos_sync%' OR CommandLine LIKE '%cshos_upd%' OR CommandLine LIKE '%vnc-launcher%'" -ErrorAction SilentlyContinue | ForEach-Object {
+        Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+    Get-WmiObject Win32_Process -Filter "CommandLine LIKE '%cshos_sync%' OR CommandLine LIKE '%cshos_upd%' OR CommandLine LIKE '%vnc-launcher%'" -ErrorAction SilentlyContinue | ForEach-Object {
+        Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+} catch {}
+Write-Host "       -> Background sync processes terminated." -ForegroundColor Green
+
+# [Step 3/7] Removing Auto-Sync tasks in Windows Task Scheduler
+Write-Host " [Step 3/7] Removing Auto-Sync tasks in Windows Task Scheduler..." -ForegroundColor Yellow
+$tasks = @(
+    "CSHOS-AutoSync-Startup",
+    "CSHOS-AutoSync-Logon",
+    "CSHOS-AutoSync-Hourly",
+    "CSHOS-AutoSync-Daily",
+    "CSHOS-Sync"
+)
+foreach ($t in $tasks) {
+    try {
+        $null | & schtasks.exe /delete /tn $t /f 2>&1 | Out-Null
+    } catch {}
+}
+try {
+    Get-ScheduledTask -TaskName "CSHOS*" -ErrorAction SilentlyContinue | ForEach-Object {
+        Unregister-ScheduledTask -TaskName $_.TaskName -Confirm:$false -ErrorAction SilentlyContinue
+    }
+} catch {}
+Write-Host "       -> All CSHOS scheduled tasks removed." -ForegroundColor Green
+
+# [Step 4/7] Cleaning Windows Registry (Run keys & URL Protocol)
+Write-Host " [Step 4/7] Cleaning Windows Registry (Run keys & URL Protocol)..." -ForegroundColor Yellow
+$runKeys = @(
+    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run",
+    "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run",
+    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"
+)
+$valNames = @("CSHOS_AutoSync", "CSHOS", "CSHOS_Sync", "CSHOS STAFF INFO")
+foreach ($k in $runKeys) {
+    foreach ($v in $valNames) {
+        try { Remove-ItemProperty -Path $k -Name $v -Force -ErrorAction SilentlyContinue } catch {}
+    }
+}
+
+try {
+    Remove-Item -Path "HKCU:\Software\Classes\vnc" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "HKLM:\SOFTWARE\Classes\vnc" -Recurse -Force -ErrorAction SilentlyContinue
+} catch {}
+Write-Host "       -> Registry entries cleaned." -ForegroundColor Green
+
+# [Step 5/7] Cleaning TightVNC service & firewall rules
+Write-Host " [Step 5/7] Cleaning TightVNC service & firewall rules..." -ForegroundColor Yellow
+try {
+    Stop-Service -Name "tvnserver" -Force -ErrorAction SilentlyContinue
+    Set-Service -Name "tvnserver" -StartupType Disabled -ErrorAction SilentlyContinue
+    $null | & sc.exe delete tvnserver 2>&1 | Out-Null
+} catch {}
+
+try {
+    $null | & netsh.exe advfirewall firewall delete rule name="TightVNC Server Port 5900" 2>&1 | Out-Null
+} catch {}
+
+try {
+    Remove-Item -Path "HKLM:\SOFTWARE\TightVNC" -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item -Path "HKLM:\SOFTWARE\WOW6432Node\TightVNC" -Recurse -Force -ErrorAction SilentlyContinue
+} catch {}
+Write-Host "       -> TightVNC service and firewall rules removed." -ForegroundColor Green
+
+# [Step 6/7] Removing shortcuts across all user profiles & Desktop
+Write-Host " [Step 6/7] Removing shortcuts across all user profiles & Desktop..." -ForegroundColor Yellow
+$legacyPatterns = @("CSHOS*.lnk", "CSHOS*.url", "CSH DIGITAL HEALTH*.lnk", "CSH DIGITAL HEALTH*.url")
+
+$foldersToCheck = @(
+    [Environment]::GetFolderPath('CommonDesktopDirectory'),
+    "C:\Users\Public\Desktop",
+    [Environment]::GetFolderPath('Desktop'),
+    "$env:USERPROFILE\Desktop",
+    "$env:USERPROFILE\OneDrive\Desktop",
+    [Environment]::GetFolderPath('CommonStartup'),
+    "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup",
+    [Environment]::GetFolderPath('Startup'),
+    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup",
+    "C:\ProgramData\Microsoft\Windows\Start Menu\Programs",
+    "$env:APPDATA\Microsoft\Windows\Start Menu\Programs"
+)
+
+foreach ($f in $foldersToCheck) {
+    if ($f -and (Test-Path $f)) {
+        foreach ($pat in $legacyPatterns) {
+            Get-ChildItem -Path $f -Filter $pat -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+try {
+    Get-ChildItem -Path "C:\Users" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        $uPath = $_.FullName
+        $uFolders = @(
+            "$uPath\Desktop",
+            "$uPath\OneDrive\Desktop",
+            "$uPath\AppData\Roaming\Microsoft\Windows\Start Menu\Programs",
+            "$uPath\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup"
+        )
+        foreach ($uf in $uFolders) {
+            if (Test-Path $uf) {
+                foreach ($pat in $legacyPatterns) {
+                    Get-ChildItem -Path $uf -Filter $pat -File -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue
+                }
+            }
+        }
+    }
+} catch {}
+Write-Host "       -> All shortcuts removed from Desktop and Start Menu." -ForegroundColor Green
+
+# [Step 7/7] Removing all CSHOS directories, cache, and system files
+Write-Host " [Step 7/7] Removing all CSHOS directories, cache, and system files..." -ForegroundColor Yellow
+$dirsToRemove = @(
+    "C:\ProgramData\CSHOS",
+    "$env:LOCALAPPDATA\CSHOS",
+    "$env:APPDATA\CSHOS"
+)
+foreach ($d in $dirsToRemove) {
+    if (Test-Path $d) {
+        try { Remove-Item -Path $d -Recurse -Force -ErrorAction SilentlyContinue } catch {}
+    }
+}
+
+try {
+    Get-ChildItem -Path "C:\Users" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+        $uL = Join-Path $_.FullName "AppData\Local\CSHOS"
+        $uR = Join-Path $_.FullName "AppData\Roaming\CSHOS"
+        if (Test-Path $uL) { Remove-Item -Path $uL -Recurse -Force -ErrorAction SilentlyContinue }
+        if (Test-Path $uR) { Remove-Item -Path $uR -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+} catch {}
+
+try {
+    Get-ChildItem -Path "$env:TEMP" -Filter "cshos_*" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+} catch {}
+
+try { & ie4uinit.exe -show | Out-Null } catch {}
+
+Write-Host "       -> All CSHOS system directories and cache completely deleted." -ForegroundColor Green
+Write-Host ""
+Write-Host "========================================================================" -ForegroundColor Green
+Write-Host "   UNINSTALL COMPLETED: All CSHOS components have been completely removed!" -ForegroundColor White
+Write-Host "========================================================================" -ForegroundColor Green
+Write-Host ""
+
+$statusServerText = if ($serverUnregistered) { "✓ ลบข้อมูลเครื่องออกจากระบบ Server เรียบร้อยแล้ว" } else { "- ไม่สามารถเชื่อมต่อ Server เพื่อลบข้อมูลเครื่องอัตโนมัติได้" }
+$popupMsg = "ถอนการติดตั้งและลบข้อมูลระบบ CSHOS STAFF INFO ทั้งหมดเรียบร้อยแล้ว!`n`n" +
+    "• ไอคอนทางลัดทั้งหมด : ลบออกจากหน้าจอ Desktop และ Startup แล้ว`n" +
+    "• เซอร์วิส Auto-Sync : ลบงานตั้งเวลาใน Task Scheduler ทั้งหมดแล้ว`n" +
+    "• ระบบ Remote VNC    : ปิดและถอนการติดตั้งเซอร์วิสแล้ว`n" +
+    "• ไฟล์และโฟลเดอร์ระบบ : ลบ C:\ProgramData\CSHOS และแคชทั้งหมดแล้ว`n" +
+    "• ฐานข้อมูล Server     : $statusServerText`n`n" +
+    "เครื่องคอมพิวเตอร์นี้กลับสู่สถานะก่อนติดตั้งอย่างสมบูรณ์แบบ"
+
+try {
+    $ws.Popup($popupMsg, 8, "{{APP_NAME}} - ถอนการติดตั้งสำเร็จ", 64)
+} catch {}
+POWERSHELL;
+
+        $psScript = str_replace(
+            ['{{APP_NAME}}', '{{APP_URL}}'],
+            [$appName, $appUrl],
+            $psTemplate
+        );
+
+        $psScriptWithBom = "\xEF\xBB\xBF" . $psScript;
+        $b64Payload = chunk_split(base64_encode($psScriptWithBom), 64, "\r\n");
 
         $batContent = "@echo off\r\n"
             . "chcp 65001 >nul\r\n"
             . "cd /d \"%~dp0\"\r\n"
-            . "title {$appName} - Uninstall and Cleanup\r\n"
+            . "title {$appName} - Complete Uninstall and System Cleanup\r\n"
             . "echo ========================================================================\r\n"
             . "echo    {$appName} - Chiang Saen Hospital\r\n"
-            . "echo    Uninstalling and removing CSHOS system components...\r\n"
+            . "echo    Uninstalling and completely removing CSHOS system components...\r\n"
             . "echo ========================================================================\r\n"
             . "echo.\r\n"
             . "\r\n"
@@ -3353,38 +3814,38 @@ POWERSHELL;
             . "exit /b\r\n"
             . "\r\n"
             . ":IS_ADMIN\r\n"
-            . "echo [1/5] Removing Auto-Sync tasks in Windows Task Scheduler...\r\n"
-            . "schtasks /delete /tn \"CSHOS-AutoSync-Startup\" /f >nul 2>&1\r\n"
-            . "schtasks /delete /tn \"CSHOS-AutoSync-Logon\" /f >nul 2>&1\r\n"
-            . "schtasks /delete /tn \"CSHOS-AutoSync-Daily\" /f >nul 2>&1\r\n"
+            . "echo [1/3] Extracting uninstaller components...\r\n"
+            . "set \"CSHOS_TEMP_PS=%TEMP%\\cshos_uninstaller_%RANDOM%.ps1\"\r\n"
+            . "certutil -decode \"%~f0\" \"%CSHOS_TEMP_PS%\" >nul 2>&1\r\n"
             . "\r\n"
-            . "echo [2/5] Removing startup entries in Windows Registry (Run Keys)...\r\n"
-            . "reg delete \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\" /v \"CSHOS_AutoSync\" /f >nul 2>&1\r\n"
-            . "reg delete \"HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\" /v \"CSHOS_AutoSync\" /f >nul 2>&1\r\n"
+            . "if exist \"%CSHOS_TEMP_PS%\" goto :HAVE_PAYLOAD\r\n"
             . "\r\n"
-            . "echo [3/5] Removing VNC Protocol Launcher registration...\r\n"
-            . "reg delete \"HKCU\\Software\\Classes\\vnc\" /f >nul 2>&1\r\n"
+            . "echo [INFO] Using fallback extractor...\r\n"
+            . "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"\$f = [System.IO.Path]::GetFullPath('%~f0'); \$l = Get-Content -LiteralPath \$f; \$s = \$false; \$b = ''; foreach (\$x in \$l) { if (\$x -match '^-+END') { break }; if (\$s) { \$b += \$x.Trim() }; if (\$x -match '^-+BEGIN') { \$s = \$true } }; if (\$b) { [IO.File]::WriteAllBytes('%CSHOS_TEMP_PS%', [Convert]::FromBase64String(\$b)) }\"\r\n"
             . "\r\n"
-            . "echo [4/5] Removing Desktop & Startup shortcuts...\r\n"
-            . "del /f /q \"%PUBLIC%\\Desktop\\{$appName}.lnk\" >nul 2>&1\r\n"
-            . "del /f /q \"%USERPROFILE%\\Desktop\\{$appName}.lnk\" >nul 2>&1\r\n"
-            . "del /f /q \"%ALLUSERSPROFILE%\\Desktop\\{$appName}.lnk\" >nul 2>&1\r\n"
-            . "del /f /q \"%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{$appName}.lnk\" >nul 2>&1\r\n"
-            . "del /f /q \"%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{$appName}.lnk\" >nul 2>&1\r\n"
-            . "powershell.exe -NoProfile -Command \"Get-ChildItem 'C:\\Users\\*\\Desktop\\{$appName}.lnk' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue\"\r\n"
-            . "powershell.exe -NoProfile -Command \"Get-ChildItem 'C:\\Users\\*\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{$appName}.lnk' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue\"\r\n"
+            . ":HAVE_PAYLOAD\r\n"
+            . "if not exist \"%CSHOS_TEMP_PS%\" (\r\n"
+            . "    echo [ERROR] Failed to extract temporary uninstaller.\r\n"
+            . "    echo Please make sure the downloaded file is complete.\r\n"
+            . "    echo.\r\n"
+            . "    pause\r\n"
+            . "    exit /b 1\r\n"
+            . ")\r\n"
             . "\r\n"
-            . "echo [5/5] Removing CSHOS system directories and cache...\r\n"
-            . "rmdir /s /q \"C:\\ProgramData\\CSHOS\" >nul 2>&1\r\n"
-            . "rmdir /s /q \"%LOCALAPPDATA%\\CSHOS\" >nul 2>&1\r\n"
-            . "ie4uinit.exe -show >nul 2>&1\r\n"
+            . "echo [2/3] Running complete system cleanup...\r\n"
+            . "powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%CSHOS_TEMP_PS%\"\r\n"
+            . "set \"PS_EXIT=%ERRORLEVEL%\"\r\n"
+            . "del /f /q \"%CSHOS_TEMP_PS%\" >nul 2>&1\r\n"
             . "\r\n"
-            . "echo ========================================================================\r\n"
-            . "echo    CSHOS components and shortcuts removed successfully!\r\n"
-            . "echo ========================================================================\r\n"
             . "echo.\r\n"
-            . "powershell.exe -NoProfile -Command \"(New-Object -ComObject WScript.Shell).Popup('ถอนการติดตั้งไอคอนและระบบ Auto-Sync ของ {$appName} เรียบร้อยแล้ว!', 5, '{$appName}', 64) | Out-Null\"\r\n"
-            . "timeout /t 3 >nul\r\n";
+            . "echo ------------------------------------------------------------------------\r\n"
+            . "echo [3/3] Complete cleanup finished! Press any key to exit...\r\n"
+            . "pause >nul\r\n"
+            . "exit\r\n"
+            . "\r\n"
+            . "-----BEGIN CERTIFICATE-----\r\n"
+            . $b64Payload
+            . "-----END CERTIFICATE-----\r\n";
 
         return response($batContent, 200, [
             'Content-Type'        => 'application/x-bat',

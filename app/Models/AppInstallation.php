@@ -20,6 +20,8 @@ class AppInstallation extends Model
         'ram',
         'disk',
         'remote_ready',
+        'is_online',
+        'last_probed_at',
         'user_agent',
         'install_type',
         'client_version',
@@ -34,9 +36,10 @@ class AppInstallation extends Model
     protected $casts = [
         'first_installed_at' => 'datetime',
         'last_active_at' => 'datetime',
-        'update_requested_at' => 'datetime',
+        'last_probed_at' => 'datetime',
         'launch_count' => 'integer',
         'remote_ready' => 'boolean',
+        'is_online' => 'boolean',
         'pending_update' => 'boolean',
     ];
 }

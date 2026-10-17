@@ -15,6 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'track-install',
             'api/track-install',
             'api/install-desktop-shortcut',
+            'track-uninstall',
+            'api/track-uninstall',
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

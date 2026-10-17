@@ -1184,6 +1184,13 @@
                     </ul>
                 </div>
 
+                <div style="margin: 16px 0 12px 0; padding-top: 12px; border-top: 1px dashed #E2E8F0; text-align: center;">
+                    <a href="{{ route('download.uninstaller') }}" style="color: #64748B; font-size: 0.82rem; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; transition: color 0.2s;" onmouseover="this.style.color='#E11D48'" onmouseout="this.style.color='#64748B'">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">delete_sweep</span>
+                        <span>ต้องการถอนการติดตั้งแอปออกจากเครื่องนี้? คลิกเพื่อดาวน์โหลดตัวถอนการติดตั้ง (.bat)</span>
+                    </a>
+                </div>
+
                 <div class="install-modal-actions" style="border: none; padding: 0; margin: 0;">
                     <button type="button" class="btn-modal-primary" onclick="closeInstallModal()" style="width: 100%; justify-content: center; padding: 11px 20px; font-size: 0.95rem;">
                         <span class="material-symbols-outlined" style="font-size: 20px;">close</span>
@@ -1246,7 +1253,8 @@
                 device_id: deviceId,
                 install_type: installType || 'installed',
                 os: os,
-                browser: browser
+                browser: browser,
+                client_version: '{{ \App\Http\Controllers\AppInstallationController::CLIENT_APP_VERSION }}'
             };
 
             const url = '{{ route("track.install") }}';
@@ -1286,14 +1294,26 @@
             }
         }
 
+        // Automatic check-in on page load for previously registered devices
+        (function() {
+            try {
+                const isInstalled = localStorage.getItem('csh_app_installed') === '1' || 
+                                    window.matchMedia('(display-mode: standalone)').matches || 
+                                    window.navigator.standalone === true;
+                const devId = localStorage.getItem('csh_device_uuid');
+                if (isInstalled || devId) {
+                    if (!sessionStorage.getItem('csh_visited_tracked')) {
+                        sendInstallTracking(isInstalled ? 'installed' : 'browser');
+                        sessionStorage.setItem('csh_visited_tracked', '1');
+                    }
+                }
+            } catch (e) {}
+        })();
+
         // Track when launched as standalone installed application
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
         if (isStandalone) {
             document.documentElement.classList.add('app-installed');
-            if (!sessionStorage.getItem('csh_standalone_tracked')) {
-                sendInstallTracking('installed');
-                sessionStorage.setItem('csh_standalone_tracked', '1');
-            }
         }
 
         // Check native OS-level PWA installation status (Chrome / Edge on Windows)

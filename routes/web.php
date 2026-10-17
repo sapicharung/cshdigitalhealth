@@ -39,6 +39,8 @@ Route::prefix('knowledge')->group(function () {
 // 3. ติดตามการติดตั้งแอพ และดาวน์โหลดตัวสร้างทางลัด (Client tracking & Shortcut Installer)
 Route::post('/track-install', [AppInstallationController::class, 'track'])->name('track.install');
 Route::post('/api/track-install', [AppInstallationController::class, 'track'])->name('api.track.install');
+Route::post('/track-uninstall', [AppInstallationController::class, 'trackUninstall'])->name('track.uninstall');
+Route::post('/api/track-uninstall', [AppInstallationController::class, 'trackUninstall'])->name('api.track.uninstall');
 Route::post('/api/install-desktop-shortcut', [AppInstallationController::class, 'installDesktopShortcut'])->name('api.install.desktop');
 Route::get('/api/client/version', [AppInstallationController::class, 'clientVersion'])->name('api.client.version');
 Route::get('/api/client/update-script', [AppInstallationController::class, 'clientUpdateScript'])->name('api.client.update-script');
@@ -59,8 +61,12 @@ Route::middleware('auth')->prefix('admin')->group(function () {
     Route::post('/installations/reset-all', [AppInstallationController::class, 'resetAll'])->name('admin.installations.reset-all');
     Route::post('/installations/clear-offline', [AppInstallationController::class, 'clearOffline'])->name('admin.installations.clear-offline');
     Route::post('/installations/{id}/trigger-update', [AppInstallationController::class, 'triggerUpdate'])->name('admin.installations.trigger-update');
+    Route::post('/installations/{id}/cancel-update', [AppInstallationController::class, 'cancelUpdate'])->name('admin.installations.cancel-update');
+    Route::post('/installations/{id}/complete-update', [AppInstallationController::class, 'completeUpdate'])->name('admin.installations.complete-update');
+    Route::post('/installations/clear-pending', [AppInstallationController::class, 'clearAllPending'])->name('admin.installations.clear-pending');
     Route::post('/installations/trigger-update-all', [AppInstallationController::class, 'triggerUpdateAll'])->name('admin.installations.trigger-update-all');
     Route::post('/installations/{id}/refresh', [AppInstallationController::class, 'refreshDevice'])->name('admin.installations.refresh');
+    Route::post('/installations/check-status', [AppInstallationController::class, 'checkLiveStatus'])->name('admin.installations.check-status');
     Route::delete('/installations/{id}', [AppInstallationController::class, 'destroy'])->name('admin.installations.destroy');
     Route::get('/installations/export', [AppInstallationController::class, 'exportCsv'])->name('admin.installations.export');
     Route::get('/installations/{id}/vnc', [AppInstallationController::class, 'downloadVnc'])->name('admin.installations.vnc');

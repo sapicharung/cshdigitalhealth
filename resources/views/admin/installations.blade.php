@@ -144,6 +144,30 @@
             box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
         }
 
+        .btn-download-uninstaller {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.5rem 0.9rem;
+            background: #FFF1F2;
+            color: #E11D48;
+            border: 1px solid #FECDD3;
+            text-decoration: none;
+            border-radius: 10px;
+            font-size: 0.86rem;
+            font-weight: 600;
+            box-shadow: 0 1px 3px rgba(225, 29, 72, 0.1);
+            transition: all 0.2s;
+        }
+
+        .btn-download-uninstaller:hover {
+            background: #FFE4E6;
+            color: #BE123C;
+            border-color: #FDA4AF;
+            transform: translateY(-1px);
+            box-shadow: 0 3px 8px rgba(225, 29, 72, 0.2);
+        }
+
         .btn-view-site {
             display: inline-flex;
             align-items: center;
@@ -1017,13 +1041,42 @@
             background: #F5F3FF;
             color: #7C3AED;
             border: 1px solid #DDD6FE;
-            padding: 1px 5px;
-            border-radius: 4px;
-            font-size: 0.68rem;
+            padding: 2px 7px;
+            border-radius: 5px;
+            font-size: 0.72rem;
             font-weight: 600;
             display: inline-flex;
             align-items: center;
-            gap: 2px;
+            gap: 3px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .ver-tag-pending:hover {
+            background: #EDE9FE;
+            border-color: #8B5CF6;
+            color: #6D28D9;
+            transform: translateY(-1px);
+        }
+
+        .btn-clear-pending {
+            background: #FEF2F2;
+            color: #DC2626;
+            border: 1px solid #FECACA;
+            border-radius: 8px;
+            padding: 0 0.8rem;
+            height: 35px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s ease;
+        }
+        .btn-clear-pending:hover {
+            background: #FEE2E2;
+            border-color: #EF4444;
+            transform: translateY(-1px);
         }
 
         .btn-update-all {
@@ -1921,6 +1974,11 @@
                 <span>downloadตัวติดตั้งApp</span>
             </a>
 
+            <a href="{{ route('download.uninstaller') }}" class="btn-download-uninstaller" title="ดาวน์โหลดตัวถอนการติดตั้งและลบข้อมูลระบบทั้งหมด">
+                <span class="material-symbols-Outlined" style="font-size: 18px;">delete_sweep</span>
+                <span>downloadตัวถอนการติดตั้ง</span>
+            </a>
+
             <a href="{{ url('/') }}" target="_blank" class="btn-view-site">
                 <span class="material-symbols-Outlined" style="font-size: 18px;">open_in_new</span>
                 <span>เปิดหน้าหลักเว็บ</span>
@@ -2016,8 +2074,10 @@
                     </select>
 
                     <select name="status" class="select-filter">
-                        <option value="">-- ทุกช่วงเวลา --</option>
-                        <option value="today" {{ request('status') == 'today' ? 'selected' : '' }}>ใช้งานวันนี้</option>
+                        <option value="">-- ทุกสถานะ / ช่วงเวลา --</option>
+                        <option value="online" {{ request('status') == 'online' ? 'selected' : '' }}>🟢 เฉพาะเครื่องออนไลน์</option>
+                        <option value="offline" {{ request('status') == 'offline' ? 'selected' : '' }}>⚪ เฉพาะเครื่องออฟไลน์</option>
+                        <option value="today" {{ request('status') == 'today' ? 'selected' : '' }}>เปิดใช้งานวันนี้</option>
                         <option value="week" {{ request('status') == 'week' ? 'selected' : '' }}>7 วันล่าสุด</option>
                         <option value="installed_only" {{ request('status') == 'installed_only' ? 'selected' : '' }}>ติดตั้งไอคอนแล้ว</option>
                     </select>
@@ -2043,6 +2103,13 @@
                             <span class="update-badge-pill" title="มี {{ $stats['outdated_count'] }} เครื่องที่ยังไม่เป็นเวอร์ชันล่าสุด">{{ $stats['outdated_count'] }}</span>
                         @endif
                     </button>
+
+                    @if(!empty($stats['pending_count']) && $stats['pending_count'] > 0)
+                        <button type="button" class="btn-clear-pending" onclick="confirmClearAllPending({{ $stats['pending_count'] }})" title="ล้างสถานะรออัพเดททั้งหมด">
+                            <span class="material-symbols-Outlined" style="font-size: 16px;">sync_disabled</span>
+                            <span>ล้างสถานะรออัพเดท ({{ $stats['pending_count'] }})</span>
+                        </button>
+                    @endif
 
                     <button type="button" class="btn-refresh" onclick="location.reload()">
                         <span class="material-symbols-Outlined" style="font-size: 17px;">refresh</span>
@@ -2078,17 +2145,17 @@
                     <tbody>
                         @forelse($installations as $index => $item)
                             @php
-                                $isToday = $item->last_active_at && $item->last_active_at->isToday();
+                                $isOnline = $item->computed_online ?? ($item->is_online && $item->last_active_at && $item->last_active_at->diffInMinutes(now()) <= 15);
                             @endphp
                             <tr>
                                 <td style="text-align: center; color: #64748B;">{{ $installations->firstItem() + $index }}</td>
                                 <td style="text-align: center;">
-                                    @if($isToday)
-                                        <span class="badge badge-online">
-                                            <span class="pulse-dot"></span> วันนี้
+                                    @if($isOnline)
+                                        <span class="badge badge-online" id="status-badge-{{ $item->id }}">
+                                            <span class="pulse-dot"></span> ออนไลน์
                                         </span>
                                     @else
-                                        <span class="badge badge-offline">ออฟไลน์</span>
+                                        <span class="badge badge-offline" id="status-badge-{{ $item->id }}">ออฟไลน์</span>
                                     @endif
                                 </td>
                                 <td>
@@ -2147,8 +2214,8 @@
                                 </td>
                                 <td style="text-align: center;">
                                     @if($item->pending_update)
-                                        <span class="ver-tag-pending" title="ส่งคำสั่งอัพเดทแล้ว กำลังรอเครื่องลูกข่ายเชื่อมต่อรับงาน" style="display: inline-flex; align-items: center; gap: 3px; cursor: help;">
-                                            <span class="material-symbols-Outlined spin-mini" style="font-size: 11px;">sync</span>
+                                        <span class="ver-tag-pending" onclick="openPendingUpdateModal({{ json_encode($item) }})" title="คลิกเพื่อจัดการสถานะรออัพเดท (ตรวจสอบ / ยืนยัน / ยกเลิก)">
+                                            <span class="material-symbols-Outlined spin-mini" style="font-size: 12px;">sync</span>
                                             <span>รออัพเดท</span>
                                         </span>
                                     @elseif($item->client_version && $item->client_version === $serverVersion)
@@ -2171,7 +2238,7 @@
                                 <td style="text-align: center;">
                                     <div class="table-actions-cell">
                                         <button type="button" class="btn-action-icon btn-action-refresh" 
-                                                onclick="refreshSingleDevice('{{ route('admin.installations.refresh', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}', this)" 
+                                                onclick="refreshSingleDevice('{{ route('admin.installations.refresh', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}', this, {{ $item->id }})" 
                                                 title="รีเฟรชสถานะ / ตรวจสอบการเชื่อมต่อเครื่องนี้">
                                             <span class="material-symbols-Outlined" style="font-size: 15px;">refresh</span>
                                         </button>
@@ -2183,11 +2250,19 @@
                                                 onclick="openEditModal({{ json_encode($item) }})" title="แก้ไขข้อมูล">
                                             <span class="material-symbols-Outlined" style="font-size: 15px;">edit</span>
                                         </button>
-                                        <button type="button" class="btn-action-icon btn-action-update {{ ($item->pending_update || ($item->client_version && $item->client_version !== $serverVersion)) ? 'needs-update' : '' }}" 
-                                                onclick="confirmUpdateRow('{{ route('admin.installations.trigger-update', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}', '{{ $item->client_version ?: '1.0.0' }}')"
-                                                title="สั่งอัพเดท CSHOS STAFF INFO เป็น v{{ $serverVersion }}">
-                                            <span class="material-symbols-Outlined" style="font-size: 15px;">system_update_alt</span>
-                                        </button>
+                                        @if($item->pending_update)
+                                            <button type="button" class="btn-action-icon btn-action-update needs-update" 
+                                                    onclick="openPendingUpdateModal({{ json_encode($item) }})"
+                                                    title="จัดการสถานะรออัพเดทของเครื่องนี้">
+                                                <span class="material-symbols-Outlined spin-mini" style="font-size: 15px;">sync</span>
+                                            </button>
+                                        @else
+                                            <button type="button" class="btn-action-icon btn-action-update {{ ($item->client_version && $item->client_version !== $serverVersion) ? 'needs-update' : '' }}" 
+                                                    onclick="confirmUpdateRow('{{ route('admin.installations.trigger-update', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}', '{{ $item->client_version ?: '1.0.0' }}')"
+                                                    title="สั่งอัพเดท CSHOS STAFF INFO เป็น v{{ $serverVersion }}">
+                                                <span class="material-symbols-Outlined" style="font-size: 15px;">system_update_alt</span>
+                                            </button>
+                                        @endif
                                         <button type="button" class="btn-action-icon btn-action-delete"
                                                 onclick="confirmDeleteRow('{{ route('admin.installations.destroy', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}')" title="ลบข้อมูลเครื่อง">
                                             <span class="material-symbols-Outlined" style="font-size: 15px;">delete</span>
@@ -2432,6 +2507,76 @@
         </div>
     </div>
 
+    <!-- Pending Update Management Modal -->
+    <div class="modal-overlay" id="pendingUpdateModal" style="display: none;">
+        <div class="modal-card modal-card-confirm" style="max-width: 540px; text-align: left;">
+            <div class="modal-header" style="border-bottom: 1px solid var(--border); padding-bottom: 0.8rem; margin-bottom: 1rem;">
+                <h3 style="display: flex; align-items: center; gap: 8px; font-size: 1.1rem; color: #6D28D9;">
+                    <span class="material-symbols-Outlined spin-mini" style="font-size: 24px;">sync</span>
+                    <span>จัดการสถานะรออัพเดท (Pending Update)</span>
+                </h3>
+                <button type="button" class="modal-close" onclick="closePendingUpdateModal()">
+                    <span class="material-symbols-Outlined">close</span>
+                </button>
+            </div>
+
+            <div style="background: #F5F3FF; border: 1.5px solid #DDD6FE; border-radius: 12px; padding: 1rem; margin-bottom: 1.1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <div>
+                        <div style="font-size: 0.8rem; color: #6D28D9; font-weight: 600;">ชื่อเครื่อง / IP Address</div>
+                        <div id="pendingHostIp" style="font-size: 1.05rem; font-weight: 700; color: #2E1065;">-</div>
+                    </div>
+                    <span class="badge" style="background: #EDE9FE; color: #6D28D9; border: 1px solid #C4B5FD; font-size: 0.75rem;">
+                        เป้าหมาย: v{{ $serverVersion }}
+                    </span>
+                </div>
+                <div style="font-size: 0.8rem; color: #4C1D95; display: flex; align-items: center; gap: 4px;">
+                    <span class="material-symbols-Outlined" style="font-size: 16px;">schedule</span>
+                    <span id="pendingTimeText">ส่งคำสั่งเมื่อ: -</span>
+                </div>
+            </div>
+
+            <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 0.85rem 1rem; margin-bottom: 1.2rem; font-size: 0.82rem; color: #334155; line-height: 1.6;">
+                <strong style="color: #0F172A; display: block; margin-bottom: 4px;">💡 เหตุผลที่เครื่องยังอยู่ในสถานะ "รออัพเดท":</strong>
+                • เครื่องลูกข่ายจะเริ่มดาวน์โหลดและติดตั้งเวอร์ชันใหม่ <strong>v{{ $serverVersion }}</strong> อัตโนมัติเมื่อ:
+                <div style="margin: 4px 0 0 12px; color: #475569;">
+                    1. <strong>มีการเปิดเครื่องใหม่หรือรีสตาร์ท (Reboot)</strong><br>
+                    2. <strong>เจ้าหน้าที่เปิดใช้งานหน้าเว็บ CSHOS STAFF INFO บนเบราว์เซอร์</strong><br>
+                    3. <strong>ตามรอบการซิงค์อัตโนมัติประจำชั่วโมง</strong>
+                </div>
+                <div style="font-size: 0.75rem; color: #94A3B8; margin-top: 6px;">
+                    * ระบบความปลอดภัยของ Windows จะไม่อนุญาตให้เซิร์ฟเวอร์สั่งรันคำสั่งข้ามเครื่องผ่าน LAN ได้โดยตรง (Access Denied)
+                </div>
+            </div>
+
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <!-- Action 1: Mark as Updated -->
+                <button type="button" id="btnMarkComplete" onclick="executeCompleteUpdate()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px; background: #059669; color: white; border: none; border-radius: 9px; font-weight: 600; font-size: 0.88rem; cursor: pointer; box-shadow: 0 2px 4px rgba(5, 150, 105, 0.2);">
+                    <span class="material-symbols-Outlined" style="font-size: 18px;">check_circle</span>
+                    <span>ทำเครื่องหมายว่าอัพเดทแล้ว (บันทึกเป็น v{{ $serverVersion }})</span>
+                </button>
+
+                <!-- Action 2: Copy manual PowerShell command -->
+                <button type="button" onclick="copyManualUpdateCommand()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 9px; background: #EEF2FF; color: #4338CA; border: 1.5px solid #C7D2FE; border-radius: 9px; font-weight: 600; font-size: 0.85rem; cursor: pointer;">
+                    <span class="material-symbols-Outlined" style="font-size: 18px;">terminal</span>
+                    <span>คัดลอกคำสั่งรันอัพเดททันที (นำไปวางใน PowerShell เครื่องลูก)</span>
+                </button>
+
+                <div style="display: flex; gap: 8px; margin-top: 4px;">
+                    <!-- Action 3: Cancel pending -->
+                    <button type="button" id="btnCancelPending" onclick="executeCancelUpdate()" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 8px; background: #FEE2E2; color: #DC2626; border: 1px solid #FECACA; border-radius: 8px; font-weight: 600; font-size: 0.82rem; cursor: pointer;">
+                        <span class="material-symbols-Outlined" style="font-size: 16px;">close</span>
+                        <span>ยกเลิกสถานะรออัพเดท</span>
+                    </button>
+                    <!-- Close button -->
+                    <button type="button" onclick="closePendingUpdateModal()" style="flex: 1; padding: 8px; background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; border-radius: 8px; font-weight: 600; font-size: 0.82rem; cursor: pointer;">
+                        ปิดหน้าต่าง
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Beautiful Confirmation Modal -->
     <div class="modal-overlay" id="confirmActionModal">
         <div class="modal-card modal-card-confirm">
@@ -2491,12 +2636,14 @@
             document.getElementById('dtHostname').textContent = (item.hostname ? item.hostname : 'เครื่องคอมพิวเตอร์') + (item.ip_address ? ' (' + item.ip_address + ')' : '');
             
             // Status badge
-            const isToday = item.last_active_at && new Date(item.last_active_at).toDateString() === new Date().toDateString();
+            const isOnline = item.computed_online !== undefined 
+                ? item.computed_online 
+                : (item.is_online && item.last_active_at && (new Date() - new Date(item.last_active_at)) < 15 * 60 * 1000);
             const statusBadge = document.getElementById('dtStatusBadge');
             if (statusBadge) {
-                if (isToday) {
+                if (isOnline) {
                     statusBadge.className = 'badge badge-online';
-                    statusBadge.innerHTML = '<span class="pulse-dot"></span> วันนี้';
+                    statusBadge.innerHTML = '<span class="pulse-dot"></span> ออนไลน์';
                 } else {
                     statusBadge.className = 'badge badge-offline';
                     statusBadge.textContent = 'ออฟไลน์';
@@ -2618,7 +2765,7 @@
                 }
             }, 600);
 
-            showToast('กำลังเรียกเปิดโปรแกรม TightVNC สำหรับเครื่อง IP: ' + ip, 'success');
+            showToast('กำลังเรียกเปิดโปรแกรม TightVNC สำหรับเครื่อง IP: ' + ip + ' (กรุณากรอกรหัสผ่านเพื่อเชื่อมต่อ)', 'success');
         }
 
         function launchCurrentVnc() {
@@ -2844,14 +2991,14 @@
             });
         }
 
-        function refreshSingleDevice(url, hostname, ip, btnEl) {
+        function refreshSingleDevice(url, hostname, ip, btnEl, itemId) {
             const displayName = hostname ? (hostname + (ip ? ' (' + ip + ')' : '')) : (ip || 'เครื่องลูกข่าย');
             const iconEl = btnEl ? btnEl.querySelector('.material-symbols-Outlined') : null;
             if (btnEl) {
                 btnEl.classList.add('spinning');
                 btnEl.disabled = true;
             }
-            showToast('🔄 กำลังตรวจสอบการเชื่อมต่อและรีเฟรชข้อมูล ' + displayName + '...');
+            showToast('🔄 กำลังตรวจสอบการเชื่อมต่อ ' + displayName + '...');
 
             fetch(url, {
                 method: 'POST',
@@ -2864,7 +3011,23 @@
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
-                    showToast('✅ ' + data.message);
+                    if (data.is_online) {
+                        showToast('🟢 ' + data.message, 'success');
+                    } else {
+                        showToast('⚪ ' + data.message, 'info');
+                    }
+                    if (itemId) {
+                        const badgeEl = document.getElementById('status-badge-' + itemId);
+                        if (badgeEl) {
+                            if (data.is_online) {
+                                badgeEl.className = 'badge badge-online';
+                                badgeEl.innerHTML = '<span class="pulse-dot"></span> ออนไลน์';
+                            } else {
+                                badgeEl.className = 'badge badge-offline';
+                                badgeEl.textContent = 'ออฟไลน์';
+                            }
+                        }
+                    }
                     setTimeout(() => { location.reload(); }, 900);
                 } else {
                     showToast('❌ ไม่สามารถรีเฟรชข้อมูลเครื่องได้');
@@ -2882,6 +3045,42 @@
                 }
             });
         }
+
+        // Auto live-check status for displayed devices on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const badges = document.querySelectorAll('[id^="status-badge-"]');
+            if (!badges.length) return;
+            const ids = Array.from(badges).map(el => parseInt(el.id.replace('status-badge-', ''))).filter(n => !isNaN(n));
+            if (!ids.length) return;
+
+            fetch('{{ route("admin.installations.check-status") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ ids: ids })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success' && data.results) {
+                    for (const [id, info] of Object.entries(data.results)) {
+                        const badgeEl = document.getElementById('status-badge-' + id);
+                        if (badgeEl) {
+                            if (info.is_online) {
+                                badgeEl.className = 'badge badge-online';
+                                badgeEl.innerHTML = '<span class="pulse-dot"></span> ออนไลน์';
+                            } else {
+                                badgeEl.className = 'badge badge-offline';
+                                badgeEl.textContent = 'ออฟไลน์';
+                            }
+                        }
+                    }
+                }
+            })
+            .catch(() => {});
+        });
 
         function triggerUpdateFromDetails() {
             if (!currentDetailItem) return;
@@ -2961,6 +3160,133 @@
                             setTimeout(() => { location.reload(); }, 1500);
                         } else {
                             showToast('❌ เกิดข้อผิดพลาดในการส่งคำสั่ง');
+                        }
+                    })
+                    .catch(() => {
+                        showToast('❌ ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้');
+                    });
+                }
+            });
+        }
+
+        let currentPendingItem = null;
+
+        function openPendingUpdateModal(item) {
+            currentPendingItem = item;
+            const modal = document.getElementById('pendingUpdateModal');
+            if (!modal) return;
+
+            const host = item.hostname || 'เครื่องลูกข่าย';
+            const ip = item.ip_address || '';
+            document.getElementById('pendingHostIp').textContent = host + (ip ? ' (' + ip + ')' : '');
+
+            let timeStr = 'ไม่ระบุเวลา';
+            if (item.update_requested_at) {
+                try {
+                    const d = new Date(item.update_requested_at);
+                    timeStr = d.toLocaleDateString('th-TH', { hour: '2-digit', minute: '2-digit' });
+                } catch(e) {}
+            }
+            document.getElementById('pendingTimeText').textContent = 'ส่งคำสั่งเมื่อ: ' + timeStr;
+
+            modal.style.display = 'flex';
+        }
+
+        function closePendingUpdateModal() {
+            const modal = document.getElementById('pendingUpdateModal');
+            if (modal) modal.style.display = 'none';
+            currentPendingItem = null;
+        }
+
+        function executeCompleteUpdate() {
+            if (!currentPendingItem) return;
+            const item = currentPendingItem;
+            const url = "{{ url('/admin/installations') }}/" + item.id + "/complete-update";
+
+            showToast('⏳ กำลังบันทึกสถานะเป็นเวอร์ชัน v{{ $serverVersion }}...');
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast('✅ ' + data.message);
+                    closePendingUpdateModal();
+                    setTimeout(() => { location.reload(); }, 900);
+                } else {
+                    showToast('❌ ไม่สามารถบันทึกสถานะได้');
+                }
+            })
+            .catch(() => {
+                showToast('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ');
+            });
+        }
+
+        function executeCancelUpdate() {
+            if (!currentPendingItem) return;
+            const item = currentPendingItem;
+            const url = "{{ url('/admin/installations') }}/" + item.id + "/cancel-update";
+
+            showToast('⏳ กำลังยกเลิกสถานะรออัพเดท...');
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast('✅ ' + data.message);
+                    closePendingUpdateModal();
+                    setTimeout(() => { location.reload(); }, 900);
+                } else {
+                    showToast('❌ ไม่สามารถยกเลิกสถานะได้');
+                }
+            })
+            .catch(() => {
+                showToast('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ');
+            });
+        }
+
+        function copyManualUpdateCommand() {
+            const cmd = 'powershell -NoP -ep bypass -c "irm {{ url("/api/client/update-script") }} | iex"';
+            copyTextToClipboard(cmd, '📋 คัดลอกคำสั่งรันอัพเดทสำเร็จ! นำไปวางใน PowerShell บนเครื่องลูกข่ายได้ทันที');
+        }
+
+        function confirmClearAllPending(count) {
+            openConfirmModal({
+                type: 'danger',
+                icon: 'sync_disabled',
+                title: 'ล้างสถานะรออัพเดททั้งหมด',
+                message: 'คุณต้องการล้างสถานะ "รออัพเดท" ของเครื่องคอมพิวเตอร์ทั้งหมดจำนวน <strong>' + count + ' เครื่อง</strong> ให้กลับสู่สถานะปกติ ใช่หรือไม่?',
+                hint: '💡 คำสั่งนี้จะปลดป้าย "รออัพเดท" ของทุกเครื่องในระบบออกทันที',
+                proceedIcon: 'sync_disabled',
+                proceedText: 'ยืนยันล้างสถานะ',
+                onConfirm: function() {
+                    showToast('⏳ กำลังล้างสถานะรออัพเดททั้งหมด...');
+                    fetch('{{ route("admin.installations.clear-pending") }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Accept': 'application/json'
+                        }
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showToast('✅ ' + data.message);
+                            setTimeout(() => { location.reload(); }, 1000);
+                        } else {
+                            showToast('❌ เกิดข้อผิดพลาดในการล้างสถานะ');
                         }
                     })
                     .catch(() => {
