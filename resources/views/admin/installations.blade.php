@@ -940,6 +940,128 @@
             transform: translateY(-1px);
         }
 
+        .btn-action-update {
+            color: #7C3AED;
+            border-color: #DDD6FE;
+            background: #FAF5FF;
+        }
+        .btn-action-update:hover {
+            background: #EDE9FE;
+            color: #6D28D9;
+            border-color: #8B5CF6;
+            transform: translateY(-1px);
+        }
+        .btn-action-update.needs-update {
+            background: #FEF3C7;
+            color: #D97706;
+            border-color: #FCD34D;
+            animation: pulse-update-border 2s infinite;
+        }
+
+        .btn-action-refresh {
+            color: #059669;
+            border-color: #A7F3D0;
+            background: #ECFDF5;
+        }
+        .btn-action-refresh:hover {
+            background: #D1FAE5;
+            color: #047857;
+            border-color: #6EE7B7;
+            transform: translateY(-1px);
+        }
+        .btn-action-refresh.spinning .material-symbols-Outlined {
+            animation: spinMini 0.8s linear infinite;
+        }
+
+        @keyframes pulse-update-border {
+            0% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.4); }
+            70% { box-shadow: 0 0 0 4px rgba(217, 119, 6, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
+        }
+
+        .spin-mini {
+            animation: spinMini 1.2s linear infinite;
+            display: inline-block;
+        }
+        @keyframes spinMini {
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Version Tags */
+        .ver-tag-current {
+            background: #ECFDF5;
+            color: #059669;
+            border: 1px solid #A7F3D0;
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 0.68rem;
+            font-weight: 600;
+        }
+        .ver-tag-old {
+            background: #FFFBEB;
+            color: #B45309;
+            border: 1px solid #FDE68A;
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 0.68rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .ver-tag-old:hover {
+            background: #FEF3C7;
+            color: #92400E;
+            border-color: #F59E0B;
+        }
+        .ver-tag-pending {
+            background: #F5F3FF;
+            color: #7C3AED;
+            border: 1px solid #DDD6FE;
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 0.68rem;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .btn-update-all {
+            background: linear-gradient(135deg, #7C3AED, #6D28D9);
+            border: none;
+            padding: 0 0.85rem;
+            height: 35px;
+            border-radius: 8px;
+            color: #FFFFFF;
+            font-weight: 600;
+            font-size: 0.82rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            transition: all 0.2s;
+            text-decoration: none;
+            font-family: inherit;
+            white-space: nowrap;
+            box-sizing: border-box;
+            box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
+        }
+        .btn-update-all:hover {
+            background: linear-gradient(135deg, #6D28D9, #5B21B6);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(124, 58, 237, 0.35);
+            color: #FFFFFF;
+        }
+        .update-badge-pill {
+            background: #F59E0B;
+            color: #78350F;
+            padding: 1px 6px;
+            border-radius: 10px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            margin-left: 2px;
+        }
+
         /* Toolbar Download VNC Button */
         .btn-download-vnc {
             display: inline-flex;
@@ -1459,6 +1581,12 @@
             box-shadow: 0 0 0 6px #EFF6FF;
         }
 
+        .confirm-icon-wrapper.theme-primary {
+            background: #EDE9FE;
+            color: #7C3AED;
+            box-shadow: 0 0 0 6px #F5F3FF;
+        }
+
         .confirm-title {
             font-size: 1.25rem;
             font-weight: 700;
@@ -1541,6 +1669,12 @@
             border-color: #BFDBFE;
         }
 
+        .confirm-hint.hint-primary {
+            color: #5B21B6;
+            background: #F5F3FF;
+            border-color: #DDD6FE;
+        }
+
         .confirm-actions {
             display: flex;
             gap: 10px;
@@ -1612,6 +1746,16 @@
             background: #1D4ED8;
             transform: translateY(-1px);
             box-shadow: 0 6px 18px rgba(37, 99, 235, 0.4);
+        }
+
+        .btn-confirm-proceed.btn-theme-primary {
+            background: linear-gradient(135deg, #7C3AED, #6D28D9);
+            box-shadow: 0 4px 14px rgba(124, 58, 237, 0.35);
+        }
+        .btn-confirm-proceed.btn-theme-primary:hover {
+            background: linear-gradient(135deg, #6D28D9, #5B21B6);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(124, 58, 237, 0.45);
         }
 
         @keyframes modalFadeIn {
@@ -1892,14 +2036,12 @@
                 </div>
 
                 <div class="action-buttons">
-                    <button type="button" class="btn-reset-this" onclick="resetThisDevice()">
-                        <span class="material-symbols-Outlined" style="font-size: 17px;">restart_alt</span>
-                        <span>รีเซ็ตเครื่องนี้</span>
-                    </button>
-
-                    <button type="button" class="btn-reset-all" onclick="submitResetAll()">
-                        <span class="material-symbols-Outlined" style="font-size: 17px;">history</span>
-                        <span>รีเซ็ตทุกเครื่อง</span>
+                    <button type="button" class="btn-update-all" onclick="confirmUpdateAll('{{ $serverVersion }}', {{ $stats['outdated_count'] ?? 0 }})">
+                        <span class="material-symbols-Outlined" style="font-size: 17px;">system_update_alt</span>
+                        <span>สั่งอัพเดททุกเครื่อง (v{{ $serverVersion }})</span>
+                        @if(!empty($stats['outdated_count']) && $stats['outdated_count'] > 0)
+                            <span class="update-badge-pill" title="มี {{ $stats['outdated_count'] }} เครื่องที่ยังไม่เป็นเวอร์ชันล่าสุด">{{ $stats['outdated_count'] }}</span>
+                        @endif
                     </button>
 
                     <button type="button" class="btn-refresh" onclick="location.reload()">
@@ -1913,9 +2055,6 @@
                     </a>
                 </div>
             </form>
-            <form id="resetAllForm" action="{{ route('admin.installations.reset-all') }}" method="POST" style="display: none;">
-                @csrf
-            </form>
         </section>
 
         <!-- Installations Table -->
@@ -1927,12 +2066,13 @@
                             <th style="width: 45px; text-align: center;">ลำดับ</th>
                             <th style="width: 75px; text-align: center;">สถานะ</th>
                             <th style="width: 160px;">ชื่อเครื่องคอมพิวเตอร์</th>
-                            <th style="width: 140px;">IP Address</th>
-                            <th style="width: 100px; text-align: center;">สเปกเครื่อง</th>
-                            <th style="width: 110px; text-align: center;">รีโมท (VNC)</th>
+                            <th style="width: 135px;">IP Address</th>
+                            <th style="width: 95px; text-align: center;">สเปกเครื่อง</th>
+                            <th style="width: 90px; text-align: center;">รีโมท (VNC)</th>
                             <th style="width: 170px;">ชื่อเจ้าหน้าที่</th>
+                            <th style="width: 105px; text-align: center;">เวอร์ชัน</th>
                             <th style="width: 120px;">ใช้งานล่าสุด</th>
-                            <th style="width: 115px; text-align: center;">จัดการ</th>
+                            <th style="width: 145px; text-align: center;">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -1981,13 +2121,10 @@
                                 </td>
                                 <td style="text-align: center;">
                                     @if($item->ip_address)
-                                        <div class="remote-compact-cell">
+                                        <div class="remote-compact-cell" style="justify-content: center;">
                                             <button type="button" class="btn-remote-pill" onclick="launchVnc('{{ $item->ip_address }}')">
                                                 <span class="material-symbols-Outlined" style="font-size: 13px;">screen_share</span>
                                                 <span>Remote</span>
-                                            </button>
-                                            <button type="button" class="btn-copy-icon" onclick="copyVnc('{{ $item->ip_address }}', '{{ $vnc_password ?? 'cshos123' }}')">
-                                                <span class="material-symbols-Outlined" style="font-size: 13px;">content_copy</span>
                                             </button>
                                         </div>
                                     @else
@@ -2008,6 +2145,24 @@
                                         <span class="dept-empty" onclick="openEditModal({{ json_encode($item) }})" style="cursor: pointer;">ยังไม่ระบุ</span>
                                     @endif
                                 </td>
+                                <td style="text-align: center;">
+                                    @if($item->pending_update)
+                                        <span class="ver-tag-pending" title="ส่งคำสั่งอัพเดทแล้ว กำลังรอเครื่องลูกข่ายเชื่อมต่อรับงาน" style="display: inline-flex; align-items: center; gap: 3px; cursor: help;">
+                                            <span class="material-symbols-Outlined spin-mini" style="font-size: 11px;">sync</span>
+                                            <span>รออัพเดท</span>
+                                        </span>
+                                    @elseif($item->client_version && $item->client_version === $serverVersion)
+                                        <span class="ver-tag-current font-mono" title="เวอร์ชันล่าสุด v{{ $serverVersion }}" style="display: inline-flex; align-items: center; gap: 3px;">
+                                            <span class="material-symbols-Outlined" style="font-size: 11px;">check_circle</span>
+                                            <span>v{{ $item->client_version }}</span>
+                                        </span>
+                                    @else
+                                        <span class="ver-tag-old font-mono" onclick="confirmUpdateRow('{{ route('admin.installations.trigger-update', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}', '{{ $item->client_version ?: '1.0.0' }}')" title="คลิกเพื่อสั่งอัพเดทเป็น v{{ $serverVersion }}" style="display: inline-flex; align-items: center; gap: 2px; cursor: pointer;">
+                                            <span>v{{ $item->client_version ?: '1.0.0' }}</span>
+                                            <span class="material-symbols-Outlined" style="font-size: 11px;">arrow_upward</span>
+                                        </span>
+                                    @endif
+                                </td>
                                 <td>
                                     <div class="time-compact-cell" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;">
                                         {{ $item->last_active_at ? $item->last_active_at->format('d/m/y H:i') : '-' }}
@@ -2015,20 +2170,26 @@
                                 </td>
                                 <td style="text-align: center;">
                                     <div class="table-actions-cell">
+                                        <button type="button" class="btn-action-icon btn-action-refresh" 
+                                                onclick="refreshSingleDevice('{{ route('admin.installations.refresh', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}', this)" 
+                                                title="รีเฟรชสถานะ / ตรวจสอบการเชื่อมต่อเครื่องนี้">
+                                            <span class="material-symbols-Outlined" style="font-size: 15px;">refresh</span>
+                                        </button>
                                         <button type="button" class="btn-action-icon btn-action-view" 
-                                                onclick="openDetailsModal({{ json_encode($item) }})">
+                                                onclick="openDetailsModal({{ json_encode($item) }})" title="ดูรายละเอียดสเปก">
                                             <span class="material-symbols-Outlined" style="font-size: 15px;">visibility</span>
                                         </button>
                                         <button type="button" class="btn-action-icon btn-action-edit" 
-                                                onclick="openEditModal({{ json_encode($item) }})">
+                                                onclick="openEditModal({{ json_encode($item) }})" title="แก้ไขข้อมูล">
                                             <span class="material-symbols-Outlined" style="font-size: 15px;">edit</span>
                                         </button>
-                                        <button type="button" class="btn-action-icon btn-action-reset"
-                                                onclick="confirmResetRow('{{ route('admin.installations.reset', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}')">
-                                            <span class="material-symbols-Outlined" style="font-size: 15px;">restart_alt</span>
+                                        <button type="button" class="btn-action-icon btn-action-update {{ ($item->pending_update || ($item->client_version && $item->client_version !== $serverVersion)) ? 'needs-update' : '' }}" 
+                                                onclick="confirmUpdateRow('{{ route('admin.installations.trigger-update', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}', '{{ $item->client_version ?: '1.0.0' }}')"
+                                                title="สั่งอัพเดท CSHOS STAFF INFO เป็น v{{ $serverVersion }}">
+                                            <span class="material-symbols-Outlined" style="font-size: 15px;">system_update_alt</span>
                                         </button>
                                         <button type="button" class="btn-action-icon btn-action-delete"
-                                                onclick="confirmDeleteRow('{{ route('admin.installations.destroy', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}')">
+                                                onclick="confirmDeleteRow('{{ route('admin.installations.destroy', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}')" title="ลบข้อมูลเครื่อง">
                                             <span class="material-symbols-Outlined" style="font-size: 15px;">delete</span>
                                         </button>
                                     </div>
@@ -2036,7 +2197,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9">
+                                <td colspan="10">
                                     <div class="empty-state">
                                         <span class="material-symbols-Outlined">devices_off</span>
                                         <h3>ยังไม่มีข้อมูลการติดตั้งในระบบ</h3>
@@ -2237,6 +2398,16 @@
                             <label>ใช้งานล่าสุด</label>
                             <div id="dtLastActive" class="detail-value">-</div>
                         </div>
+                        <div class="detail-item full-width" style="background: #F5F3FF; border: 1px solid #DDD6FE; border-radius: 8px; padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
+                            <div>
+                                <label style="color: #6D28D9; font-weight: 600; margin-bottom: 2px;">เวอร์ชันโปรแกรม (Client Version)</label>
+                                <div id="dtClientVersion" style="font-weight: 700; color: #4C1D95; font-size: 0.92rem;">-</div>
+                            </div>
+                            <button type="button" id="dtBtnUpdate" onclick="triggerUpdateFromDetails()" style="display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; background: linear-gradient(135deg, #7C3AED, #6D28D9); color: white; border: none; border-radius: 7px; font-size: 0.78rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 5px rgba(124, 58, 237, 0.25);">
+                                <span class="material-symbols-Outlined" style="font-size: 15px;">system_update_alt</span>
+                                <span>สั่งอัพเดทเครื่องนี้</span>
+                            </button>
+                        </div>
                         <div class="detail-item full-width" id="dtNotesContainer">
                             <label>หมายเหตุ</label>
                             <div id="dtNotes" class="detail-value" style="font-style: italic;">-</div>
@@ -2246,10 +2417,14 @@
             </div>
 
             <div class="modal-footer" style="justify-content: space-between;">
-                <div>
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
                     <button type="button" class="btn-modal-edit-trigger" onclick="switchFromDetailsToEdit()">
                         <span class="material-symbols-Outlined" style="font-size: 16px;">edit</span>
                         <span>แก้ไขข้อมูลแผนก / ผู้ใช้</span>
+                    </button>
+                    <button type="button" onclick="triggerUpdateFromDetails()" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 13px; background: linear-gradient(135deg, #7C3AED, #6D28D9); color: white; border: none; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 6px rgba(124, 58, 237, 0.3);">
+                        <span class="material-symbols-Outlined" style="font-size: 16px;">system_update_alt</span>
+                        <span>สั่งอัพเดทเครื่องนี้ (v{{ $serverVersion }})</span>
                     </button>
                 </div>
                 <button type="button" class="btn-modal-cancel" onclick="closeDetailsModal()">ปิดหน้าต่าง</button>
@@ -2375,12 +2550,30 @@
 
             // Usage & Timestamps
             document.getElementById('dtLaunchCount').textContent = (item.launch_count || 0) + ' ครั้ง';
+            const serverVer = '{{ $serverVersion }}';
+            const cVer = item.client_version || '1.0.0';
             document.getElementById('dtInstallType').textContent = (item.install_type === 'installed') 
-                ? ('ติดตั้งไอคอนแอป (Desktop Shortcut) • ' + (item.client_version ? 'v' + item.client_version : 'v2.5.0') + ' (เปิดโปรแกรมอัตโนมัติเมื่อเปิดเครื่อง & Auto-Update)') 
+                ? ('ติดตั้งไอคอนแอป (Desktop Shortcut) • v' + cVer + ' (เปิดโปรแกรมอัตโนมัติเมื่อเปิดเครื่อง & Auto-Update)') 
                 : 'เข้าใช้งานผ่านเบราว์เซอร์';
             document.getElementById('dtFirstInstall').textContent = item.first_installed_at ? formatDateTime(item.first_installed_at) : '-';
             document.getElementById('dtLastActive').textContent = item.last_active_at ? formatDateTime(item.last_active_at) : '-';
             
+            // Client Version Details
+            const verEl = document.getElementById('dtClientVersion');
+            const btnUpd = document.getElementById('dtBtnUpdate');
+            if (verEl) {
+                if (item.pending_update) {
+                    verEl.innerHTML = '<span style="color: #7C3AED;">v' + cVer + '</span> <span style="font-size: 0.78rem; color: #D97706; font-weight: 500;">(ส่งคำสั่งอัพเดทแล้ว รอเครื่องลูกรับงาน)</span>';
+                    if (btnUpd) btnUpd.style.display = 'none';
+                } else if (cVer === serverVer) {
+                    verEl.innerHTML = '<span style="color: #059669;">v' + cVer + ' (เวอร์ชันล่าสุด)</span>';
+                    if (btnUpd) btnUpd.style.display = 'none';
+                } else {
+                    verEl.innerHTML = '<span style="color: #DC2626;">v' + cVer + '</span> <span style="font-size: 0.78rem; color: #D97706;">(เวอร์ชันเก่า ➜ แนะนำอัพเดทเป็น v' + serverVer + ')</span>';
+                    if (btnUpd) btnUpd.style.display = 'inline-flex';
+                }
+            }
+
             const notesEl = document.getElementById('dtNotes');
             if (notesEl) {
                 notesEl.textContent = item.notes ? item.notes : 'ไม่มีหมายเหตุ';
@@ -2651,56 +2844,128 @@
             });
         }
 
-        function confirmResetRow(url, hostname, ip) {
-            openConfirmModal({
-                type: 'warning',
-                icon: 'restart_alt',
-                title: 'ยืนยันการรีเซ็ตสถานะเครื่อง',
-                message: 'คุณต้องการรีเซ็ตสถานะการติดตั้งของเครื่องนี้ ใช่หรือไม่?',
-                targetName: hostname ? (hostname + (ip ? ' (' + ip + ')' : '')) : (ip || 'ไม่ระบุชื่อเครื่อง'),
-                targetSub: 'IP Address: ' + (ip || '-'),
-                hint: '🔄 สถานะจะเปลี่ยนเป็น <strong>"รอติดตั้งใหม่"</strong> เพื่อให้เครื่องนี้สามารถติดตั้งไอคอน CSHOS STAFF INFO ได้ใหม่อีกครั้ง',
-                proceedIcon: 'restart_alt',
-                proceedText: 'ยืนยันรีเซ็ต',
-                onConfirm: function() {
-                    const form = document.getElementById('genericActionForm');
-                    form.action = url;
-                    document.getElementById('genericActionMethod').value = 'POST';
-                    form.submit();
+        function refreshSingleDevice(url, hostname, ip, btnEl) {
+            const displayName = hostname ? (hostname + (ip ? ' (' + ip + ')' : '')) : (ip || 'เครื่องลูกข่าย');
+            const iconEl = btnEl ? btnEl.querySelector('.material-symbols-Outlined') : null;
+            if (btnEl) {
+                btnEl.classList.add('spinning');
+                btnEl.disabled = true;
+            }
+            showToast('🔄 กำลังตรวจสอบการเชื่อมต่อและรีเฟรชข้อมูล ' + displayName + '...');
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast('✅ ' + data.message);
+                    setTimeout(() => { location.reload(); }, 900);
+                } else {
+                    showToast('❌ ไม่สามารถรีเฟรชข้อมูลเครื่องได้');
+                    if (btnEl) {
+                        btnEl.classList.remove('spinning');
+                        btnEl.disabled = false;
+                    }
+                }
+            })
+            .catch(() => {
+                showToast('❌ เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย');
+                if (btnEl) {
+                    btnEl.classList.remove('spinning');
+                    btnEl.disabled = false;
                 }
             });
         }
 
-        function resetThisDevice() {
+        function triggerUpdateFromDetails() {
+            if (!currentDetailItem) return;
+            const item = currentDetailItem;
+            closeDetailsModal();
+            confirmUpdateRow(
+                "{{ url('/admin/installations') }}/" + item.id + "/trigger-update",
+                item.hostname,
+                item.ip_address,
+                item.client_version
+            );
+        }
+
+        function confirmUpdateRow(url, hostname, ip, currentVer) {
+            const targetServerVer = '{{ $serverVersion }}';
             openConfirmModal({
-                type: 'info',
-                icon: 'devices',
-                title: 'รีเซ็ตสถานะเครื่องปัจจุบันนี้',
-                message: 'ต้องการรีเซ็ตสถานะการติดตั้งของเครื่องที่คุณกำลังใช้งานอยู่ เพื่อกลับไปหน้าหลักและติดตั้งไอคอน CSHOS STAFF INFO ลง Desktop ใหม่อีกครั้ง ใช่หรือไม่?',
-                hint: '💡 ระบบจะล้างค่าการติดตั้งในเบราว์เซอร์ของเครื่องนี้ แล้วพากลับสู่หน้าหลักเพื่อเริ่มการติดตั้งใหม่',
-                proceedIcon: 'refresh',
-                proceedText: 'รีเซ็ตเครื่องนี้',
+                type: 'primary',
+                icon: 'system_update_alt',
+                title: 'สั่งอัพเดทเครื่องลูกข่าย (Update Client)',
+                message: 'คุณต้องการส่งคำสั่งอัพเดทโปรแกรม <strong>CSHOS STAFF INFO</strong> เป็นเวอร์ชัน <strong>v' + targetServerVer + '</strong> สำหรับเครื่องนี้ ใช่หรือไม่?',
+                targetName: hostname ? (hostname + (ip ? ' (' + ip + ')' : '')) : (ip || 'เครื่องลูกข่าย'),
+                targetSub: 'เวอร์ชันปัจจุบัน: ' + (currentVer ? 'v' + currentVer : '1.0.0') + ' ➜ เวอร์ชันเป้าหมาย: v' + targetServerVer,
+                hint: '🚀 <strong>ระบบการอัพเดท:</strong><br>• เครื่องจะเริ่มดาวน์โหลดและปรับปรุงโปรแกรมอัตโนมัติทันทีหากเชื่อมต่อ LAN ได้<br>• หากเครื่องปิดอยู่ จะอัพเดทอัตโนมัติทันทีเมื่อเปิดเครื่อง/รีสตาร์ท หรือตามรอบเวลาประจำชั่วโมง',
+                proceedIcon: 'system_update_alt',
+                proceedText: 'สั่งอัพเดททันที',
                 onConfirm: function() {
-                    try {
-                        localStorage.removeItem('csh_app_installed');
-                        localStorage.removeItem('csh_device_uuid');
-                    } catch(e) {}
-                    window.location.href = '{{ route("home") }}?reset=1';
+                    showToast('🚀 กำลังส่งคำสั่งอัพเดทไปยัง ' + (hostname || ip) + '...');
+                    fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Accept': 'application/json'
+                        }
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showToast('✅ ' + data.message);
+                            setTimeout(() => { location.reload(); }, 1200);
+                        } else {
+                            showToast('❌ เกิดข้อผิดพลาดในการส่งคำสั่ง');
+                        }
+                    })
+                    .catch(() => {
+                        showToast('❌ ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้');
+                    });
                 }
             });
         }
 
-        function submitResetAll() {
+        function confirmUpdateAll(serverVer, outdatedCount) {
             openConfirmModal({
-                type: 'danger',
-                icon: 'history_toggle_off',
-                title: 'คำเตือน: รีเซ็ตทุกเครื่องในระบบ',
-                message: 'คุณต้องการรีเซ็ตสถานะการติดตั้งของ <strong>"ทุกเครื่องในระบบ"</strong> ให้กลับเป็นสถานะ <strong>"รอติดตั้งใหม่"</strong> ทั้งหมด ใช่หรือไม่?',
-                hint: '⚠️ ทุกเครื่องในตารางจะถูกปรับสถานะเป็นรอติดตั้งใหม่ทั้งหมด โปรดตรวจสอบก่อนยืนยัน',
-                proceedIcon: 'restart_alt',
-                proceedText: 'ยืนยันรีเซ็ตทุกเครื่อง',
+                type: 'primary',
+                icon: 'system_update_alt',
+                title: 'สั่งอัพเดทเครื่องลูกข่ายทั้งหมด (Broadcast Update)',
+                message: 'คุณต้องการส่งคำสั่งอัพเดทโปรแกรม <strong>CSHOS STAFF INFO</strong> เป็นเวอร์ชัน <strong>v' + serverVer + '</strong> ให้กับเครื่องลูกข่ายทุกเครื่องในระบบ ใช่หรือไม่?',
+                targetName: 'เครื่องลูกข่ายทั้งหมดในระบบ (' + (outdatedCount > 0 ? outdatedCount + ' เครื่องที่ยังไม่เป็นเวอร์ชันล่าสุด' : 'ทุกเครื่อง') + ')',
+                targetSub: 'เวอร์ชันเป้าหมายของเซิร์ฟเวอร์: v' + serverVer,
+                hint: '📢 <strong>การทำงานของระบบ:</strong><br>1. เครื่องที่เปิดและเชื่อมต่อ LAN อยู่จะเริ่มรับคำสั่งอัพเดททันที<br>2. เครื่องที่ปิดอยู่ จะอัพเดทอัตโนมัติทันทีที่มีการเปิดเครื่อง/รีสตาร์ท หรือตามรอบเวลาที่กำหนด',
+                proceedIcon: 'system_update_alt',
+                proceedText: 'สั่งอัพเดททุกเครื่อง',
                 onConfirm: function() {
-                    document.getElementById('resetAllForm').submit();
+                    showToast('📢 กำลังส่งคำสั่งอัพเดทไปยังเครื่องลูกข่ายทั้งหมด...');
+                    fetch('{{ route("admin.installations.trigger-update-all") }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Accept': 'application/json'
+                        }
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showToast('✅ ' + data.message);
+                            setTimeout(() => { location.reload(); }, 1500);
+                        } else {
+                            showToast('❌ เกิดข้อผิดพลาดในการส่งคำสั่ง');
+                        }
+                    })
+                    .catch(() => {
+                        showToast('❌ ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้');
+                    });
                 }
             });
         }

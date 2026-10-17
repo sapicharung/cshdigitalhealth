@@ -58,6 +58,9 @@ Route::middleware('auth')->prefix('admin')->group(function () {
     Route::post('/installations/{id}/reset', [AppInstallationController::class, 'reset'])->name('admin.installations.reset');
     Route::post('/installations/reset-all', [AppInstallationController::class, 'resetAll'])->name('admin.installations.reset-all');
     Route::post('/installations/clear-offline', [AppInstallationController::class, 'clearOffline'])->name('admin.installations.clear-offline');
+    Route::post('/installations/{id}/trigger-update', [AppInstallationController::class, 'triggerUpdate'])->name('admin.installations.trigger-update');
+    Route::post('/installations/trigger-update-all', [AppInstallationController::class, 'triggerUpdateAll'])->name('admin.installations.trigger-update-all');
+    Route::post('/installations/{id}/refresh', [AppInstallationController::class, 'refreshDevice'])->name('admin.installations.refresh');
     Route::delete('/installations/{id}', [AppInstallationController::class, 'destroy'])->name('admin.installations.destroy');
     Route::get('/installations/export', [AppInstallationController::class, 'exportCsv'])->name('admin.installations.export');
     Route::get('/installations/{id}/vnc', [AppInstallationController::class, 'downloadVnc'])->name('admin.installations.vnc');

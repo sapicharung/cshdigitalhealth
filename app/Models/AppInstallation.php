@@ -23,6 +23,8 @@ class AppInstallation extends Model
         'user_agent',
         'install_type',
         'client_version',
+        'pending_update',
+        'update_requested_at',
         'launch_count',
         'first_installed_at',
         'last_active_at',
@@ -32,7 +34,9 @@ class AppInstallation extends Model
     protected $casts = [
         'first_installed_at' => 'datetime',
         'last_active_at' => 'datetime',
+        'update_requested_at' => 'datetime',
         'launch_count' => 'integer',
         'remote_ready' => 'boolean',
+        'pending_update' => 'boolean',
     ];
 }

@@ -65,7 +65,7 @@
 
         // Live Auto-Update Detector: Detects when server releases a new version
         (function() {
-            let currentVer = '2.5.0';
+            let currentVer = localStorage.getItem('csh_client_app_version') || '{{ env("CLIENT_APP_VERSION", \App\Http\Controllers\AppInstallationController::CLIENT_APP_VERSION) }}';
             function checkServerVersion() {
                 fetch('{{ route("api.client.version") }}')
                     .then(res => res.json())

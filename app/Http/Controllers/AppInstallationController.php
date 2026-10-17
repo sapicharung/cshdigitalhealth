@@ -4,12 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\AppInstallation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AppInstallationController extends Controller
 {
-    public const CLIENT_APP_VERSION = '2.5.0';
+    public const CLIENT_APP_VERSION = '2.6.0';
 
     /**
      * Get the latest client application version.
@@ -162,7 +164,16 @@ class AppInstallationController extends Controller
 
         $serverVersion = $this->getClientAppVersion();
         $clientVer = $installation->client_version ?: ($data['client_version'] ?? '1.0.0');
-        $updateAvailable = version_compare($clientVer, $serverVersion, '<');
+        $isPendingUpdate = (bool) ($installation->pending_update ?? false);
+        $isGlobalForce = (bool) Cache::get('cshos_force_all_update', false);
+
+        $updateAvailable = version_compare($clientVer, $serverVersion, '<') || $isPendingUpdate || $isGlobalForce;
+
+        // If client reported it has successfully updated to serverVersion or higher, clear pending_update
+        if ($installation->pending_update && version_compare($clientVer, $serverVersion, '>=')) {
+            $installation->pending_update = false;
+            $installation->save();
+        }
 
         return response()->json([
             'status' => 'success',
@@ -181,6 +192,8 @@ class AppInstallationController extends Controller
             'client_version' => $installation->client_version,
             'server_version' => $serverVersion,
             'update_available' => $updateAvailable,
+            'force_update' => $isPendingUpdate || $isGlobalForce,
+            'pending_update' => (bool) $installation->pending_update,
             'update_script_url' => url('/api/client/update-script'),
             'app_url' => url('/'),
             'app_name' => "CSHOS STAFF INFO",
@@ -256,12 +269,21 @@ class AppInstallationController extends Controller
         }
 
         // Summary statistics
+        $serverVersion = $this->getClientAppVersion();
+        $outdatedCount = AppInstallation::where(function ($q) use ($serverVersion) {
+            $q->whereNull('client_version')
+              ->orWhere('client_version', '!=', $serverVersion)
+              ->orWhere('pending_update', true);
+        })->count();
+
         $stats = [
             'total_devices'   => AppInstallation::count(),
             'installed_count' => AppInstallation::where('install_type', 'installed')->count(),
             'active_today'    => AppInstallation::whereDate('last_active_at', today())->count(),
             'active_7days'    => AppInstallation::where('last_active_at', '>=', now()->subDays(7))->count(),
             'unique_ips'      => AppInstallation::distinct('ip_address')->count('ip_address'),
+            'outdated_count'  => $outdatedCount,
+            'server_version'  => $serverVersion,
         ];
 
         // Unique departments for filter dropdown
@@ -293,7 +315,7 @@ class AppInstallationController extends Controller
             }
         }
 
-        return view('admin.installations', compact('installations', 'stats', 'departments', 'vnc_password'));
+        return view('admin.installations', compact('installations', 'stats', 'departments', 'vnc_password', 'serverVersion'));
     }
 
     /**
@@ -423,6 +445,175 @@ class AppInstallationController extends Controller
         $installation->delete();
 
         return back()->with('success', 'ลบข้อมูลอุปกรณ์เรียบร้อยแล้ว');
+    }
+
+    /**
+     * Trigger immediate auto-update for a specific client machine.
+     */
+    public function triggerUpdate(Request $request, $id)
+    {
+        $installation = AppInstallation::findOrFail($id);
+        $serverVersion = $this->getClientAppVersion();
+
+        $installation->pending_update = true;
+        $installation->update_requested_at = now();
+        $installation->save();
+
+        $name = $installation->hostname ?: ($installation->device_name ?: $installation->ip_address);
+        $pushed = false;
+
+        // Proactive background trigger via LAN schtasks if IP is available
+        if ($installation->ip_address && !in_array($installation->ip_address, ['127.0.0.1', '::1'])) {
+            try {
+                $ip = escapeshellarg($installation->ip_address);
+                if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                    $cmd = "start /b schtasks /run /s {$ip} /tn CSHOS-AutoSync-Startup >nul 2>&1";
+                    pclose(popen($cmd, "r"));
+                    $pushed = true;
+                }
+            } catch (\Throwable $e) {}
+        }
+
+        $msg = "ส่งคำสั่งสั่งอัพเดท CSHOS STAFF INFO (v{$serverVersion}) ไปยังเครื่อง {$name} เรียบร้อยแล้ว ระบบจะทำการอัพเดทอัตโนมัติทันที หรือเมื่อเปิดเครื่อง/ตามรอบเวลา";
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'status'         => 'success',
+                'message'        => $msg,
+                'server_version' => $serverVersion,
+                'pending_update' => true,
+                'pushed_lan'     => $pushed,
+            ]);
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    /**
+     * Trigger auto-update broadcast for ALL client machines.
+     */
+    public function triggerUpdateAll(Request $request)
+    {
+        $serverVersion = $this->getClientAppVersion();
+
+        // Mark all installations as pending update
+        AppInstallation::query()->update([
+            'pending_update'      => true,
+            'update_requested_at' => now(),
+        ]);
+
+        // Set global cache flag for 7 days
+        Cache::put('cshos_force_all_update', true, now()->addDays(7));
+
+        // Proactively attempt to wake online machines active today
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            try {
+                $todayIps = AppInstallation::whereDate('last_active_at', today())
+                    ->whereNotNull('ip_address')
+                    ->pluck('ip_address')
+                    ->filter()
+                    ->unique();
+
+                foreach ($todayIps as $ip) {
+                    if (!in_array($ip, ['127.0.0.1', '::1'])) {
+                        $escapedIp = escapeshellarg($ip);
+                        $cmd = "start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Startup >nul 2>&1";
+                        pclose(popen($cmd, "r"));
+                    }
+                }
+            } catch (\Throwable $e) {}
+        }
+
+        $count = AppInstallation::count();
+        $msg = "ส่งคำสั่งสั่งอัพเดท CSHOS STAFF INFO (v{$serverVersion}) ไปยังเครื่องลูกข่ายทั้งหมด ({$count} เครื่อง) เรียบร้อยแล้ว เครื่องที่เปิดอยู่จะทำการอัพเดท และเครื่องที่ปิดอยู่จะอัพเดททันทีเมื่อเปิดเครื่องหรือตามรอบเวลา";
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'status'         => 'success',
+                'message'        => $msg,
+                'server_version' => $serverVersion,
+                'count'          => $count,
+            ]);
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    /**
+     * Probe & refresh a single device status and details.
+     */
+    public function refreshDevice(Request $request, $id)
+    {
+        $installation = AppInstallation::findOrFail($id);
+        $ip = $installation->ip_address;
+        $isOnline = false;
+        $vncReady = false;
+
+        if ($ip && !in_array($ip, ['127.0.0.1', '::1'])) {
+            // 1. Quick TCP socket probe to port 5900 (TightVNC) or 445 (SMB) or 135 (RPC) - max 0.8s timeout
+            $ports = [5900, 445, 135];
+            foreach ($ports as $port) {
+                $fp = @fsockopen($ip, $port, $errno, $errstr, 0.8);
+                if ($fp) {
+                    $isOnline = true;
+                    if ($port === 5900) {
+                        $vncReady = true;
+                    }
+                    fclose($fp);
+                    break;
+                }
+            }
+
+            // 2. If not connected via standard ports, try fast ping
+            if (!$isOnline) {
+                if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                    exec("ping -n 1 -w 800 " . escapeshellarg($ip), $pingOut, $pingCode);
+                    if ($pingCode === 0) {
+                        $isOnline = true;
+                    }
+                }
+            }
+
+            if ($isOnline) {
+                $installation->last_active_at = now();
+                if ($vncReady) {
+                    $installation->remote_ready = true;
+                }
+                // Proactively trigger sync task on the remote machine if Windows host
+                if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                    try {
+                        $escapedIp = escapeshellarg($ip);
+                        $cmd = "start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Startup >nul 2>&1";
+                        pclose(popen($cmd, "r"));
+                    } catch (\Throwable $e) {}
+                }
+            }
+        }
+
+        $installation->save();
+
+        // Fetch updated staff info from CSHOS_DB if available
+        $staffInfo = null;
+        if ($ip) {
+            $map = $this->getStaffMapByIps([$ip]);
+            $staffInfo = $map[$ip] ?? null;
+        }
+
+        $name = $installation->hostname ?: ($installation->device_name ?: $installation->ip_address);
+        $statusMsg = $isOnline ? "เครื่องออนไลน์ (ตรวจพบการตอบสนองบนเครือข่าย)" : "ตรวจสอบแล้ว เครื่องอาจอยู่ในสถานะออฟไลน์หรือยังไม่เปิด";
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'status'       => 'success',
+                'is_online'    => $isOnline,
+                'message'      => "รีเฟรชข้อมูลเครื่อง {$name} เรียบร้อยแล้ว ({$statusMsg})",
+                'installation' => $installation,
+                'staff_name'   => $staffInfo ? ($staffInfo->staff_name ?: $staffInfo->kskloginname) : $installation->department,
+                'last_active'  => $installation->last_active_at ? $installation->last_active_at->format('d/m/y H:i') : '-',
+            ]);
+        }
+
+        return back()->with('success', "รีเฟรชข้อมูลเครื่อง {$name} เรียบร้อยแล้ว ({$statusMsg})");
     }
 
     /**
@@ -735,17 +926,23 @@ try {
     Set-Content -Path $syncScriptPath -Value $syncCode -Encoding UTF8 -Force
 } catch {}
 
-# 6. Ensure Windows Scheduled Tasks (Startup, Logon, Daily)
+# 6. Ensure Windows Scheduled Tasks (Startup, Logon, Hourly & Daily)
 try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:30 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /ru "SYSTEM" /f 2>&1 | Out-Null
-    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 09:00 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Hourly" /tr $taskCmd /sc HOURLY /mo 1 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 08:30 /ri 60 /du 24:00 /ru "SYSTEM" /f 2>&1 | Out-Null
 } catch {}
 
 # 7. Update version.txt to the new version
 try {
     Set-Content -Path (Join-Path $sysDir "version.txt") -Value $serverVer -Force
+} catch {}
+
+# 8. Trigger immediate background sync to report updated version to server
+try {
+    Start-Process powershell.exe -ArgumentList "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`"" -WindowStyle Hidden
 } catch {}
 
 # Refresh Desktop Icons
@@ -1136,10 +1333,14 @@ try {
     $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - OK: Host=$compName, IP=$clientIp, RAM=$ramInfo, DISK=$diskInfo, Ver=$localVersion"
     Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
 
-    # Auto-Update: Check if server has released a newer version
+    # Auto-Update: Check if server has released a newer version or commanded an update
     $serverVer = if ($res -and $res.server_version) { "$($res.server_version)".Trim() } else { "" }
-    if ($serverVer -and ($serverVer -ne $localVersion)) {
-        $logUpd = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Server update available: $serverVer (Current: $localVersion). Starting auto-update..."
+    $isUpdateNeeded = $false
+    if ($serverVer -and ($serverVer -ne $localVersion)) { $isUpdateNeeded = $true }
+    if ($res -and ($res.force_update -or $res.update_available)) { $isUpdateNeeded = $true }
+
+    if ($isUpdateNeeded) {
+        $logUpd = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Server update available: $serverVer (Current: $localVersion, Force=$($res.force_update)). Starting auto-update..."
         Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logUpd -ErrorAction SilentlyContinue
         try {
             $updUrl = if ($res.update_script_url) { $res.update_script_url } else { "{{APP_URL}}/api/client/update-script" }
@@ -1873,12 +2074,13 @@ try {
     Set-Content -Path $syncScriptPath -Value $syncCode -Encoding UTF8 -Force
 } catch {}
 
-# 1. Register Task Scheduler: Startup & Logon under SYSTEM + Daily periodic sync
+# 1. Register Task Scheduler: Startup & Logon under SYSTEM + Hourly & Daily periodic sync
 try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:30 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /ru "SYSTEM" /f 2>&1 | Out-Null
-    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 09:00 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Hourly" /tr $taskCmd /sc HOURLY /mo 1 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 08:30 /ri 60 /du 24:00 /ru "SYSTEM" /f 2>&1 | Out-Null
 } catch {}
 
 # Write initial version.txt
