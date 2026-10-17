@@ -1270,6 +1270,9 @@
                 })
                 .then(res => res.json())
                 .then(data => {
+                    if (data && data.device_id && data.device_id !== deviceId) {
+                        try { localStorage.setItem('csh_device_uuid', data.device_id); } catch (e) {}
+                    }
                     if (data && data.ip) {
                         const el = document.getElementById('clientIpDisplay');
                         if (el && (!el.textContent || el.textContent.includes('127.0.0.1') || el.textContent === 'กำลังตรวจสอบ...')) {
