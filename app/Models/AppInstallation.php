@@ -9,6 +9,7 @@ class AppInstallation extends Model
     protected $fillable = [
         'device_id',
         'ip_address',
+        'mac_address',
         'hostname',
         'department',
         'device_name',

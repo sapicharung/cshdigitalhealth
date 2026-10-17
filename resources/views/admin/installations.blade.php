@@ -2422,7 +2422,7 @@
                     </div>
                     <div class="detail-grid">
                         <div class="detail-item">
-                            <label>หมายเลข IP Address</label>
+                            <label>หมายเลข IP Address (DHCP)</label>
                             <div class="detail-value-with-btn">
                                 <span id="dtIp" class="ip-badge-lg">-</span>
                                 <button type="button" class="btn-copy-chip" onclick="copyCurrentIp()">
@@ -2430,6 +2430,10 @@
                                     <span>คัดลอก</span>
                                 </button>
                             </div>
+                        </div>
+                        <div class="detail-item">
+                            <label>หมายเลข MAC Address (ฮาร์ดแวร์คงที่)</label>
+                            <div id="dtMac" class="detail-value font-mono" style="font-weight: 600; color: #475569;">-</div>
                         </div>
                         <div class="detail-item">
                             <label>ชื่อเครื่อง (Computer Name)</label>
@@ -2669,6 +2673,10 @@
 
             // Network & Identity
             document.getElementById('dtIp').textContent = item.ip_address || 'ไม่พบ IP';
+            const macEl = document.getElementById('dtMac');
+            if (macEl) {
+                macEl.textContent = item.mac_address || 'ยังไม่มีข้อมูล MAC (จะบันทึกเมื่อเครื่องซิงก์รอบถัดไป)';
+            }
             document.getElementById('dtCompName').textContent = item.hostname || '-';
             const staffEl = document.getElementById('dtStaff');
             if (staffEl) {

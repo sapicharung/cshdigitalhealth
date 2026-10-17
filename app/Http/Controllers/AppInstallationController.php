@@ -11,7 +11,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AppInstallationController extends Controller
 {
-    public const CLIENT_APP_VERSION = '2.7.0';
+    public const CLIENT_APP_VERSION = '2.8.0';
 
     /**
      * Get the latest client application version.
@@ -74,25 +74,53 @@ class AppInstallationController extends Controller
         $incomingHost = !empty($data['hostname']) ? $data['hostname'] : $hostname;
         $cleanIncomingHost = $incomingHost ? strtolower(trim(explode('.', $incomingHost)[0])) : null;
         $isLanIp = $ip && !in_array($ip, ['127.0.0.1', '::1']);
+        $rawMac = trim($data['mac_address'] ?? '');
+        $macAddress = $rawMac ? strtoupper(str_replace([':', ' ', '.'], '-', $rawMac)) : null;
 
-        // 1. First try matching by exact device_id
+        // 1. Primary Match: Match by unique persistent device_id (Hardware GUID stored in ProgramData)
         $installation = AppInstallation::where('device_id', $deviceId)->first();
 
-        // 2. If not found by device_id, match by normalized computer hostname
+        // 2. Hardware MAC Match: If device_id was lost/reinstalled, match by physical network MAC address
+        if (!$installation && $macAddress) {
+            $installation = AppInstallation::where('mac_address', $macAddress)->first();
+        }
+
+        // 3. Hostname Match: If not matched, match by normalized computer hostname (stable across DHCP IP changes)
         if (!$installation && $cleanIncomingHost) {
             $installation = AppInstallation::whereRaw("LOWER(TRIM(SUBSTRING_INDEX(hostname, '.', 1))) = ?", [$cleanIncomingHost])->first();
         }
 
-        // 3. If still not found, match by LAN IP address
+        // 4. DHCP / LAN IP Match: Only match by IP if existing record does NOT belong to a different active computer
         if (!$installation && $isLanIp) {
-            $installation = AppInstallation::where('ip_address', $ip)->first();
+            $candidateByIp = AppInstallation::where('ip_address', $ip)->first();
+            if ($candidateByIp) {
+                $candHost = $candidateByIp->hostname ? strtolower(trim(explode('.', $candidateByIp->hostname)[0])) : null;
+                // If candidate has no hostname or matched incoming hostname, it's safe to claim
+                if (!$candHost || ($cleanIncomingHost && $candHost === $cleanIncomingHost)) {
+                    $installation = $candidateByIp;
+                }
+            }
         }
 
-        // 4. Preserve permanent GUID device_id if existing record has one and incoming is browser csh-...
+        // 5. Preserve permanent GUID device_id if existing record has one and incoming is browser csh-...
         if ($installation) {
             if (str_starts_with($installation->device_id, 'csh-') && !str_starts_with($deviceId, 'csh-')) {
                 $installation->device_id = $deviceId;
             }
+        }
+
+        // 6. DHCP Migration: If this computer already exists and was assigned a new IP address,
+        // clear the new IP from any previous inactive/stale record that used to hold it
+        if ($isLanIp) {
+            AppInstallation::where('ip_address', $ip)
+                ->when($installation, function ($q) use ($installation) {
+                    $q->where('id', '!=', $installation->id);
+                })
+                ->where('device_id', '!=', $deviceId)
+                ->when($cleanIncomingHost, function ($q) use ($cleanIncomingHost) {
+                    $q->whereRaw("LOWER(TRIM(SUBSTRING_INDEX(hostname, '.', 1))) != ?", [$cleanIncomingHost]);
+                })
+                ->update(['is_online' => false]);
         }
 
         if (!$installation) {
@@ -110,6 +138,9 @@ class AppInstallationController extends Controller
         }
 
         $installation->ip_address = $ip;
+        if ($macAddress) {
+            $installation->mac_address = $macAddress;
+        }
         if (!empty($data['hostname'])) {
             $installation->hostname = $data['hostname'];
         } elseif ($hostname && !$installation->hostname) {
@@ -891,12 +922,19 @@ class AppInstallationController extends Controller
         if ($deviceId) {
             $isLanIp = $clientIp && !in_array($clientIp, ['127.0.0.1', '::1']);
             $record = AppInstallation::where('device_id', $deviceId)->first();
-            if (!$record && $isLanIp) {
-                $record = AppInstallation::where('ip_address', $clientIp)->first();
+            if (!$record && $request->filled('mac_address')) {
+                $cleanMac = strtoupper(str_replace([':', ' ', '.'], '-', trim($request->input('mac_address'))));
+                $record = AppInstallation::where('mac_address', $cleanMac)->first();
             }
             if (!$record && $request->filled('hostname')) {
                 $cleanHost = strtolower(trim(explode('.', $request->input('hostname'))[0]));
                 $record = AppInstallation::whereRaw("LOWER(TRIM(SUBSTRING_INDEX(hostname, '.', 1))) = ?", [$cleanHost])->first();
+            }
+            if (!$record && $isLanIp) {
+                $candidate = AppInstallation::where('ip_address', $clientIp)->first();
+                if ($candidate && (!$candidate->hostname || ($request->filled('hostname') && strtolower(trim(explode('.', $request->input('hostname'))[0])) === strtolower(trim(explode('.', $candidate->hostname)[0]))))) {
+                    $record = $candidate;
+                }
             }
             if (!$record) {
                 $record = new AppInstallation();
@@ -1264,6 +1302,37 @@ while ($waited -lt $maxWait) {
 
 $clientIp = if ($detectedIps -and $detectedIps.Count -gt 0) { $detectedIps[0] } else { "" }
 
+# Detect Physical Network MAC Address for reliable DHCP identification
+$macAddress = ""
+try {
+    # Method 1: Check adapter linked to current default gateway / active IP
+    if ($gwRoutes -and $gwRoutes.Count -gt 0) {
+        $primaryAd = Get-NetAdapter -InterfaceIndex $gwRoutes[0].InterfaceIndex -ErrorAction SilentlyContinue
+        if ($primaryAd -and $primaryAd.MacAddress) {
+            $macAddress = ($primaryAd.MacAddress -replace '[:\.\s]', '-').ToUpper().Trim()
+        }
+    }
+    # Method 2: Check any active physical network adapter with MAC
+    if (-not $macAddress) {
+        $physAd = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object {
+            $_.Status -eq 'Up' -and
+            $_.InterfaceDescription -notmatch 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN' -and
+            $_.MacAddress
+        } | Select-Object -First 1
+        if ($physAd -and $physAd.MacAddress) {
+            $macAddress = ($physAd.MacAddress -replace '[:\.\s]', '-').ToUpper().Trim()
+        }
+    }
+    # Method 3: Fallback via CIM/WMI
+    if (-not $macAddress) {
+        $cimAd = Get-CimInstance Win32_NetworkAdapter -Filter "PhysicalAdapter=True" -ErrorAction SilentlyContinue |
+                 Where-Object { $_.MACAddress -and $_.NetConnectionStatus -eq 2 } | Select-Object -First 1
+        if ($cimAd -and $cimAd.MACAddress) {
+            $macAddress = ($cimAd.MACAddress -replace '[:\.\s]', '-').ToUpper().Trim()
+        }
+    }
+} catch {}
+
 $sysDir = "$env:ProgramData\CSHOS"
 if (-not (Test-Path $sysDir)) { $sysDir = "$env:LOCALAPPDATA\CSHOS" }
 
@@ -1538,6 +1607,7 @@ $reportObj = @{
     hostname       = $compName
     device_name    = $userName
     ip_address     = $clientIp
+    mac_address    = $macAddress
     os             = $osInfo
     os_version     = $osVerStr
     office_version = $officeFinal
@@ -1638,8 +1708,15 @@ SYNC_SCRIPT;
                 
             $isLanIp = $clientIp && !in_array($clientIp, ['127.0.0.1', '::1']);
             $record = AppInstallation::where('device_id', $deviceId)->first();
+            if (!$record && $request->filled('mac_address')) {
+                $cleanMac = strtoupper(str_replace([':', ' ', '.'], '-', trim($request->query('mac_address'))));
+                $record = AppInstallation::where('mac_address', $cleanMac)->first();
+            }
             if (!$record && $isLanIp) {
-                $record = AppInstallation::where('ip_address', $clientIp)->first();
+                $candidate = AppInstallation::where('ip_address', $clientIp)->first();
+                if ($candidate && !$candidate->hostname) {
+                    $record = $candidate;
+                }
             }
             if (!$record) {
                 $record = new AppInstallation();
@@ -3910,27 +3987,6 @@ POWERSHELL;
     public function deduplicateRecords(): void
     {
         try {
-            // Group by LAN IP (exclude localhost / empty)
-            $lanIps = AppInstallation::whereNotNull('ip_address')
-                ->whereNotIn('ip_address', ['127.0.0.1', '::1', ''])
-                ->select('ip_address')
-                ->groupBy('ip_address')
-                ->havingRaw('COUNT(*) > 1')
-                ->pluck('ip_address');
-
-            foreach ($lanIps as $ip) {
-                $group = AppInstallation::where('ip_address', $ip)->orderByDesc('last_active_at')->get();
-                if ($group->count() > 1) {
-                    $master = $group->first();
-                    foreach ($group as $candidate) {
-                        if (!str_starts_with($candidate->device_id, 'csh-') && str_starts_with($master->device_id, 'csh-')) {
-                            $master = $candidate;
-                        }
-                    }
-                    $this->deduplicateSingleRecord($master);
-                }
-            }
-
             // Group by normalized hostname (exclude empty)
             $hostnames = AppInstallation::whereNotNull('hostname')
                 ->where('hostname', '!=', '')
@@ -3953,6 +4009,22 @@ POWERSHELL;
                     $this->deduplicateSingleRecord($master);
                 }
             }
+
+            // Group by MAC address (physical hardware)
+            $macs = AppInstallation::whereNotNull('mac_address')
+                ->where('mac_address', '!=', '')
+                ->select('mac_address')
+                ->groupBy('mac_address')
+                ->havingRaw('COUNT(*) > 1')
+                ->pluck('mac_address');
+
+            foreach ($macs as $mac) {
+                $group = AppInstallation::where('mac_address', $mac)->orderByDesc('last_active_at')->get();
+                if ($group->count() > 1) {
+                    $master = $group->first();
+                    $this->deduplicateSingleRecord($master);
+                }
+            }
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('Deduplication failed: ' . $e->getMessage());
         }
@@ -3970,14 +4042,28 @@ POWERSHELL;
         try {
             $isLanIp = $master->ip_address && !in_array($master->ip_address, ['127.0.0.1', '::1', '']);
             $cleanHost = $master->hostname ? strtolower(trim(explode('.', $master->hostname)[0])) : null;
+            $mac = $master->mac_address ? strtoupper(trim($master->mac_address)) : null;
+            $devId = $master->device_id ? trim($master->device_id) : null;
 
-            // Only search if master has LAN IP or hostname or device_id
+            // Only search if master has permanent hardware identity
+            if (!$cleanHost && !$mac && !$devId) {
+                return;
+            }
+
             $duplicates = AppInstallation::where('id', '!=', $master->id)
-                ->where(function ($q) use ($master, $isLanIp, $cleanHost) {
+                ->where(function ($q) use ($cleanHost, $mac, $devId) {
                     $hasCondition = false;
-                    if ($isLanIp) {
-                        $q->where('ip_address', $master->ip_address);
+                    if ($devId) {
+                        $q->where('device_id', $devId);
                         $hasCondition = true;
+                    }
+                    if ($mac) {
+                        if ($hasCondition) {
+                            $q->orWhere('mac_address', $mac);
+                        } else {
+                            $q->where('mac_address', $mac);
+                            $hasCondition = true;
+                        }
                     }
                     if ($cleanHost) {
                         if ($hasCondition) {
@@ -3985,13 +4071,6 @@ POWERSHELL;
                         } else {
                             $q->whereRaw("LOWER(TRIM(SUBSTRING_INDEX(hostname, '.', 1))) = ?", [$cleanHost]);
                             $hasCondition = true;
-                        }
-                    }
-                    if ($master->device_id) {
-                        if ($hasCondition) {
-                            $q->orWhere('device_id', $master->device_id);
-                        } else {
-                            $q->where('device_id', $master->device_id);
                         }
                     }
                 })->get();
@@ -4019,7 +4098,7 @@ POWERSHELL;
                 }
 
                 // Fill in hardware/OS specs if master is missing them
-                $fieldsToBackfill = ['cpu', 'ram', 'disk', 'os_version', 'office_version', 'os', 'department', 'notes', 'device_name', 'hostname'];
+                $fieldsToBackfill = ['mac_address', 'cpu', 'ram', 'disk', 'os_version', 'office_version', 'os', 'department', 'notes', 'device_name', 'hostname'];
                 foreach ($fieldsToBackfill as $field) {
                     if (empty($master->$field) && !empty($dup->$field)) {
                         $master->$field = $dup->$field;
