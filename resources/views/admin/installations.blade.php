@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>ระบบตรวจสอบการติดตั้ง CSHOS DATACENTER - โรงพยาบาลเชียงแสน</title>
+    <title>ระบบตรวจสอบการติดตั้ง CSHOS StaffInfo - โรงพยาบาลเชียงแสน</title>
     <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -572,16 +572,16 @@
             box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
         }
 
-        /* Compact Hostname & IP */
-        .host-ip-compact {
+        /* Computer Name Column */
+        .host-name-cell {
             display: inline-flex;
             align-items: center;
             gap: 6px;
             cursor: pointer;
-            max-width: 200px;
+            max-width: 150px;
         }
 
-        .host-ip-compact:hover .host-name-text {
+        .host-name-cell:hover .host-name-text {
             color: var(--primary);
             text-decoration: underline;
         }
@@ -601,57 +601,76 @@
             font-size: 0.84rem;
         }
 
-        .ip-badge-mini {
-            font-family: monospace;
-            background: #F1F5F9;
-            border: 1px solid #E2E8F0;
-            padding: 1px 5px;
-            border-radius: 4px;
-            font-size: 0.74rem;
-            color: #334155;
-            font-weight: 600;
-            flex-shrink: 0;
-        }
-
-        /* Spec Pill Compact (1 row) */
-        .spec-pill-compact {
+        /* IP Address Column */
+        .ip-cell-wrapper {
             display: inline-flex;
             align-items: center;
-            gap: 4px;
-            padding: 3px 8px;
-            background: #EFF6FF;
-            border: 1px solid #BFDBFE;
-            border-radius: 7px;
-            font-size: 0.76rem;
-            color: #1E40AF;
+            gap: 5px;
+        }
+
+        .ip-badge-cell {
+            font-family: monospace;
+            background: #F1F5F9;
+            border: 1px solid #CBD5E1;
+            padding: 2px 7px;
+            border-radius: 5px;
+            font-size: 0.78rem;
+            color: #0F172A;
+            font-weight: 600;
+            letter-spacing: 0.2px;
+        }
+
+        .btn-copy-icon-mini {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            background: #FFFFFF;
+            border: 1px solid #CBD5E1;
+            border-radius: 5px;
+            color: #64748B;
             cursor: pointer;
             transition: all 0.15s;
-            max-width: 185px;
+            padding: 0;
         }
 
-        .spec-pill-compact:hover {
-            background: #DBEAFE;
+        .btn-copy-icon-mini:hover {
+            background: #EFF6FF;
+            color: var(--primary);
             border-color: #93C5FD;
-            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.15);
         }
 
-        .spec-pill-text {
-            overflow: hidden;
-            text-overflow: ellipsis;
+        /* Spec View Button (Click to open modal) */
+        .btn-spec-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            padding: 3px 9px;
+            background: #EFF6FF;
+            border: 1px solid #BFDBFE;
+            border-radius: 6px;
+            font-size: 0.76rem;
+            font-weight: 600;
+            color: #1D4ED8;
+            cursor: pointer;
+            transition: all 0.15s ease-in-out;
+            font-family: inherit;
             white-space: nowrap;
         }
 
-        .spec-pill-icon {
-            font-size: 14px;
-            color: #2563EB;
-            flex-shrink: 0;
+        .btn-spec-pill:hover {
+            background: #DBEAFE;
+            border-color: #93C5FD;
+            color: #1E40AF;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.18);
         }
 
-        .spec-pill-more {
-            font-size: 12px;
-            color: #3B82F6;
-            margin-left: 1px;
-            flex-shrink: 0;
+        .btn-spec-pill .material-symbols-Outlined {
+            font-size: 15px;
+            color: #2563EB;
         }
 
         .spec-empty-compact {
@@ -936,33 +955,40 @@
         }
 
         /* Details Modal Styles */
-        .modal-card-large {
-            max-width: 680px;
-            max-height: 88vh;
+        #detailsModal {
+            padding: 12px 18px;
+        }
+
+        #detailsModal .modal-card,
+        .modal-card.modal-card-large {
+            width: 96vw !important;
+            max-width: 96vw !important;
+            max-height: 94vh;
             display: flex;
             flex-direction: column;
-            padding: 1.5rem 1.6rem;
+            padding: 1.25rem 1.75rem;
+            border-radius: 16px;
+            box-sizing: border-box;
         }
 
         .details-modal-body {
             overflow-y: auto;
             padding-right: 4px;
-            display: flex;
-            flex-direction: column;
-            gap: 0.9rem;
-            margin-top: 0.4rem;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1.1rem;
+            align-items: stretch;
+            margin-top: 0.5rem;
         }
 
         .detail-section {
             background: #F8FAFC;
             border: 1px solid var(--border);
-            border-radius: 14px;
+            border-radius: 13px;
             padding: 0.9rem 1.1rem;
-        }
-
-        .detail-section.highlight-remote {
-            background: #F0FDF4;
-            border-color: #BBF7D0;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
         }
 
         .detail-section-title {
@@ -973,12 +999,40 @@
             font-weight: 700;
             color: var(--text-dark);
             margin-bottom: 0.65rem;
+            padding-bottom: 0.45rem;
+            border-bottom: 1px dashed var(--border);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .detail-grid {
             display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 0.65rem;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 0.6rem 0.75rem;
+            flex: 1;
+        }
+
+        @media (max-width: 1024px) {
+            .details-modal-body {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+        }
+
+        @media (max-width: 768px) {
+            #detailsModal {
+                padding: 6px;
+            }
+            #detailsModal .modal-card,
+            .modal-card.modal-card-large {
+                width: 98vw !important;
+                max-width: 98vw !important;
+                padding: 1rem;
+                max-height: 98vh;
+            }
+            .details-modal-body {
+                grid-template-columns: minmax(0, 1fr);
+            }
         }
 
         .detail-item {
@@ -1246,6 +1300,30 @@
             color: #DC2626;
         }
 
+        .btn-clear-offline {
+            background: #FFFFFF;
+            border: 1px solid #FECACA;
+            padding: 0 0.65rem;
+            height: 35px;
+            border-radius: 8px;
+            color: #DC2626;
+            font-weight: 500;
+            font-size: 0.82rem;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            transition: all 0.2s;
+            font-family: inherit;
+            white-space: nowrap;
+            box-sizing: border-box;
+        }
+        .btn-clear-offline:hover {
+            background: #DC2626;
+            border-color: #B91C1C;
+            color: #FFFFFF;
+        }
+
         .empty-state {
             text-align: center;
             padding: 3.5rem 1.5rem;
@@ -1293,6 +1371,10 @@
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
             position: relative;
             animation: modalFadeIn 0.2s ease-out;
+        }
+
+        .modal-card.modal-card-large {
+            max-width: 96vw;
         }
 
         @keyframes modalFadeIn {
@@ -1447,18 +1529,13 @@
                 <span class="material-symbols-Outlined">desktop_windows</span>
             </div>
             <div class="brand-text">
-                <h1>CSHOS DATACENTER</h1>
+                <h1>CSHOS StaffInfo</h1>
                 <p>ระบบติดตามและตรวจสอบการติดตั้งคอมพิวเตอร์ลูกข่าย</p>
             </div>
         </div>
 
         <div class="nav-actions">
-            <a href="{{ asset('downloads/tightvnc-64bit.msi') }}" class="btn-download-vnc" title="ดาวน์โหลดโปรแกรม TightVNC Viewer สำหรับเครื่องแอดมิน/ช่างไอทีใช้รีโมท">
-                <span class="material-symbols-Outlined" style="font-size: 18px;">tv</span>
-                <span>ดาวน์โหลด VNC Viewer</span>
-            </a>
-
-            <a href="{{ route('download.shortcut.installer') }}" class="btn-download-app" title="ดาวน์โหลดตัวสร้างไอคอนและเปิดระบบ Remote VNC สำหรับนำไปติดตั้งบนเครื่องลูกข่าย">
+            <a href="{{ route('download.shortcut.installer') }}" class="btn-download-app">
                 <span class="material-symbols-Outlined" style="font-size: 18px;">download</span>
                 <span>downloadตัวติดตั้งApp</span>
             </a>
@@ -1476,7 +1553,7 @@
 
                 <form action="{{ route('admin.logout') }}" method="POST" style="margin: 0;">
                     @csrf
-                    <button type="submit" class="btn-logout" title="ออกจากระบบ">
+                    <button type="submit" class="btn-logout">
                         <span class="material-symbols-Outlined" style="font-size: 17px;">logout</span>
                         <span>ออกจากระบบ</span>
                     </button>
@@ -1564,13 +1641,13 @@
                         <option value="installed_only" {{ request('status') == 'installed_only' ? 'selected' : '' }}>ติดตั้งไอคอนแล้ว</option>
                     </select>
 
-                    <button type="submit" class="btn-filter" title="ค้นหาและกรองข้อมูล">
+                    <button type="submit" class="btn-filter">
                         <span class="material-symbols-Outlined" style="font-size: 17px;">tune</span>
                         <span>กรองข้อมูล</span>
                     </button>
 
                     @if(request()->hasAny(['search', 'department', 'status']))
-                        <a href="{{ route('admin.installations') }}" class="btn-reset" title="ล้างการค้นหาและตัวกรอง">
+                        <a href="{{ route('admin.installations') }}" class="btn-reset">
                             <span class="material-symbols-Outlined" style="font-size: 16px;">close</span>
                             <span>ล้างกรอง</span>
                         </a>
@@ -1578,28 +1655,36 @@
                 </div>
 
                 <div class="action-buttons">
-                    <button type="button" class="btn-reset-this" onclick="resetThisDevice()" title="รีเซ็ตสถานะเครื่องปัจจุบันและกลับไปหน้าหลักเพื่อติดตั้งไอคอนใหม่">
+                    <button type="button" class="btn-reset-this" onclick="resetThisDevice()">
                         <span class="material-symbols-Outlined" style="font-size: 17px;">restart_alt</span>
                         <span>รีเซ็ตเครื่องนี้</span>
                     </button>
 
-                    <button type="button" class="btn-reset-all" onclick="submitResetAll()" title="รีเซ็ตสถานะของทุกเครื่องในระบบ">
+                    <button type="button" class="btn-reset-all" onclick="submitResetAll()">
                         <span class="material-symbols-Outlined" style="font-size: 17px;">history</span>
                         <span>รีเซ็ตทุกเครื่อง</span>
                     </button>
 
-                    <button type="button" class="btn-refresh" onclick="location.reload()" title="รีเฟรชข้อมูล">
+                    <button type="button" class="btn-clear-offline" onclick="submitClearOffline()">
+                        <span class="material-symbols-Outlined" style="font-size: 17px;">delete_sweep</span>
+                        <span>ลบเครื่องออฟไลน์</span>
+                    </button>
+
+                    <button type="button" class="btn-refresh" onclick="location.reload()">
                         <span class="material-symbols-Outlined" style="font-size: 17px;">refresh</span>
                         <span>รีเฟรช</span>
                     </button>
 
-                    <a href="{{ route('admin.installations.export') }}" class="btn-export" title="ส่งออกข้อมูลเป็นไฟล์ Excel/CSV">
+                    <a href="{{ route('admin.installations.export') }}" class="btn-export">
                         <span class="material-symbols-Outlined" style="font-size: 17px;">file_download</span>
                         <span>ส่งออก Excel</span>
                     </a>
                 </div>
             </form>
             <form id="resetAllForm" action="{{ route('admin.installations.reset-all') }}" method="POST" style="display: none;">
+                @csrf
+            </form>
+            <form id="clearOfflineForm" action="{{ route('admin.installations.clear-offline') }}" method="POST" style="display: none;">
                 @csrf
             </form>
         </section>
@@ -1612,72 +1697,67 @@
                         <tr>
                             <th style="width: 45px; text-align: center;">ลำดับ</th>
                             <th style="width: 75px; text-align: center;">สถานะ</th>
-                            <th style="width: 200px;">เครื่องคอมพิวเตอร์ & IP</th>
-                            <th style="width: 195px;">สเปกเครื่อง (CPU/RAM/DISK)</th>
-                            <th style="width: 105px; text-align: center;">รีโมท (VNC)</th>
-                            <th style="width: 135px;">แผนก / หน่วยงาน</th>
-                            <th style="width: 145px;">ผู้ใช้ / OS / Office</th>
-                            <th style="width: 85px; text-align: center;">เปิดใช้งาน</th>
-                            <th style="width: 115px;">ใช้งานล่าสุด</th>
-                            <th style="width: 120px; text-align: center;">จัดการ</th>
+                            <th style="width: 160px;">ชื่อเครื่องคอมพิวเตอร์</th>
+                            <th style="width: 140px;">IP Address</th>
+                            <th style="width: 100px; text-align: center;">สเปกเครื่อง</th>
+                            <th style="width: 110px; text-align: center;">รีโมท (VNC)</th>
+                            <th style="width: 150px;">แผนก / หน่วยงาน</th>
+                            <th style="width: 120px;">ใช้งานล่าสุด</th>
+                            <th style="width: 115px; text-align: center;">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($installations as $index => $item)
                             @php
                                 $isToday = $item->last_active_at && $item->last_active_at->isToday();
-                                
-                                // Clean and compact CPU text
-                                $cleanCpu = trim(preg_replace('/Intel\(R\)|Core\(TM\)|\(R\)|CPU|@.*$/i', '', $item->cpu ?? ''));
-                                $compactSpec = '';
-                                if ($item->ram) {
-                                    $compactSpec = $item->ram;
-                                }
-                                if ($cleanCpu) {
-                                    $compactSpec .= ($compactSpec ? ' • ' : '') . Str::limit($cleanCpu, 14);
-                                } elseif ($item->disk) {
-                                    $compactSpec .= ($compactSpec ? ' • ' : '') . 'DISK';
-                                }
                             @endphp
                             <tr>
                                 <td style="text-align: center; color: #64748B;">{{ $installations->firstItem() + $index }}</td>
                                 <td style="text-align: center;">
                                     @if($isToday)
-                                        <span class="badge badge-online" title="ออนไลน์ (ใช้งานวันนี้)">
+                                        <span class="badge badge-online">
                                             <span class="pulse-dot"></span> วันนี้
                                         </span>
                                     @else
-                                        <span class="badge badge-offline" title="ออฟไลน์">ออฟไลน์</span>
+                                        <span class="badge badge-offline">ออฟไลน์</span>
                                     @endif
                                 </td>
                                 <td>
-                                    <div class="host-ip-compact" onclick="openDetailsModal({{ json_encode($item) }})" title="คลิกเพื่อดูรายละเอียดเครื่อง {{ $item->hostname ?: $item->ip_address }}">
+                                    <div class="host-name-cell" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;">
                                         <span class="material-symbols-Outlined host-icon">computer</span>
                                         <span class="host-name-text">{{ $item->hostname ?: '-' }}</span>
-                                        @if($item->ip_address)
-                                            <span class="ip-badge-mini">{{ $item->ip_address }}</span>
-                                        @endif
                                     </div>
                                 </td>
                                 <td>
-                                    @if($item->cpu || $item->ram || $item->disk)
-                                        <div class="spec-pill-compact" onclick="openDetailsModal({{ json_encode($item) }})" title="คลิกเพื่อดูรายละเอียดสเปกเต็ม: CPU {{ $item->cpu }} | RAM {{ $item->ram }} | DISK {{ $item->disk }}">
-                                            <span class="material-symbols-Outlined spec-pill-icon">memory</span>
-                                            <span class="spec-pill-text">{{ $compactSpec ?: 'ดูสเปก' }}</span>
-                                            <span class="material-symbols-Outlined spec-pill-more">open_in_new</span>
+                                    @if($item->ip_address)
+                                        <div class="ip-cell-wrapper">
+                                            <span class="ip-badge-cell font-mono">{{ $item->ip_address }}</span>
+                                            <button type="button" class="btn-copy-icon-mini" onclick="copyTextToClipboard('{{ $item->ip_address }}', 'คัดลอก IP: {{ $item->ip_address }} สำเร็จ!')">
+                                                <span class="material-symbols-Outlined" style="font-size: 13px;">content_copy</span>
+                                            </button>
                                         </div>
                                     @else
-                                        <span class="spec-empty-compact" onclick="openDetailsModal({{ json_encode($item) }})" title="คลิกเพื่อดูรายละเอียด">- ยังไม่มีสเปก -</span>
+                                        <span class="spec-empty-compact">ไม่พบ IP</span>
+                                    @endif
+                                </td>
+                                <td style="text-align: center;">
+                                    @if($item->cpu || $item->ram || $item->disk)
+                                        <button type="button" class="btn-spec-pill" onclick="openDetailsModal({{ json_encode($item) }})">
+                                            <span class="material-symbols-Outlined">memory</span>
+                                            <span>ดูสเปก</span>
+                                        </button>
+                                    @else
+                                        <span class="spec-empty-compact" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;">- ยังไม่มีสเปก -</span>
                                     @endif
                                 </td>
                                 <td style="text-align: center;">
                                     @if($item->ip_address)
                                         <div class="remote-compact-cell">
-                                            <button type="button" class="btn-remote-pill" onclick="launchVnc('{{ $item->ip_address }}')" title="คลิกเพื่อเรียกเปิดโปรแกรม TightVNC ดูหน้าจอเครื่องนี้ทันที (พอร์ต 5900 - หน้าจอไม่ดับ)">
+                                            <button type="button" class="btn-remote-pill" onclick="launchVnc('{{ $item->ip_address }}')">
                                                 <span class="material-symbols-Outlined" style="font-size: 13px;">screen_share</span>
                                                 <span>Remote</span>
                                             </button>
-                                            <button type="button" class="btn-copy-icon" onclick="copyVnc('{{ $item->ip_address }}', '{{ $vnc_password ?? 'cshos123' }}')" title="คัดลอก IP:5900 สำหรับโปรแกรม VNC Viewer">
+                                            <button type="button" class="btn-copy-icon" onclick="copyVnc('{{ $item->ip_address }}', '{{ $vnc_password ?? 'cshos123' }}')">
                                                 <span class="material-symbols-Outlined" style="font-size: 13px;">content_copy</span>
                                             </button>
                                         </div>
@@ -1687,84 +1767,38 @@
                                 </td>
                                 <td>
                                     @if($item->department)
-                                        <span class="dept-compact-tag" title="{{ $item->department }}" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;">
+                                        <span class="dept-compact-tag" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;">
                                             {{ $item->department }}
                                         </span>
                                     @else
-                                        <span class="dept-empty" onclick="openEditModal({{ json_encode($item) }})" style="cursor: pointer;" title="คลิกเพื่อระบุแผนก">ยังไม่ระบุ</span>
+                                        <span class="dept-empty" onclick="openEditModal({{ json_encode($item) }})" style="cursor: pointer;">ยังไม่ระบุ</span>
                                     @endif
                                 </td>
                                 <td>
-                                    @php
-                                        $osDisplay = 'Win';
-                                        $fullOs = $item->os_version ?: $item->os;
-                                        if (Str::contains($fullOs, '11')) { $osDisplay = 'Win 11'; }
-                                        elseif (Str::contains($fullOs, '10')) { $osDisplay = 'Win 10'; }
-                                        elseif (Str::contains($fullOs, '7')) { $osDisplay = 'Win 7'; }
-
-                                        $officeStr = $item->office_version ?: '';
-                                        $officeDisplay = '';
-                                        $officeClass = 'office-mini-tag';
-                                        if ($officeStr && $officeStr !== 'Not Installed') {
-                                            if (Str::contains($officeStr, '2024')) { $officeDisplay = 'Off 24'; }
-                                            elseif (Str::contains($officeStr, '2021')) { $officeDisplay = 'Off 21'; }
-                                            elseif (Str::contains($officeStr, '2019')) { $officeDisplay = 'Off 19'; }
-                                            elseif (Str::contains($officeStr, ['365', 'O365', 'M365'])) { $officeDisplay = 'M365'; $officeClass .= ' office-m365'; }
-                                            elseif (Str::contains($officeStr, '2016')) { $officeDisplay = 'Off 16'; }
-                                            elseif (Str::contains($officeStr, '2013')) { $officeDisplay = 'Off 13'; }
-                                            elseif (Str::contains($officeStr, '2010')) { $officeDisplay = 'Off 10'; }
-                                            elseif (Str::contains($officeStr, '2007')) { $officeDisplay = 'Off 07'; }
-                                            else { $officeDisplay = 'Office'; }
-                                        } elseif ($officeStr === 'Not Installed') {
-                                            $officeDisplay = 'No Off';
-                                            $officeClass .= ' office-none';
-                                        }
-                                    @endphp
-                                    <div class="user-os-compact" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;" title="ผู้ใช้: {{ $item->device_name ?: '-' }}&#10;OS: {{ $item->os_version ?: $item->os ?: 'Windows' }}&#10;Office: {{ $item->office_version ?: 'ยังไม่มีข้อมูล' }}">
-                                        <span class="user-name-compact">{{ $item->device_name ?: '-' }}</span>
-                                        <span class="os-mini-tag" title="{{ $item->os_version ?: $item->os }}">{{ $osDisplay }}</span>
-                                        @if($officeDisplay)
-                                            <span class="{{ $officeClass }}" title="{{ $item->office_version }}">{{ $officeDisplay }}</span>
-                                        @endif
-                                    </div>
-                                </td>
-                                <td style="text-align: center;">
-                                    <div class="launch-compact">
-                                        <span class="launch-count-badge">{{ number_format($item->launch_count) }}</span>
-                                        @if($item->install_type === 'installed')
-                                            <span class="app-type-tag installed" title="ติดตั้งไอคอนแอปบน Desktop แล้ว">แอป</span>
-                                        @else
-                                            <span class="app-type-tag web" title="เข้าผ่านเว็บเบราว์เซอร์">เว็บ</span>
-                                        @endif
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="time-compact-cell" onclick="openDetailsModal({{ json_encode($item) }})" title="ใช้งานล่าสุด: {{ $item->last_active_at ? $item->last_active_at->diffForHumans() : '-' }}&#10;ติดตั้งเมื่อ: {{ $item->first_installed_at ? $item->first_installed_at->format('d/m/Y H:i') : '-' }}">
+                                    <div class="time-compact-cell" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;">
                                         {{ $item->last_active_at ? $item->last_active_at->format('d/m/y H:i') : '-' }}
                                     </div>
                                 </td>
                                 <td style="text-align: center;">
                                     <div class="table-actions-cell">
                                         <button type="button" class="btn-action-icon btn-action-view" 
-                                                onclick="openDetailsModal({{ json_encode($item) }})"
-                                                title="คลิกเพื่อดูรายละเอียดคอมพิวเตอร์และสเปกฉบับเต็ม">
+                                                onclick="openDetailsModal({{ json_encode($item) }})">
                                             <span class="material-symbols-Outlined" style="font-size: 15px;">visibility</span>
                                         </button>
                                         <button type="button" class="btn-action-icon btn-action-edit" 
-                                                onclick="openEditModal({{ json_encode($item) }})"
-                                                title="แก้ไขแผนก / ข้อมูลเครื่อง">
+                                                onclick="openEditModal({{ json_encode($item) }})">
                                             <span class="material-symbols-Outlined" style="font-size: 15px;">edit</span>
                                         </button>
                                         <form action="{{ route('admin.installations.reset', $item->id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('ต้องการรีเซ็ตสถานะการติดตั้งของเครื่อง {{ $item->hostname ?: $item->ip_address }} ใช่หรือไม่? \n(สถานะจะเปลี่ยนเป็น \'รอติดตั้งใหม่\' เพื่อให้เครื่องนี้ติดตั้งไอคอนใหม่ได้)')">
                                             @csrf
-                                            <button type="submit" class="btn-action-icon btn-action-reset" title="รีเซ็ตสถานะ ให้เครื่องนี้ติดตั้งใหม่ได้">
+                                            <button type="submit" class="btn-action-icon btn-action-reset">
                                                 <span class="material-symbols-Outlined" style="font-size: 15px;">restart_alt</span>
                                             </button>
                                         </form>
                                         <form action="{{ route('admin.installations.destroy', $item->id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('ต้องการลบข้อมูลเครื่อง {{ $item->hostname ?: $item->ip_address }} ออกจากระบบใช่หรือไม่?')">
                                             @csrf
                                             @method('DELETE')
-                                            <button type="submit" class="btn-action-icon btn-action-delete" title="ลบข้อมูลเครื่องนี้">
+                                            <button type="submit" class="btn-action-icon btn-action-delete">
                                                 <span class="material-symbols-Outlined" style="font-size: 15px;">delete</span>
                                             </button>
                                         </form>
@@ -1773,11 +1807,11 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10">
+                                <td colspan="9">
                                     <div class="empty-state">
                                         <span class="material-symbols-Outlined">devices_off</span>
                                         <h3>ยังไม่มีข้อมูลการติดตั้งในระบบ</h3>
-                                        <p>เมื่อเจ้าหน้าที่เปิดใช้งานหรือกดติดตั้งไอคอน CSHOS DATACENTER ระบบจะตรวจจับและบันทึกอัตโนมัติ</p>
+                                        <p>เมื่อเจ้าหน้าที่เปิดใช้งานหรือกดติดตั้งไอคอน CSHOS StaffInfo ระบบจะตรวจจับและบันทึกอัตโนมัติ</p>
                                     </div>
                                 </td>
                             </tr>
@@ -1926,7 +1960,7 @@
                             <label>หมายเลข IP Address</label>
                             <div class="detail-value-with-btn">
                                 <span id="dtIp" class="ip-badge-lg">-</span>
-                                <button type="button" class="btn-copy-chip" onclick="copyCurrentIp()" title="คัดลอก IP Address">
+                                <button type="button" class="btn-copy-chip" onclick="copyCurrentIp()">
                                     <span class="material-symbols-Outlined" style="font-size: 13px;">content_copy</span>
                                     <span>คัดลอก</span>
                                 </button>
@@ -1951,41 +1985,7 @@
                     </div>
                 </div>
 
-                <!-- Section 3: ระบบ Remote ภายใน -->
-                <div class="detail-section highlight-remote">
-                    <div class="detail-section-title">
-                        <span class="material-symbols-Outlined" style="color: #059669;">screen_share</span>
-                        <span>ระบบรีโมทระยะไกล (Internal Remote Desktop - หน้าจอไม่ดับ)</span>
-                    </div>
-                    <div class="remote-banner">
-                        <div class="remote-banner-info">
-                            <div style="font-weight: 600; color: #065F46; font-size: 0.88rem;">TightVNC Remote Server (พอร์ต 5900)</div>
-                            <div style="font-size: 0.78rem; color: #047857; margin-top: 2px;">
-                                รหัสผ่าน VNC: <code>{{ $vnc_password ?? 'cshos123' }}</code> • โหมดแชร์หน้าจอ (Screen Share) ดูและแก้ปัญหาร่วมกันได้ทันที
-                            </div>
-                        </div>
-                        <div class="remote-banner-actions">
-                            <button type="button" class="btn-modal-vnc" onclick="launchCurrentVnc()" title="คลิกเพื่อเรียกเปิดโปรแกรม TightVNC ดูหน้าจอเครื่องนี้ทันที">
-                                <span class="material-symbols-Outlined" style="font-size: 15px;">play_arrow</span>
-                                <span>เปิดโปรแกรม VNC</span>
-                            </button>
-                            <button type="button" class="btn-modal-copy-vnc" onclick="copyCurrentVnc()" title="คัดลอก IP:5900">
-                                <span class="material-symbols-Outlined" style="font-size: 14px;">content_copy</span>
-                                <span>คัดลอก IP:5900</span>
-                            </button>
-                            <a id="dtVncFileLink" href="#" class="btn-modal-rdp" title="ดาวน์โหลดไฟล์ .vnc สำหรับเปิดด้วยโปรแกรม VNC อื่นๆ" style="font-size: 0.78rem;">
-                                <span class="material-symbols-Outlined" style="font-size: 13px;">file_download</span>
-                                <span>ไฟล์ .vnc</span>
-                            </a>
-                            <a id="dtRdpLink" href="#" class="btn-modal-rdp" title="สลับไปใช้ Windows Remote Desktop RDP สำรอง (หน้าจอจะล็อก)">
-                                <span class="material-symbols-Outlined" style="font-size: 13px;">desktop_windows</span>
-                                <span>RDP สำรอง</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Section 4: ประวัติการใช้งาน -->
+                <!-- Section 3: ประวัติการใช้งาน & วันที่บันทึก -->
                 <div class="detail-section">
                     <div class="detail-section-title">
                         <span class="material-symbols-Outlined" style="color: #D97706;">history</span>
@@ -2094,7 +2094,9 @@
 
             // Usage & Timestamps
             document.getElementById('dtLaunchCount').textContent = (item.launch_count || 0) + ' ครั้ง';
-            document.getElementById('dtInstallType').textContent = (item.install_type === 'installed') ? 'ติดตั้งไอคอนแอป (Desktop Shortcut)' : 'เข้าใช้งานผ่านเบราว์เซอร์';
+            document.getElementById('dtInstallType').textContent = (item.install_type === 'installed') 
+                ? ('ติดตั้งไอคอนแอป (Desktop Shortcut) • ' + (item.client_version ? 'v' + item.client_version : 'v2.5.0') + ' (เปิดโปรแกรมอัตโนมัติเมื่อเปิดเครื่อง & Auto-Update)') 
+                : 'เข้าใช้งานผ่านเบราว์เซอร์';
             document.getElementById('dtFirstInstall').textContent = item.first_installed_at ? formatDateTime(item.first_installed_at) : '-';
             document.getElementById('dtLastActive').textContent = item.last_active_at ? formatDateTime(item.last_active_at) : '-';
             
@@ -2182,13 +2184,6 @@
             closeDetailsModal();
             openEditModal(item);
         }
-
-        // Close on background click for details modal
-        document.getElementById('detailsModal').addEventListener('click', function(e) {
-            if (e.target === this) {
-                closeDetailsModal();
-            }
-        });
 
         function openEditModal(item) {
             const modal = document.getElementById('editModal');
@@ -2289,7 +2284,7 @@
         }
 
         function resetThisDevice() {
-            if (confirm('คุณต้องการรีเซ็ตสถานะการติดตั้งของเครื่องปัจจุบันนี้ เพื่อกลับไปหน้าหลักและติดตั้งไอคอน CSHOS DATACENTER ลงหน้าจอ Desktop ใหม่อีกครั้ง ใช่หรือไม่?')) {
+            if (confirm('คุณต้องการรีเซ็ตสถานะการติดตั้งของเครื่องปัจจุบันนี้ เพื่อกลับไปหน้าหลักและติดตั้งไอคอน CSHOS StaffInfo ลงหน้าจอ Desktop ใหม่อีกครั้ง ใช่หรือไม่?')) {
                 try {
                     localStorage.removeItem('csh_app_installed');
                     localStorage.removeItem('csh_device_uuid');
@@ -2301,6 +2296,12 @@
         function submitResetAll() {
             if (confirm('คำเตือน: คุณต้องการรีเซ็ตสถานะการติดตั้งของ "ทุกเครื่องในระบบ" ให้กลับเป็นสถานะ "รอติดตั้งใหม่" ใช่หรือไม่?')) {
                 document.getElementById('resetAllForm').submit();
+            }
+        }
+
+        function submitClearOffline() {
+            if (confirm('ต้องการลบเครื่องที่ออฟไลน์ทั้งหมดออกจากตารางใช่หรือไม่?\n(ระบบจะลบเฉพาะเครื่องที่ไม่ได้ออนไลน์ในวันนี้ และคงเหลือไว้เฉพาะเครื่องที่ออนไลน์สถานะวันนี้)')) {
+                document.getElementById('clearOfflineForm').submit();
             }
         }
     </script>

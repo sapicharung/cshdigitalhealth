@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>เข้าสู่ระบบผู้ดูแล - CSHOS DATACENTER</title>
+    <title>เข้าสู่ระบบผู้ดูแล - CSHOS StaffInfo</title>
     <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -310,7 +310,7 @@
             <div class="logo-circle">
                 <span class="material-symbols-outlined">query_stats</span>
             </div>
-            <h1>CSHOS DATACENTER</h1>
+            <h1>CSHOS StaffInfo</h1>
             <p>ระบบตรวจสอบการติดตั้งสำหรับผู้ดูแลระบบ</p>
         </div>
 

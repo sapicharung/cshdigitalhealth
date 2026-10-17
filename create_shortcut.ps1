@@ -17,7 +17,9 @@ if (-not (Test-Path $desktop)) {
     exit 1
 }
 
-$shortcutPath = Join-Path $desktop "CSHOS DATACENTER.lnk"
+$oldShortcutPath = Join-Path $desktop "CSHOS DATACENTER.lnk"
+if (Test-Path $oldShortcutPath) { Remove-Item $oldShortcutPath -Force -ErrorAction SilentlyContinue }
+$shortcutPath = Join-Path $desktop "CSHOS StaffInfo.lnk"
 
 # 2. Locate Browser executable
 $chromeExe = "C:\Program Files\Google\Chrome\Application\chrome.exe"
@@ -54,8 +56,28 @@ if (Test-Path $chromeExe) {
     }
 }
 
-$sc.Description = "CSHOS DATACENTER"
+$sc.Description = "CSHOS StaffInfo"
 $sc.WindowStyle = 1
 $sc.Save()
+
+# 5. Create Windows Startup Shortcut (.lnk) for auto-start on boot
+try {
+    $startupDir = [Environment]::GetFolderPath('Startup')
+    if (-not $startupDir -or -not (Test-Path $startupDir)) {
+        $startupDir = [Environment]::GetFolderPath('CommonStartup')
+    }
+    if ($startupDir -and (Test-Path $startupDir)) {
+        $oldStartupScPath = Join-Path $startupDir "CSHOS DATACENTER.lnk"
+        if (Test-Path $oldStartupScPath) { Remove-Item $oldStartupScPath -Force -ErrorAction SilentlyContinue }
+        $startupScPath = Join-Path $startupDir "CSHOS StaffInfo.lnk"
+        $scStart = $wsh.CreateShortcut($startupScPath)
+        $scStart.TargetPath = $sc.TargetPath
+        $scStart.Arguments = $sc.Arguments
+        $scStart.IconLocation = $sc.IconLocation
+        $scStart.Description = "CSHOS StaffInfo - AutoStart on Boot"
+        $scStart.WindowStyle = 1
+        $scStart.Save()
+    }
+} catch {}
 
 Write-Output "SUCCESS: Created $shortcutPath"

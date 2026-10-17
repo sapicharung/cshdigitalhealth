@@ -22,6 +22,7 @@ class AppInstallation extends Model
         'remote_ready',
         'user_agent',
         'install_type',
+        'client_version',
         'launch_count',
         'first_installed_at',
         'last_active_at',

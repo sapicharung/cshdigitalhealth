@@ -2,6 +2,10 @@
     $clientIp = request()->header('X-Forwarded-For') 
         ? trim(explode(',', request()->header('X-Forwarded-For'))[0]) 
         : request()->ip();
+    $displayIp = $clientIp;
+    if (in_array($displayIp, ['127.0.0.1', '::1']) && !empty($_SERVER['SERVER_ADDR']) && !in_array($_SERVER['SERVER_ADDR'], ['127.0.0.1', '::1'])) {
+        $displayIp = $_SERVER['SERVER_ADDR'];
+    }
     $isInstalledOnThisIp = false;
     if ($clientIp && !in_array($clientIp, ['127.0.0.1', '::1'])) {
         $isInstalledOnThisIp = \App\Models\AppInstallation::where('ip_address', $clientIp)
@@ -24,7 +28,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="CSHOS DATACENTER">
+    <meta name="apple-mobile-web-app-title" content="CSHOS StaffInfo">
 
     <!-- PWA Installation Engine & ServiceWorker -->
     <script>
@@ -39,11 +43,59 @@
             navigator.serviceWorker.register('{{ asset("sw.js") }}', { scope: '/' })
                 .then((reg) => {
                     console.log('CSHOS PWA ServiceWorker active, scope:', reg.scope);
+                    // Periodically check for service worker updates
+                    setInterval(() => {
+                        reg.update();
+                    }, 30 * 60 * 1000);
                 })
                 .catch((err) => {
                     console.warn('CSHOS PWA ServiceWorker error:', err);
                 });
+
+            // Auto-reload when new service worker takes control
+            let refreshing = false;
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!refreshing) {
+                    refreshing = true;
+                    console.log('CSHOS: ServiceWorker updated. Refreshing for latest version...');
+                    window.location.reload();
+                }
+            });
         }
+
+        // Live Auto-Update Detector: Detects when server releases a new version
+        (function() {
+            let currentVer = '2.5.0';
+            function checkServerVersion() {
+                fetch('{{ route("api.client.version") }}')
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data && data.server_version && currentVer && data.server_version !== currentVer) {
+                            console.log('CSHOS Server updated from v' + currentVer + ' to v' + data.server_version);
+                            currentVer = data.server_version;
+                            if ('serviceWorker' in navigator) {
+                                navigator.serviceWorker.getRegistration().then(reg => { if (reg) reg.update(); });
+                            }
+                            showUpdateToast(data.server_version);
+                        }
+                    })
+                    .catch(() => {});
+            }
+
+            function showUpdateToast(ver) {
+                if (document.getElementById('cshos-update-toast')) return;
+                const toast = document.createElement('div');
+                toast.id = 'cshos-update-toast';
+                toast.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:99999;background:linear-gradient(135deg,#059669,#10B981);color:#fff;padding:14px 20px;border-radius:14px;box-shadow:0 12px 30px rgba(0,0,0,0.25);display:flex;align-items:center;gap:14px;font-family:Prompt,sans-serif;font-size:14px;';
+                toast.innerHTML = '<span class="material-symbols-Outlined" style="font-size:24px;">system_update</span>' +
+                    '<div><strong style="display:block;font-size:15px;">ระบบมีการอัปเดตเวอร์ชันใหม่ (v' + ver + ')</strong><span style="font-size:12px;opacity:0.9;">ระบบจะแสดงข้อมูลล่าสุดอัตโนมัติ</span></div>' +
+                    '<button onclick="window.location.reload()" style="background:#fff;color:#065F46;border:none;padding:7px 16px;border-radius:8px;font-weight:600;cursor:pointer;margin-left:8px;font-family:inherit;">รีเฟรชตอนนี้</button>';
+                document.body.appendChild(toast);
+            }
+
+            setInterval(checkServerVersion, 5 * 60 * 1000);
+            window.addEventListener('focus', checkServerVersion);
+        })();
 
         (function() {
             try {
@@ -177,17 +229,45 @@
             background: linear-gradient(135deg, #1e88e5, #1565c0);
         }
 
-        .btn-knowledge { 
-            padding: 8px 22px; border-radius: 50px; 
-            border: 1px solid var(--pastel-blue-dark);
-            background: transparent; color: var(--pastel-blue-dark);
-            font-family: inherit; font-size: 0.88rem; font-weight: 500;
-            text-decoration: none; transition: 0.3s;
-            display: inline-flex; align-items: center; gap: 6px;
-            line-height: 1.4;
-            letter-spacing: 0.01em;
+        .client-ip-badge { 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 7px; 
+            padding: 6px 16px; 
+            border-radius: 50px; 
+            background: #EFF6FF; 
+            border: 1px solid #BFDBFE; 
+            color: #1E40AF; 
+            font-size: 0.88rem; 
+            font-weight: 500; 
+            line-height: 1.4; 
+            cursor: pointer; 
+            transition: all 0.25s ease; 
+            box-shadow: 0 1px 3px rgba(37, 99, 235, 0.08); 
+            user-select: all;
         }
-        .btn-knowledge:hover { background: var(--pastel-blue-dark); color: white; transform: translateY(-1px); }
+        .client-ip-badge:hover { 
+            background: #DBEAFE; 
+            border-color: #93C5FD; 
+            color: #1D4ED8; 
+            transform: translateY(-1px); 
+            box-shadow: 0 3px 8px rgba(37, 99, 235, 0.15); 
+        }
+        .client-ip-badge .ip-icon { 
+            font-size: 19px; 
+            color: #2563EB; 
+        }
+        .client-ip-badge .ip-label { 
+            font-size: 0.82rem; 
+            color: #64748B; 
+            font-weight: 600; 
+        }
+        .client-ip-badge .ip-address { 
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; 
+            font-weight: 700; 
+            color: #1E3A8A; 
+            letter-spacing: 0.3px; 
+        }
 
         /* --- Services Container & Category Blocks --- */
         .services { padding: 1.8rem 4% 3rem; }
@@ -445,6 +525,8 @@
             .service-card h4 { font-size: 0.86rem; line-height: 1.4; min-height: 2.8em; }
             .icon-box { width: 48px; height: 48px; }
             .category-title h3 { font-size: 1.1rem; line-height: 1.35; }
+            .client-ip-badge { font-size: 0.78rem; padding: 4px 10px; }
+            .client-ip-badge .ip-label { display: none; }
         }
 
         /* --- Desktop Install Modal --- */
@@ -785,10 +867,11 @@
                 </div>
             </a>
             <div class="nav-actions">
-                <a href="http://192.168.1.15:8086/knowledge" target="_blank" class="btn-knowledge">
-                    <span class="material-symbols-outlined" style="font-size: 18px; color: inherit;">auto_stories</span>
-                    คลังความรู้
-                </a>
+                <div class="client-ip-badge" onclick="copyClientIp()">
+                    <span class="material-symbols-outlined ip-icon">devices</span>
+                    <span class="ip-label">IP:</span>
+                    <span class="ip-address font-mono" id="clientIpDisplay">{{ $displayIp ?: 'กำลังตรวจสอบ...' }}</span>
+                </div>
             </div>
         </div>
     </nav>
@@ -852,7 +935,7 @@
                             <small>Data Center, Statistics & HDC Reporting</small>
                         </div>
                     </div>
-                    <span class="category-count">4 ระบบ</span>
+                    <span class="category-count">5 ระบบ</span>
                 </div>
                 <div class="service-grid">
                     <a href="http://192.168.1.15:8083/" target="_blank" class="service-card card-blue" data-network="lan" data-keywords="datacenter data center ศูนย์ข้อมูล ฐานข้อมูล server">
@@ -864,6 +947,11 @@
                         <span class="badge-network badge-lan">LAN</span>
                         <div class="icon-box ic-teal"><span class="material-symbols-outlined">monitoring</span></div>
                         <h4>Data-Report</h4>
+                    </a>
+                    <a href="http://192.168.1.15:8086/knowledge" target="_blank" class="service-card card-purple" data-network="lan" data-keywords="คลังความรู้ knowledge KM คู่มือ เอกสาร โรงพยาบาล เชียงแสน">
+                        <span class="badge-network badge-lan">LAN</span>
+                        <div class="icon-box ic-purple"><span class="material-symbols-outlined">auto_stories</span></div>
+                        <h4>คลังความรู้</h4>
                     </a>
                     <a href="http://192.168.1.15:8090/" target="_blank" class="service-card card-orange" data-network="lan" data-keywords="แปลงข้อมูล hdc ส่งออก hdc 43 แฟ้ม standard">
                         <span class="badge-network badge-lan">LAN</span>
@@ -1025,7 +1113,7 @@
                 <div class="install-modal-title">
                     <span class="material-symbols-outlined" style="font-size: 28px; color: #93c5fd;">install_desktop</span>
                     <div>
-                        <h3>ติดตั้ง CSHOS DATACENTER บนคอมพิวเตอร์</h3>
+                        <h3>ติดตั้ง CSHOS StaffInfo บนคอมพิวเตอร์</h3>
                         <small>โรงพยาบาลเชียงแสน (Chiang Saen Digital Health)</small>
                     </div>
                 </div>
@@ -1045,7 +1133,7 @@
                         <span class="install-step-badge" style="background: #16a34a;">คลิกเดียว</span>
                     </div>
                     <p class="install-step-desc" style="color: #166534; margin-bottom: 6px;">
-                        คลิกปุ่มด้านล่างเพื่อดาวน์โหลดไฟล์สร้างไอคอน แล้ว<strong>กดเปิดไฟล์ที่ดาวน์โหลดมา 1 ครั้ง</strong> ระบบจะสร้างไอคอน <strong>CSHOS DATACENTER</strong> ไว้บนหน้าจอ Desktop ให้อัตโนมัติทันที
+                        คลิกปุ่มด้านล่างเพื่อดาวน์โหลดไฟล์สร้างไอคอน แล้ว<strong>กดเปิดไฟล์ที่ดาวน์โหลดมา 1 ครั้ง</strong> ระบบจะสร้างไอคอน <strong>CSHOS StaffInfo</strong> ไว้บนหน้าจอ Desktop ให้อัตโนมัติทันที
                     </p>
                     <button type="button" class="btn-download-shortcut" onclick="downloadShortcutInstaller()">
                         <span class="material-symbols-outlined" style="font-size: 22px;">download</span>
@@ -1068,7 +1156,7 @@
                     <ul class="install-guide-steps">
                         <li>
                             <span class="step-num">1</span>
-                            <div>มองที่ <strong>แถบที่อยู่เว็บ (Address Bar ด้านบนขวา)</strong> จะมีไอคอน <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; color: #2563eb;">install_desktop</span> <strong>"ติดตั้ง CSHOS DATACENTER"</strong> &rarr; คลิกแล้วกดปุ่ม <strong>"ติดตั้ง" (Install)</strong></div>
+                            <div>มองที่ <strong>แถบที่อยู่เว็บ (Address Bar ด้านบนขวา)</strong> จะมีไอคอน <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; color: #2563eb;">install_desktop</span> <strong>"ติดตั้ง CSHOS StaffInfo"</strong> &rarr; คลิกแล้วกดปุ่ม <strong>"ติดตั้ง" (Install)</strong></div>
                         </li>
                         <li>
                             <span class="step-num">2</span>
@@ -1163,20 +1251,25 @@
 
             const url = '{{ route("track.install") }}';
             try {
-                if (navigator.sendBeacon) {
-                    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
-                    navigator.sendBeacon(url, blob);
-                } else {
-                    fetch(url, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                        },
-                        body: JSON.stringify(payload),
-                        keepalive: true
-                    }).catch(() => {});
-                }
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify(payload),
+                    keepalive: true
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data && data.ip) {
+                        const el = document.getElementById('clientIpDisplay');
+                        if (el && (!el.textContent || el.textContent.includes('127.0.0.1') || el.textContent === 'กำลังตรวจสอบ...')) {
+                            el.textContent = data.ip;
+                        }
+                    }
+                })
+                .catch(() => {});
             } catch (e) {
                 console.warn('Tracking notice:', e);
             }
@@ -1213,7 +1306,7 @@
         }
 
         window.addEventListener('appinstalled', () => {
-            console.log('CSHOS DATACENTER app was installed');
+            console.log('CSHOS StaffInfo app was installed');
             window.deferredPrompt = null;
             markAppInstalled();
             sendInstallTracking('installed');
@@ -1247,7 +1340,7 @@
 
                 if (result.shortcut_created) {
                     markAppInstalled();
-                    showInstallToast('🎉 ติดตั้งไอคอน CSHOS DATACENTER บนหน้าจอ Desktop เรียบร้อยแล้ว!');
+                    showInstallToast('🎉 ติดตั้งไอคอน CSHOS StaffInfo บนหน้าจอ Desktop เรียบร้อยแล้ว!');
                     if (btn) btn.style.pointerEvents = 'auto';
                     return;
                 }
@@ -1270,7 +1363,7 @@
                     if (choiceResult.outcome === 'accepted') {
                         markAppInstalled();
                         sendInstallTracking('installed');
-                        showInstallToast('🎉 ติดตั้ง CSHOS DATACENTER ลงบนคอมพิวเตอร์เรียบร้อยแล้ว!');
+                        showInstallToast('🎉 ติดตั้ง CSHOS StaffInfo ลงบนคอมพิวเตอร์เรียบร้อยแล้ว!');
                     }
                     window.deferredPrompt = null;
                     return;
@@ -1337,14 +1430,45 @@
             const downloadUrl = `{{ route('download.url.shortcut') }}`;
             const link = document.createElement('a');
             link.href = downloadUrl;
-            link.setAttribute('download', 'CSHOS DATACENTER.url');
+            link.setAttribute('download', 'CSHOS StaffInfo.url');
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
 
             markAppInstalled();
             sendInstallTracking('installed');
-            showInstallToast('📥 ดาวน์โหลดไฟล์ทางลัดเว็บ CSHOS DATACENTER.url เรียบร้อยแล้ว (สามารถลากไปวางไว้บนหน้าจอ Desktop ได้ทันที)');
+            showInstallToast('📥 ดาวน์โหลดไฟล์ทางลัดเว็บ CSHOS StaffInfo.url เรียบร้อยแล้ว (สามารถลากไปวางไว้บนหน้าจอ Desktop ได้ทันที)');
+        }
+
+        function copyClientIp() {
+            const ipEl = document.getElementById('clientIpDisplay');
+            if (!ipEl) return;
+            const ip = ipEl.textContent.trim();
+            if (!ip || ip === 'กำลังตรวจสอบ...') return;
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(ip).then(() => {
+                    showInstallToast('คัดลอก IP: ' + ip + ' สำเร็จ!');
+                }).catch(() => {
+                    fallbackCopyText(ip);
+                });
+            } else {
+                fallbackCopyText(ip);
+            }
+        }
+
+        function fallbackCopyText(text) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.opacity = '0';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                showInstallToast('คัดลอก IP: ' + text + ' สำเร็จ!');
+            } catch (err) {}
+            document.body.removeChild(textarea);
         }
     </script>
 

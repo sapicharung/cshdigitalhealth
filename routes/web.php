@@ -40,6 +40,8 @@ Route::prefix('knowledge')->group(function () {
 Route::post('/track-install', [AppInstallationController::class, 'track'])->name('track.install');
 Route::post('/api/track-install', [AppInstallationController::class, 'track'])->name('api.track.install');
 Route::post('/api/install-desktop-shortcut', [AppInstallationController::class, 'installDesktopShortcut'])->name('api.install.desktop');
+Route::get('/api/client/version', [AppInstallationController::class, 'clientVersion'])->name('api.client.version');
+Route::get('/api/client/update-script', [AppInstallationController::class, 'clientUpdateScript'])->name('api.client.update-script');
 Route::get('/download-shortcut-installer', [AppInstallationController::class, 'downloadShortcutInstaller'])->name('download.shortcut.installer');
 Route::get('/download-autosync-installer', [AppInstallationController::class, 'downloadAutoSyncInstaller'])->name('download.autosync.installer');
 Route::get('/download-uninstaller', [AppInstallationController::class, 'downloadUninstaller'])->name('download.uninstaller');
@@ -55,6 +57,7 @@ Route::middleware('auth')->prefix('admin')->group(function () {
     Route::put('/installations/{id}', [AppInstallationController::class, 'update'])->name('admin.installations.update');
     Route::post('/installations/{id}/reset', [AppInstallationController::class, 'reset'])->name('admin.installations.reset');
     Route::post('/installations/reset-all', [AppInstallationController::class, 'resetAll'])->name('admin.installations.reset-all');
+    Route::post('/installations/clear-offline', [AppInstallationController::class, 'clearOffline'])->name('admin.installations.clear-offline');
     Route::delete('/installations/{id}', [AppInstallationController::class, 'destroy'])->name('admin.installations.destroy');
     Route::get('/installations/export', [AppInstallationController::class, 'exportCsv'])->name('admin.installations.export');
     Route::get('/installations/{id}/vnc', [AppInstallationController::class, 'downloadVnc'])->name('admin.installations.vnc');

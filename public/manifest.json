@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "CSHOS DATACENTER",
-  "short_name": "CSHOS DATACENTER",
+  "name": "CSHOS StaffInfo",
+  "short_name": "CSHOS StaffInfo",
   "description": "ระบบบริการสารสนเทศดิจิทัลสำหรับเจ้าหน้าที่ โรงพยาบาลเชียงแสน",
   "start_url": "/",
   "scope": "/",

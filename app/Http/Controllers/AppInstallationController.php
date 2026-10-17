@@ -8,6 +8,16 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AppInstallationController extends Controller
 {
+    public const CLIENT_APP_VERSION = '2.5.0';
+
+    /**
+     * Get the latest client application version.
+     */
+    public function getClientAppVersion(): string
+    {
+        return env('CLIENT_APP_VERSION', self::CLIENT_APP_VERSION);
+    }
+
     /**
      * Track client app installation or launch beacon (Public/API endpoint).
      */
@@ -58,20 +68,26 @@ class AppInstallationController extends Controller
             }
         }
 
+        $incomingHost = !empty($data['hostname']) ? $data['hostname'] : $hostname;
+        $cleanIncomingHost = $incomingHost ? strtolower(trim(explode('.', $incomingHost)[0])) : null;
+        $isLanIp = $ip && !in_array($ip, ['127.0.0.1', '::1']);
+
+        // 1. First try matching by exact device_id
         $installation = AppInstallation::where('device_id', $deviceId)->first();
 
-        // If not found by device_id, match by hostname to update existing computer record
-        if (!$installation && !empty($data['hostname'])) {
-            $installation = AppInstallation::where('hostname', $data['hostname'])->first();
-            if ($installation) {
-                $installation->device_id = $deviceId;
-            }
+        // 2. If not found by device_id, match by normalized computer hostname
+        if (!$installation && $cleanIncomingHost) {
+            $installation = AppInstallation::whereRaw("LOWER(TRIM(SUBSTRING_INDEX(hostname, '.', 1))) = ?", [$cleanIncomingHost])->first();
         }
 
-        // If still not found, match by IP address (if not localhost)
-        if (!$installation && $ip && !in_array($ip, ['127.0.0.1', '::1'])) {
+        // 3. If still not found, match by LAN IP address
+        if (!$installation && $isLanIp) {
             $installation = AppInstallation::where('ip_address', $ip)->first();
-            if ($installation) {
+        }
+
+        // 4. Preserve permanent GUID device_id if existing record has one and incoming is browser csh-...
+        if ($installation) {
+            if (str_starts_with($installation->device_id, 'csh-') && !str_starts_with($deviceId, 'csh-')) {
                 $installation->device_id = $deviceId;
             }
         }
@@ -133,9 +149,19 @@ class AppInstallationController extends Controller
             $installation->remote_ready = (bool) $data['remote_ready'];
         }
 
+        if (!empty($data['client_version'])) {
+            $installation->client_version = mb_substr($data['client_version'], 0, 50);
+        }
+
         $installation->user_agent = $request->userAgent();
         $installation->last_active_at = now();
         $installation->save();
+
+        $this->deduplicateSingleRecord($installation);
+
+        $serverVersion = $this->getClientAppVersion();
+        $clientVer = $installation->client_version ?: ($data['client_version'] ?? '1.0.0');
+        $updateAvailable = version_compare($clientVer, $serverVersion, '<');
 
         return response()->json([
             'status' => 'success',
@@ -151,6 +177,13 @@ class AppInstallationController extends Controller
             'os_version' => $installation->os_version,
             'office_version' => $installation->office_version,
             'remote_ready' => $installation->remote_ready,
+            'client_version' => $installation->client_version,
+            'server_version' => $serverVersion,
+            'update_available' => $updateAvailable,
+            'update_script_url' => url('/api/client/update-script'),
+            'app_url' => url('/'),
+            'app_name' => "CSHOS StaffInfo",
+            'icon_url' => asset('app-icon.ico'),
             'last_active' => $installation->last_active_at->toDateTimeString(),
         ]);
     }
@@ -160,6 +193,9 @@ class AppInstallationController extends Controller
      */
     public function index(Request $request)
     {
+        // Auto-deduplicate any potential duplicate records before querying
+        $this->deduplicateRecords();
+
         $query = AppInstallation::query();
 
         // Search query
@@ -277,6 +313,20 @@ class AppInstallationController extends Controller
         ]);
 
         return back()->with('success', "รีเซ็ตสถานะการติดตั้งของทั้งหมด {$count} เครื่องในระบบเรียบร้อยแล้ว");
+    }
+
+    /**
+     * Clear/delete all offline devices (keep only devices active today).
+     */
+    public function clearOffline(Request $request)
+    {
+        $today = \Carbon\Carbon::today();
+        $count = AppInstallation::where(function ($query) use ($today) {
+            $query->whereNull('last_active_at')
+                  ->orWhereDate('last_active_at', '<', $today);
+        })->delete();
+
+        return back()->with('success', "ลบเครื่องที่ออฟไลน์ออกจากระบบเรียบร้อยแล้วทั้งหมด {$count} รายการ (คงเหลือเฉพาะเครื่องที่ออนไลน์วันนี้)");
     }
 
     /**
@@ -401,7 +451,15 @@ class AppInstallationController extends Controller
         // Track in database
         $deviceId = $request->input('device_id');
         if ($deviceId) {
+            $isLanIp = $clientIp && !in_array($clientIp, ['127.0.0.1', '::1']);
             $record = AppInstallation::where('device_id', $deviceId)->first();
+            if (!$record && $isLanIp) {
+                $record = AppInstallation::where('ip_address', $clientIp)->first();
+            }
+            if (!$record && $request->filled('hostname')) {
+                $cleanHost = strtolower(trim(explode('.', $request->input('hostname'))[0]));
+                $record = AppInstallation::whereRaw("LOWER(TRIM(SUBSTRING_INDEX(hostname, '.', 1))) = ?", [$cleanHost])->first();
+            }
             if (!$record) {
                 $record = new AppInstallation();
                 $record->device_id = $deviceId;
@@ -435,6 +493,7 @@ class AppInstallationController extends Controller
             }
             $record->remote_ready = true;
             $record->save();
+            $this->deduplicateSingleRecord($record);
         }
 
         return response()->json([
@@ -442,10 +501,596 @@ class AppInstallationController extends Controller
             'is_local'         => $isLocal,
             'shortcut_created' => $shortcutCreated,
             'message'          => $shortcutCreated 
-                ? 'ติดตั้งไอคอน CSHOS DATACENTER บนหน้าจอ Desktop เรียบร้อยแล้ว!' 
+                ? 'ติดตั้งไอคอน CSHOS StaffInfo บนหน้าจอ Desktop เรียบร้อยแล้ว!' 
                 : 'บันทึกสถานะเรียบร้อยแล้ว',
             'output'           => $output
         ]);
+    }
+
+    /**
+     * Return current client app version and update metadata for auto-updater.
+     */
+    public function clientVersion(Request $request)
+    {
+        return response()->json([
+            'status'            => 'success',
+            'server_version'    => $this->getClientAppVersion(),
+            'app_name'          => "CSHOS StaffInfo",
+            'app_url'           => url('/'),
+            'icon_url'          => asset('app-icon.ico'),
+            'update_script_url' => url('/api/client/update-script'),
+            'installer_url'     => url('/download-shortcut-installer'),
+            'vnc_password'      => $this->getVncPassword(),
+        ]);
+    }
+
+    /**
+     * Return automated PowerShell update script to upgrade client machines to latest version.
+     */
+    public function clientUpdateScript(Request $request)
+    {
+        $appUrl = url('/');
+        $appName = "CSHOS StaffInfo";
+        $iconUrl = asset('app-icon.ico');
+        $serverVersion = $this->getClientAppVersion();
+        $vncPassword = $this->getVncPassword();
+        $vncHash = $this->getVncPasswordHash();
+        $syncCode = $this->getClientSyncScriptTemplate();
+
+        $updateTemplate = <<<'POWERSHELL'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
+# Enable TLS 1.2/1.1
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
+} catch {}
+
+$sysDir = "$env:ProgramData\CSHOS"
+if (-not (Test-Path $sysDir)) { $sysDir = "$env:LOCALAPPDATA\CSHOS" }
+if (-not (Test-Path $sysDir)) {
+    try { New-Item -ItemType Directory -Path $sysDir -Force | Out-Null } catch {}
+}
+
+$appUrl = '{{APP_URL}}'
+$appName = "{{APP_NAME}}"
+$iconUrl = '{{ICON_URL}}'
+$serverVer = '{{SERVER_VERSION}}'
+$vncPass = '{{VNC_PASSWORD}}'
+$vncHash = '{{VNC_HASH}}'
+
+# 1. Update Application Icon
+$icoPath = Join-Path $sysDir "app-icon.ico"
+try {
+    Invoke-WebRequest -Uri $iconUrl -OutFile $icoPath -UseBasicParsing -TimeoutSec 10 -ErrorAction SilentlyContinue
+} catch {}
+
+# Locate Chrome or Edge
+$browserExe = ""
+$browserCandidates = @(
+    'C:\Program Files\Google\Chrome\Application\chrome.exe',
+    'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',
+    "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe",
+    'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe',
+    'C:\Program Files\Microsoft\Edge\Application\msedge.exe'
+)
+foreach ($cand in $browserCandidates) {
+    if (Test-Path $cand) { $browserExe = $cand; break }
+}
+
+$ws = New-Object -ComObject WScript.Shell
+
+# 2. Update Desktop Shortcut on Public Desktop
+$commonDesktop = [Environment]::GetFolderPath('CommonDesktopDirectory')
+if (-not $commonDesktop -or -not (Test-Path $commonDesktop)) { $commonDesktop = "C:\Users\Public\Desktop" }
+if (Test-Path $commonDesktop) {
+    try {
+        $scDesk = $ws.CreateShortcut((Join-Path $commonDesktop "$appName.lnk"))
+        if ($browserExe) {
+            $scDesk.TargetPath = $browserExe
+            $scDesk.Arguments = "--app=`"$appUrl`""
+        } else {
+            $scDesk.TargetPath = $appUrl
+        }
+        $scDesk.WorkingDirectory = $sysDir
+        $scDesk.Description = "$appName - โรงพยาบาลเชียงแสน (v$serverVer)"
+        if (Test-Path $icoPath) { $scDesk.IconLocation = "$icoPath,0" }
+        $scDesk.Save()
+    } catch {}
+}
+
+# 3. Update / Ensure Auto-Start Shortcut in Windows Startup
+$commonStartup = [Environment]::GetFolderPath('CommonStartup')
+if (-not $commonStartup -or -not (Test-Path $commonStartup)) { $commonStartup = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup" }
+if (Test-Path $commonStartup) {
+    try {
+        $scStart = $ws.CreateShortcut((Join-Path $commonStartup "$appName.lnk"))
+        if ($browserExe) {
+            $scStart.TargetPath = $browserExe
+            $scStart.Arguments = "--app=`"$appUrl`""
+        } else {
+            $scStart.TargetPath = $appUrl
+        }
+        $scStart.WorkingDirectory = $sysDir
+        $scStart.Description = "$appName - เปิดโปรแกรมอัตโนมัติเมื่อเปิดเครื่อง (Auto-Start on Boot)"
+        if (Test-Path $icoPath) { $scStart.IconLocation = "$icoPath,0" }
+        $scStart.Save()
+    } catch {}
+}
+
+# 4. Refresh TightVNC Configuration & Registry Password
+try {
+    reg add "HKLM\SOFTWARE\TightVNC\Server" /v Password /t REG_BINARY /d $vncHash /f | Out-Null
+    reg add "HKLM\SOFTWARE\TightVNC\Server" /v UseVncAuthentication /t REG_DWORD /d 1 /f | Out-Null
+    reg add "HKLM\SOFTWARE\TightVNC\Server" /v AcceptRfbConnections /t REG_DWORD /d 1 /f | Out-Null
+    reg add "HKLM\SOFTWARE\TightVNC\Server" /v AllowLoopback /t REG_DWORD /d 1 /f | Out-Null
+    reg add "HKLM\SOFTWARE\TightVNC\Server" /v RfbPort /t REG_DWORD /d 5900 /f | Out-Null
+    reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v Password /t REG_BINARY /d $vncHash /f | Out-Null
+    reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v UseVncAuthentication /t REG_DWORD /d 1 /f | Out-Null
+    reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v AcceptRfbConnections /t REG_DWORD /d 1 /f | Out-Null
+    Set-Content -Path (Join-Path $sysDir "vnc_password.txt") -Value $vncPass -Encoding ASCII -Force
+} catch {}
+
+# 5. Update cshos_sync.ps1 to latest sync code
+$syncScriptPath = Join-Path $sysDir "cshos_sync.ps1"
+try {
+    $syncCode = @'
+{{SYNC_CODE}}
+'@
+    Set-Content -Path $syncScriptPath -Value $syncCode -Encoding UTF8 -Force
+} catch {}
+
+# 6. Ensure Windows Scheduled Tasks (Startup, Logon, Daily)
+try {
+    $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:30 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 09:00 /ru "SYSTEM" /f 2>&1 | Out-Null
+} catch {}
+
+# 7. Update version.txt to the new version
+try {
+    Set-Content -Path (Join-Path $sysDir "version.txt") -Value $serverVer -Force
+} catch {}
+
+# Refresh Desktop Icons
+try { & ie4uinit.exe -show | Out-Null } catch {}
+
+Write-Output "SUCCESS: Auto-update applied version $serverVer"
+POWERSHELL;
+
+        $script = str_replace(
+            ['{{APP_NAME}}', '{{APP_URL}}', '{{ICON_URL}}', '{{VNC_PASSWORD}}', '{{VNC_HASH}}', '{{SERVER_VERSION}}', '{{SYNC_CODE}}'],
+            [$appName, $appUrl, $iconUrl, $vncPassword, $vncHash, $serverVersion, $syncCode],
+            $updateTemplate
+        );
+
+        return response($script, 200, [
+            'Content-Type'  => 'text/plain; charset=utf-8',
+            'Cache-Control' => 'no-cache, no-store, must-revalidate',
+        ]);
+    }
+
+    /**
+     * Get PowerShell code template for cshos_sync.ps1 (used in installer and auto-update).
+     */
+    public function getClientSyncScriptTemplate(): string
+    {
+        return <<<'SYNC_SCRIPT'
+[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$OutputEncoding = [System.Text.Encoding]::UTF8
+
+$maxWait = 30
+$waited = 0
+$detectedIps = @()
+
+while ($waited -lt $maxWait) {
+    # 1. Prefer active physical interface with Default Gateway route (0.0.0.0/0)
+    try {
+        $gwRoutes = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -AddressFamily IPv4 -ErrorAction SilentlyContinue | Sort-Object RouteMetric)
+        foreach ($route in $gwRoutes) {
+            $adapter = Get-NetAdapter -InterfaceIndex $route.InterfaceIndex -ErrorAction SilentlyContinue
+            if ($adapter) {
+                $desc = "$($adapter.InterfaceDescription) $($adapter.Name)"
+                if ($desc -match 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN|WireGuard|Tailscale|ZeroTier') {
+                    continue
+                }
+                $ipObj = Get-NetIPAddress -InterfaceIndex $route.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
+                         Where-Object { $_.IPAddress -notmatch '^(169\.254\.|127\.)' } | Select-Object -First 1
+                if ($ipObj -and $ipObj.IPAddress) {
+                    $detectedIps += $ipObj.IPAddress
+                }
+            }
+        }
+    } catch {}
+
+    # 2. Physical adapters that are 'Up' without gateway filter
+    if (-not $detectedIps -or $detectedIps.Count -eq 0) {
+        try {
+            $upAdapters = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { 
+                $_.Status -eq 'Up' -and 
+                $_.InterfaceDescription -notmatch 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN|WireGuard|Tailscale|ZeroTier' -and
+                $_.Name -notmatch 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth'
+            }
+            foreach ($ad in $upAdapters) {
+                $ips = @(Get-NetIPAddress -InterfaceIndex $ad.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
+                         Where-Object { $_.IPAddress -notmatch '^(169\.254\.|127\.)' } | Select-Object -ExpandProperty IPAddress)
+                $detectedIps += $ips
+            }
+        } catch {}
+    }
+
+    # 3. Fallback via Win32_NetworkAdapterConfiguration (excluding virtual)
+    if (-not $detectedIps -or $detectedIps.Count -eq 0) {
+        try {
+            $netConfigs = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
+            foreach ($nc in $netConfigs) {
+                $desc = "$($nc.Description)"
+                if ($desc -match 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN') {
+                    continue
+                }
+                foreach ($ip in $nc.IPAddress) {
+                    if ($ip -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$' -and $ip -ne '127.0.0.1' -and $ip -notmatch '^169\.254\.') {
+                        $detectedIps += $ip
+                    }
+                }
+            }
+        } catch {}
+    }
+
+    if ($detectedIps -and $detectedIps.Count -gt 0) {
+        break
+    }
+
+    Start-Sleep -Seconds 3
+    $waited += 3
+}
+
+$clientIp = if ($detectedIps -and $detectedIps.Count -gt 0) { $detectedIps[0] } else { "" }
+
+$sysDir = "$env:ProgramData\CSHOS"
+if (-not (Test-Path $sysDir)) { $sysDir = "$env:LOCALAPPDATA\CSHOS" }
+
+$devIdFile = Join-Path $sysDir "device_id.txt"
+$devId = ""
+if (Test-Path $devIdFile) {
+    try { $devId = (Get-Content $devIdFile -Raw).Trim() } catch {}
+}
+if (-not $devId) {
+    $devId = [guid]::NewGuid().ToString()
+    try { Set-Content -Path $devIdFile -Value $devId -Force } catch {}
+}
+
+$versionFile = Join-Path $sysDir "version.txt"
+$localVersion = "1.0.0"
+if (Test-Path $versionFile) {
+    try { $localVersion = (Get-Content $versionFile -Raw).Trim() } catch {}
+}
+
+$compName = $env:COMPUTERNAME
+$userName = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
+if (-not $userName) { $userName = $env:USERNAME }
+if (-not $userName) { $userName = "System" }
+
+$osInfo = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
+if (-not $osInfo) { $osInfo = [System.Environment]::OSVersion.VersionString }
+
+$cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
+if (-not $cpuObj) {
+    $cpuObj = Get-WmiObject Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
+}
+if ($cpuObj -and $cpuObj.Name) {
+    $rawName = ($cpuObj.Name -replace '\s+', ' ').Trim()
+    $clock = 0
+    if ($cpuObj.MaxClockSpeed) { $clock = [int]$cpuObj.MaxClockSpeed }
+    elseif ($cpuObj.CurrentClockSpeed) { $clock = [int]$cpuObj.CurrentClockSpeed }
+    
+    $cores = if ($cpuObj.NumberOfCores) { [int]$cpuObj.NumberOfCores } else { 0 }
+    $threads = if ($cpuObj.NumberOfLogicalProcessors) { [int]$cpuObj.NumberOfLogicalProcessors } else { 0 }
+
+    $speedStr = ""
+    if ($clock -gt 0 -and $rawName -notmatch '@\s*[0-9\.]+\s*GHz') {
+        $ghz = [math]::Round(($clock / 1000), 2)
+        $speedStr = "@ $ghz GHz"
+    }
+
+    $coreStr = ""
+    if ($cores -gt 0 -and $threads -gt 0) {
+        $coreStr = "($cores Cores, $threads Threads)"
+    } elseif ($cores -gt 0) {
+        $coreStr = "($cores Cores)"
+    }
+
+    $cpuParts = @($rawName)
+    if ($speedStr) { $cpuParts += $speedStr }
+    if ($coreStr) { $cpuParts += $coreStr }
+    $cpuInfo = $cpuParts -join " "
+} else {
+    $cpuInfo = "ไม่สามารถระบุ CPU"
+}
+
+# RAM Specs & Bus Speed
+try {
+    $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+    if (-not $memSticks -or $memSticks.Count -eq 0) {
+        $memSticks = @(Get-WmiObject Win32_PhysicalMemory -ErrorAction SilentlyContinue)
+    }
+
+    $totalRamBytes = 0
+    if ($memSticks -and $memSticks.Count -gt 0) {
+        try {
+            $sumVal = ($memSticks | Measure-Object -Property Capacity -Sum).Sum
+            if ($sumVal -and $sumVal -gt 0) { $totalRamBytes = [double]$sumVal }
+        } catch {}
+    }
+
+    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
+        try {
+            $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+            if (-not $cs) { $cs = Get-WmiObject Win32_ComputerSystem -ErrorAction SilentlyContinue }
+            if ($cs -and $cs.TotalPhysicalMemory) { $totalRamBytes = [double]$cs.TotalPhysicalMemory }
+        } catch {}
+    }
+
+    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
+        try {
+            Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
+            $ci = New-Object Microsoft.VisualBasic.Devices.ComputerInfo -ErrorAction SilentlyContinue
+            if ($ci -and $ci.TotalPhysicalMemory) { $totalRamBytes = [double]$ci.TotalPhysicalMemory }
+        } catch {}
+    }
+
+    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
+        try {
+            $os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+            if (-not $os) { $os = Get-WmiObject Win32_OperatingSystem -ErrorAction SilentlyContinue }
+            if ($os -and $os.TotalVisibleMemorySize) { $totalRamBytes = [double]$os.TotalVisibleMemorySize * 1KB }
+        } catch {}
+    }
+
+    $ramGB = if ($totalRamBytes -gt 0) { [math]::Round(($totalRamBytes / 1GB), 1) } else { 0 }
+    $ramInfo = if ($ramGB -gt 0) { "$ramGB GB" } else { "ไม่สามารถระบุ RAM" }
+
+    if ($memSticks -and $memSticks.Count -gt 0) {
+        $first = $memSticks[0]
+        $clock = 0
+        if ($first.ConfiguredClockSpeed) { $clock = [int]$first.ConfiguredClockSpeed }
+        elseif ($first.Speed) { $clock = [int]$first.Speed }
+
+        $smb = if ($first.SMBIOSMemoryType) { [int]$first.SMBIOSMemoryType } else { 0 }
+        $memType = switch ($smb) {
+            20 { "DDR" }
+            21 { "DDR2" }
+            24 { "DDR3" }
+            26 { "DDR4" }
+            34 { "DDR5" }
+            default {
+                if ($clock -ge 4800) { "DDR5" }
+                elseif ($clock -ge 2133) { "DDR4" }
+                elseif ($clock -ge 800) { "DDR3" }
+                else { "" }
+            }
+        }
+        $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
+        $part = if ($first.PartNumber) { ($first.PartNumber -as [string]).Trim() } else { "" }
+        $brand = if ($first.Manufacturer) { ($first.Manufacturer -as [string]).Trim() } else { "" }
+        if ($brand -match '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $brand = "" }
+        
+        $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
+        $stickCount = $memSticks.Count
+        $descList = New-Object System.Collections.Generic.List[string]
+        if ($memType) { $descList.Add($memType) }
+        if ($busStr) { $descList.Add($busStr) }
+        if ($stickCount -gt 1) {
+            $detailStr = if ($modelInfo) { " - $modelInfo" } else { "" }
+            $descList.Add("($stickCount ช่อง$detailStr)")
+        } elseif ($modelInfo) {
+            $descList.Add("($modelInfo)")
+        }
+        $details = $descList -join " "
+        if ($ramGB -gt 0) {
+            if ($details) { $ramInfo = "$ramGB GB $details" } else { $ramInfo = "$ramGB GB" }
+        } elseif ($details) {
+            $ramInfo = $details
+        }
+    }
+} catch {
+    $ramInfo = "ไม่สามารถระบุ RAM"
+}
+
+# Harddisk Type (SSD, NVMe M.2, SATA, HDD) & Capacity
+try {
+    $physDict = @{}
+    try {
+        Get-PhysicalDisk -ErrorAction SilentlyContinue | ForEach-Object {
+            $key = $_.FriendlyName
+            $mt = if ($_.MediaType) { $_.MediaType } else { "" }
+            $bt = if ($_.BusType) { $_.BusType } else { "" }
+            $physDict[$key] = @{ Media = $mt; Bus = $bt }
+        }
+    } catch {}
+
+    $diskMap = @{}
+    try {
+        Get-Disk -ErrorAction SilentlyContinue | ForEach-Object {
+            $d = $_
+            $bt = if ($d.BusType) { $d.BusType } else { "" }
+            $mt = if ($physDict.ContainsKey($d.FriendlyName)) { $physDict[$d.FriendlyName].Media } else { "" }
+            if (-not $bt -and $physDict.ContainsKey($d.FriendlyName)) { $bt = $physDict[$d.FriendlyName].Bus }
+            
+            $typeLabel = if ($bt -match 'NVMe') { "SSD NVMe M.2" }
+                         elseif ($mt -eq "SSD" -and $bt) { "SSD $bt" }
+                         elseif ($mt -eq "SSD") { "SSD" }
+                         elseif ($mt -eq "HDD" -and $bt) { "HDD $bt" }
+                         elseif ($mt -eq "HDD") { "HDD" }
+                         elseif ($bt) { "$bt" }
+                         else { "" }
+                         
+            Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue | Where-Object { $_.DriveLetter } | ForEach-Object {
+                $ltr = "$($_.DriveLetter):"
+                $diskMap[$ltr] = $typeLabel
+            }
+        }
+    } catch {}
+
+    $diskItems = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | ForEach-Object {
+        $dId = $_.DeviceID
+        $free = [math]::Round($_.FreeSpace / 1GB, 1)
+        $total = [math]::Round($_.Size / 1GB, 1)
+        $type = if ($diskMap.ContainsKey($dId) -and $diskMap[$dId]) { " (" + $diskMap[$dId] + ")" } else { "" }
+        "$dId$type ว่าง $free/$total GB"
+    }
+    $diskInfo = if ($diskItems) { $diskItems -join ", " } else { "N/A" }
+} catch {
+    $diskInfo = "N/A"
+}
+
+# Remote VNC Status
+$remoteReady = $false
+try {
+    $tvn = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+    if ($tvn -and $tvn.Status -eq 'Running') {
+        $remoteReady = $true
+    }
+} catch {}
+
+# Detect OS Version
+$osCaption = ($osInfo -replace 'Microsoft\s*', '').Trim()
+$osVerStr = $osCaption
+try {
+    $regNT = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -ErrorAction SilentlyContinue
+    $dispVer = if ($regNT.DisplayVersion) { $regNT.DisplayVersion } elseif ($regNT.ReleaseId) { $regNT.ReleaseId } else { "" }
+    $build = $regNT.CurrentBuild
+    $arch = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture
+    if ($dispVer) { $osVerStr += " $dispVer" }
+    if ($arch -or $build) {
+        $p = @()
+        if ($arch) { $p += $arch }
+        if ($build) { $p += "Build $build" }
+        $osVerStr += " (" + ($p -join ", ") + ")"
+    }
+} catch {}
+
+# Detect Microsoft Office Version
+$officeFinal = "Not Installed"
+try {
+    $c2r = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" -ErrorAction SilentlyContinue
+    if ($c2r -and $c2r.ProductReleaseIds) {
+        $idStr = "$($c2r.ProductReleaseIds)"
+        $verReport = $c2r.VersionToReport
+        $platform = $c2r.Platform
+        $friendly = if ($idStr -match '2024') { "Microsoft Office 2024" }
+                    elseif ($idStr -match '2021') { "Microsoft Office 2021" }
+                    elseif ($idStr -match '2019') { "Microsoft Office 2019" }
+                    elseif ($idStr -match 'O365|M365|365') { "Microsoft 365 Apps" }
+                    elseif ($idStr -match '2016') { "Microsoft Office 2016" }
+                    elseif ($idStr -match '2013') { "Microsoft Office 2013" }
+                    elseif ($idStr -match '2010') { "Microsoft Office 2010" }
+                    else { "Microsoft Office" }
+        $edition = if ($idStr -match 'ProPlus') { " Professional Plus" }
+                   elseif ($idStr -match 'Standard') { " Standard" }
+                   elseif ($idStr -match 'HomeBusiness') { " Home & Business" }
+                   elseif ($idStr -match 'HomeStudent') { " Home & Student" }
+                   else { "" }
+        $officeFinal = "$friendly$edition"
+        if ($verReport) { $officeFinal += " ($verReport" + (if ($platform) { " $platform" } else { "" }) + ")" }
+    }
+    if ($officeFinal -eq "Not Installed") {
+        $keys = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
+        $installed = Get-ItemProperty $keys -ErrorAction SilentlyContinue | Where-Object { 
+            $_.DisplayName -match '^Microsoft Office (Professional|Standard|Home|Personal|365|Enterprise)' -or
+            $_.DisplayName -match '^Microsoft 365'
+        } | Select-Object -First 1
+        if ($installed) {
+            $officeFinal = $installed.DisplayName + (if ($installed.DisplayVersion) { " ($($installed.DisplayVersion))" } else { "" })
+        }
+    }
+    if ($officeFinal -eq "Not Installed") {
+        $appPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\excel.exe" -ErrorAction SilentlyContinue).'(Default)'
+        if (-not $appPath) { $appPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\winword.exe" -ErrorAction SilentlyContinue).'(Default)' }
+        if ($appPath -and (Test-Path $appPath)) {
+            $vi = (Get-Item $appPath -ErrorAction SilentlyContinue).VersionInfo
+            $m = $vi.ProductMajorPart
+            $known = switch ($m) { 16 { "Microsoft Office 2016/2019/365" } 15 { "Microsoft Office 2013" } 14 { "Microsoft Office 2010" } 12 { "Microsoft Office 2007" } default { "Microsoft Office" } }
+            $officeFinal = "$known" + (if ($vi.ProductVersion) { " ($($vi.ProductVersion))" } else { "" })
+        }
+    }
+} catch {}
+
+$reportObj = @{
+    device_id      = $devId
+    hostname       = $compName
+    device_name    = $userName
+    ip_address     = $clientIp
+    os             = $osInfo
+    os_version     = $osVerStr
+    office_version = $officeFinal
+    cpu            = $cpuInfo
+    ram            = $ramInfo
+    disk           = $diskInfo
+    remote_ready   = $remoteReady
+    install_type   = 'installed'
+    browser        = 'AutoSync Service'
+    client_version = $localVersion
+}
+$jsonPayload = $reportObj | ConvertTo-Json
+
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
+    $res = Invoke-RestMethod -Uri "{{APP_URL}}/api/track-install" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 -ErrorAction Stop
+    $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - OK: Host=$compName, IP=$clientIp, RAM=$ramInfo, DISK=$diskInfo, Ver=$localVersion"
+    Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
+
+    # Auto-Update: Check if server has released a newer version
+    $serverVer = if ($res -and $res.server_version) { "$($res.server_version)".Trim() } else { "" }
+    if ($serverVer -and ($serverVer -ne $localVersion)) {
+        $logUpd = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Server update available: $serverVer (Current: $localVersion). Starting auto-update..."
+        Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logUpd -ErrorAction SilentlyContinue
+        try {
+            $updUrl = if ($res.update_script_url) { $res.update_script_url } else { "{{APP_URL}}/api/client/update-script" }
+            $updCode = (Invoke-RestMethod -Uri $updUrl -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop)
+            if ($updCode -and $updCode.Length -gt 50) {
+                $tmpUpd = Join-Path $env:TEMP "cshos_upd_$([guid]::NewGuid().ToString('N')).ps1"
+                Set-Content -Path $tmpUpd -Value $updCode -Encoding UTF8 -Force
+                & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $tmpUpd
+                Remove-Item -Path $tmpUpd -Force -ErrorAction SilentlyContinue
+                Set-Content -Path $versionFile -Value $serverVer -Force
+                Add-Content -Path (Join-Path $sysDir "sync.log") -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Auto-Update completed successfully to version $serverVer." -ErrorAction SilentlyContinue
+            }
+        } catch {
+            Add-Content -Path (Join-Path $sysDir "sync.log") -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Auto-Update failed: $($_.Exception.Message)" -ErrorAction SilentlyContinue
+        }
+    }
+
+    # Ensure Auto-Start shortcut in Startup folder is intact
+    $commonStartup = [Environment]::GetFolderPath('CommonStartup')
+    if (-not $commonStartup -or -not (Test-Path $commonStartup)) { $commonStartup = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup" }
+    $startSc = Join-Path $commonStartup "{{APP_NAME}}.lnk"
+    if (-not (Test-Path $startSc)) {
+        try {
+            $ws = New-Object -ComObject WScript.Shell
+            $scStart = $ws.CreateShortcut($startSc)
+            $browserCandidates = @('C:\Program Files\Google\Chrome\Application\chrome.exe','C:\Program Files (x86)\Google\Chrome\Application\chrome.exe',"$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe",'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe','C:\Program Files\Microsoft\Edge\Application\msedge.exe')
+            $bExe = ""
+            foreach ($c in $browserCandidates) { if (Test-Path $c) { $bExe = $c; break } }
+            if ($bExe) {
+                $scStart.TargetPath = $bExe
+                $scStart.Arguments = "--app=`"{{APP_URL}}`""
+            } else {
+                $scStart.TargetPath = '{{APP_URL}}'
+            }
+            $scStart.WorkingDirectory = $sysDir
+            $scStart.Description = "{{APP_NAME}} - เปิดโปรแกรมอัตโนมัติเมื่อเปิดเครื่อง (Auto-Start)"
+            $ico = Join-Path $sysDir "app-icon.ico"
+            if (Test-Path $ico) { $scStart.IconLocation = "$ico,0" }
+            $scStart.Save()
+        } catch {}
+    }
+} catch {
+    $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Err: $($_.Exception.Message)"
+    Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
+}
+SYNC_SCRIPT;
     }
 
     /**
@@ -454,7 +1099,7 @@ class AppInstallationController extends Controller
     public function downloadShortcutInstaller(Request $request)
     {
         $appUrl = url('/');
-        $appName = "CSHOS DATACENTER";
+        $appName = "CSHOS StaffInfo";
         $iconUrl = asset('app-icon.ico');
         
         $deviceId = $request->query('device_id');
@@ -463,7 +1108,11 @@ class AppInstallationController extends Controller
                 ? trim(explode(',', $request->header('X-Forwarded-For'))[0]) 
                 : $request->ip();
                 
+            $isLanIp = $clientIp && !in_array($clientIp, ['127.0.0.1', '::1']);
             $record = AppInstallation::where('device_id', $deviceId)->first();
+            if (!$record && $isLanIp) {
+                $record = AppInstallation::where('ip_address', $clientIp)->first();
+            }
             if (!$record) {
                 $record = new AppInstallation();
                 $record->device_id = $deviceId;
@@ -478,6 +1127,7 @@ class AppInstallationController extends Controller
             if ($request->filled('os')) $record->os = $request->query('os');
             if ($request->filled('browser')) $record->browser = $request->query('browser');
             $record->save();
+            $this->deduplicateSingleRecord($record);
         }
 
         $vncPassword = $this->getVncPassword();
@@ -508,10 +1158,14 @@ $userSysDir = "$env:LOCALAPPDATA\CSHOS"
 $commonDesktop = [Environment]::GetFolderPath('CommonDesktopDirectory')
 if (-not $commonDesktop -or -not (Test-Path $commonDesktop)) { $commonDesktop = "C:\Users\Public\Desktop" }
 $userDesktop = [Environment]::GetFolderPath('Desktop')
+$commonStartup = [Environment]::GetFolderPath('CommonStartup')
+if (-not $commonStartup -or -not (Test-Path $commonStartup)) { $commonStartup = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup" }
+$userStartup = [Environment]::GetFolderPath('Startup')
 
 $previousFound = $false
 if ((Test-Path "$sysDir\cshos_sync.ps1") -or (Test-Path "$userSysDir\cshos_sync.ps1") -or 
-    (Test-Path "$commonDesktop\$shortcutName.lnk") -or ($userDesktop -and (Test-Path "$userDesktop\$shortcutName.lnk"))) {
+    (Test-Path "$commonDesktop\$shortcutName.lnk") -or ($userDesktop -and (Test-Path "$userDesktop\$shortcutName.lnk")) -or
+    (Test-Path "$commonStartup\$shortcutName.lnk") -or ($userStartup -and (Test-Path "$userStartup\$shortcutName.lnk"))) {
     $previousFound = $true
 }
 if (-not $previousFound) {
@@ -538,8 +1192,10 @@ if ($previousFound) {
     try {
         $null | & schtasks.exe /end /tn "CSHOS-AutoSync-Startup" 2>&1 | Out-Null
         $null | & schtasks.exe /end /tn "CSHOS-AutoSync-Logon" 2>&1 | Out-Null
+        $null | & schtasks.exe /end /tn "CSHOS-AutoSync-Daily" 2>&1 | Out-Null
         $null | & schtasks.exe /delete /tn "CSHOS-AutoSync-Startup" /f 2>&1 | Out-Null
         $null | & schtasks.exe /delete /tn "CSHOS-AutoSync-Logon" /f 2>&1 | Out-Null
+        $null | & schtasks.exe /delete /tn "CSHOS-AutoSync-Daily" /f 2>&1 | Out-Null
         $null | & schtasks.exe /delete /tn "CSHOS-Startup-Sync" /f 2>&1 | Out-Null
         $null | & schtasks.exe /delete /tn "CSHOS_AutoSync" /f 2>&1 | Out-Null
     } catch {}
@@ -550,7 +1206,7 @@ if ($previousFound) {
         $null | & reg.exe delete "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "CSHOS_AutoSync" /f 2>&1 | Out-Null
     } catch {}
 
-    # 4. Remove all previous desktop shortcuts from all user profiles and desktops
+    # 4. Remove all previous desktop and startup shortcuts from all user profiles
     try {
         $legacyNames = @("$shortcutName.lnk", "CSH DIGITAL HEALTH.lnk", "CSHOS.lnk", "CSHOS DATACENTER.lnk", "CSHOS.url")
         foreach ($name in $legacyNames) {
@@ -558,23 +1214,26 @@ if ($previousFound) {
             if ($userDesktop) { Remove-Item -Path "$userDesktop\$name" -Force -ErrorAction SilentlyContinue }
             Remove-Item -Path "$env:USERPROFILE\OneDrive\Desktop\$name" -Force -ErrorAction SilentlyContinue
             Remove-Item -Path "C:\Users\Public\Desktop\$name" -Force -ErrorAction SilentlyContinue
+            if ($commonStartup) { Remove-Item -Path "$commonStartup\$name" -Force -ErrorAction SilentlyContinue }
+            if ($userStartup) { Remove-Item -Path "$userStartup\$name" -Force -ErrorAction SilentlyContinue }
         }
         Get-ChildItem -Path "C:\Users" -Directory -ErrorAction SilentlyContinue | ForEach-Object {
             foreach ($name in $legacyNames) {
                 Remove-Item -Path "$($_.FullName)\Desktop\$name" -Force -ErrorAction SilentlyContinue
                 Remove-Item -Path "$($_.FullName)\OneDrive\Desktop\$name" -Force -ErrorAction SilentlyContinue
+                Remove-Item -Path "$($_.FullName)\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\$name" -Force -ErrorAction SilentlyContinue
             }
         }
     } catch {}
 
-    # 5. Clean old script files, temporary files, old logs (preserve existing device_id if present)
+    # 5. Clean old script files, temporary files, old logs (preserve existing device_id.txt and version.txt)
     try {
         $savedId = ""
         if (Test-Path "$sysDir\device_id.txt") { $savedId = (Get-Content "$sysDir\device_id.txt" -Raw).Trim() }
         elseif (Test-Path "$userSysDir\device_id.txt") { $savedId = (Get-Content "$userSysDir\device_id.txt" -Raw).Trim() }
 
-        Get-ChildItem -Path $sysDir -Exclude "device_id.txt" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-        Get-ChildItem -Path $userSysDir -Exclude "device_id.txt" -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -Path $sysDir -Exclude @("device_id.txt", "version.txt") -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -Path $userSysDir -Exclude @("device_id.txt", "version.txt") -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
 
         if ($savedId -and (Test-Path $sysDir)) { Set-Content -Path "$sysDir\device_id.txt" -Value $savedId -Force }
     } catch {}
@@ -676,9 +1335,29 @@ if ($targetDesktop) {
     } catch {}
 }
 
-# Refresh Windows Explorer desktop icon cache
-try { & ie4uinit.exe -show | Out-Null } catch {}
 Write-Host "       -> Desktop shortcut installed successfully (1 icon on Desktop)." -ForegroundColor Green
+
+# --- Setup Auto-Start Shortcut (Open program automatically when computer turns on / logs in) ---
+$targetStartup = if (Test-Path $commonStartup) { $commonStartup } elseif ($userStartup -and (Test-Path $userStartup)) { $userStartup } else { "" }
+if ($targetStartup) {
+    try {
+        $startupScPath = Join-Path $targetStartup "$shortcutName.lnk"
+        $scStart = $ws.CreateShortcut($startupScPath)
+        if ($browserExe) {
+            $scStart.TargetPath = $browserExe
+            $scStart.Arguments = "--app=`"$appUrl`""
+        } else {
+            $scStart.TargetPath = $appUrl
+        }
+        $scStart.WorkingDirectory = $sysDir
+        $scStart.Description = "$shortcutName - เปิดโปรแกรมอัตโนมัติเมื่อเปิดเครื่อง (Auto-Start on Boot)"
+        if ($iconDownloaded -or ((Test-Path $icoPath) -and ((Get-Item $icoPath).Length -gt 100))) {
+            $scStart.IconLocation = "$icoPath,0"
+        }
+        $scStart.Save()
+        Write-Host "       -> Auto-Start configured: Program will launch automatically on boot." -ForegroundColor Green
+    } catch {}
+}
 
 # --- Collect Computer Specs ---
 Write-Host " [Step 3/6] Detecting machine specifications (CPU Speed, Cores, RAM, Disk, OS, Office)..." -ForegroundColor Yellow
@@ -1092,381 +1771,24 @@ try { Set-Content -Path $devIdFile -Value $devId -Force } catch {}
 Write-Host " [Step 5/6] Setting up persistent background auto-sync system..." -ForegroundColor Yellow
 $syncScriptPath = Join-Path $sysDir "cshos_sync.ps1"
 $syncCode = @'
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
-$maxWait = 30
-$waited = 0
-$detectedIps = @()
-
-while ($waited -lt $maxWait) {
-    # 1. Prefer active physical interface with Default Gateway route (0.0.0.0/0)
-    try {
-        $gwRoutes = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -AddressFamily IPv4 -ErrorAction SilentlyContinue | Sort-Object RouteMetric)
-        foreach ($route in $gwRoutes) {
-            $adapter = Get-NetAdapter -InterfaceIndex $route.InterfaceIndex -ErrorAction SilentlyContinue
-            if ($adapter) {
-                $desc = "$($adapter.InterfaceDescription) $($adapter.Name)"
-                if ($desc -match 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN|WireGuard|Tailscale|ZeroTier') {
-                    continue
-                }
-                $ipObj = Get-NetIPAddress -InterfaceIndex $route.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
-                         Where-Object { $_.IPAddress -notmatch '^(169\.254\.|127\.)' } | Select-Object -First 1
-                if ($ipObj -and $ipObj.IPAddress) {
-                    $detectedIps += $ipObj.IPAddress
-                }
-            }
-        }
-    } catch {}
-
-    # 2. Physical adapters that are 'Up' without gateway filter
-    if (-not $detectedIps -or $detectedIps.Count -eq 0) {
-        try {
-            $upAdapters = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { 
-                $_.Status -eq 'Up' -and 
-                $_.InterfaceDescription -notmatch 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN|WireGuard|Tailscale|ZeroTier' -and
-                $_.Name -notmatch 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth'
-            }
-            foreach ($ad in $upAdapters) {
-                $ips = @(Get-NetIPAddress -InterfaceIndex $ad.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
-                         Where-Object { $_.IPAddress -notmatch '^(169\.254\.|127\.)' } | Select-Object -ExpandProperty IPAddress)
-                $detectedIps += $ips
-            }
-        } catch {}
-    }
-
-    # 3. Fallback via Win32_NetworkAdapterConfiguration (excluding virtual)
-    if (-not $detectedIps -or $detectedIps.Count -eq 0) {
-        try {
-            $netConfigs = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
-            foreach ($nc in $netConfigs) {
-                $desc = "$($nc.Description)"
-                if ($desc -match 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN') {
-                    continue
-                }
-                foreach ($ip in $nc.IPAddress) {
-                    if ($ip -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$' -and $ip -ne '127.0.0.1' -and $ip -notmatch '^169\.254\.') {
-                        $detectedIps += $ip
-                    }
-                }
-            }
-        } catch {}
-    }
-
-    if ($detectedIps -and $detectedIps.Count -gt 0) {
-        break
-    }
-
-    Start-Sleep -Seconds 3
-    $waited += 3
-}
-
-$clientIp = if ($detectedIps -and $detectedIps.Count -gt 0) { $detectedIps[0] } else { "" }
-
-$sysDir = "$env:ProgramData\CSHOS"
-if (-not (Test-Path $sysDir)) { $sysDir = "$env:LOCALAPPDATA\CSHOS" }
-
-$devIdFile = Join-Path $sysDir "device_id.txt"
-$devId = ""
-if (Test-Path $devIdFile) {
-    try { $devId = (Get-Content $devIdFile -Raw).Trim() } catch {}
-}
-if (-not $devId) {
-    $devId = [guid]::NewGuid().ToString()
-    try { Set-Content -Path $devIdFile -Value $devId -Force } catch {}
-}
-
-$compName = $env:COMPUTERNAME
-$userName = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
-if (-not $userName) { $userName = $env:USERNAME }
-if (-not $userName) { $userName = "System" }
-
-$osInfo = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
-if (-not $osInfo) { $osInfo = [System.Environment]::OSVersion.VersionString }
-
-$cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
-if (-not $cpuObj) {
-    $cpuObj = Get-WmiObject Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
-}
-if ($cpuObj -and $cpuObj.Name) {
-    $rawName = ($cpuObj.Name -replace '\s+', ' ').Trim()
-    $clock = 0
-    if ($cpuObj.MaxClockSpeed) { $clock = [int]$cpuObj.MaxClockSpeed }
-    elseif ($cpuObj.CurrentClockSpeed) { $clock = [int]$cpuObj.CurrentClockSpeed }
-    
-    $cores = if ($cpuObj.NumberOfCores) { [int]$cpuObj.NumberOfCores } else { 0 }
-    $threads = if ($cpuObj.NumberOfLogicalProcessors) { [int]$cpuObj.NumberOfLogicalProcessors } else { 0 }
-
-    $speedStr = ""
-    if ($clock -gt 0 -and $rawName -notmatch '@\s*[0-9\.]+\s*GHz') {
-        $ghz = [math]::Round(($clock / 1000), 2)
-        $speedStr = "@ $ghz GHz"
-    }
-
-    $coreStr = ""
-    if ($cores -gt 0 -and $threads -gt 0) {
-        $coreStr = "($cores Cores, $threads Threads)"
-    } elseif ($cores -gt 0) {
-        $coreStr = "($cores Cores)"
-    }
-
-    $cpuParts = @($rawName)
-    if ($speedStr) { $cpuParts += $speedStr }
-    if ($coreStr) { $cpuParts += $coreStr }
-    $cpuInfo = $cpuParts -join " "
-} else {
-    $cpuInfo = "ไม่สามารถระบุ CPU"
-}
-
-# RAM Specs & Bus Speed
-try {
-    # 1. Query physical memory sticks (try CIM then WMI)
-    $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
-    if (-not $memSticks -or $memSticks.Count -eq 0) {
-        $memSticks = @(Get-WmiObject Win32_PhysicalMemory -ErrorAction SilentlyContinue)
-    }
-
-    # 2. Total RAM bytes determination (4-layer cascade)
-    $totalRamBytes = 0
-
-    # Layer 1: Sum capacity of physical sticks (hardware level, e.g. 16GB instead of APU-shared 13.9GB)
-    if ($memSticks -and $memSticks.Count -gt 0) {
-        try {
-            $sumVal = ($memSticks | Measure-Object -Property Capacity -Sum).Sum
-            if ($sumVal -and $sumVal -gt 0) { $totalRamBytes = [double]$sumVal }
-        } catch {}
-    }
-
-    # Layer 2: Win32_ComputerSystem TotalPhysicalMemory (CIM & WMI)
-    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
-        try {
-            $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
-            if (-not $cs) { $cs = Get-WmiObject Win32_ComputerSystem -ErrorAction SilentlyContinue }
-            if ($cs -and $cs.TotalPhysicalMemory) { $totalRamBytes = [double]$cs.TotalPhysicalMemory }
-        } catch {}
-    }
-
-    # Layer 3: Kernel Win32 API via ComputerInfo (Direct OS call, never fails even if WMI/CIM broken)
-    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
-        try {
-            Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
-            $ci = New-Object Microsoft.VisualBasic.Devices.ComputerInfo -ErrorAction SilentlyContinue
-            if ($ci -and $ci.TotalPhysicalMemory) { $totalRamBytes = [double]$ci.TotalPhysicalMemory }
-        } catch {}
-    }
-
-    # Layer 4: Win32_OperatingSystem VisibleMemory (CIM & WMI)
-    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
-        try {
-            $os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
-            if (-not $os) { $os = Get-WmiObject Win32_OperatingSystem -ErrorAction SilentlyContinue }
-            if ($os -and $os.TotalVisibleMemorySize) { $totalRamBytes = [double]$os.TotalVisibleMemorySize * 1KB }
-        } catch {}
-    }
-
-    $ramGB = if ($totalRamBytes -gt 0) { [math]::Round(($totalRamBytes / 1GB), 1) } else { 0 }
-    $ramInfo = if ($ramGB -gt 0) { "$ramGB GB" } else { "ไม่สามารถระบุ RAM" }
-
-    if ($memSticks -and $memSticks.Count -gt 0) {
-        $first = $memSticks[0]
-        $clock = 0
-        if ($first.ConfiguredClockSpeed) { $clock = [int]$first.ConfiguredClockSpeed }
-        elseif ($first.Speed) { $clock = [int]$first.Speed }
-
-        $smb = if ($first.SMBIOSMemoryType) { [int]$first.SMBIOSMemoryType } else { 0 }
-        $memType = switch ($smb) {
-            20 { "DDR" }
-            21 { "DDR2" }
-            24 { "DDR3" }
-            26 { "DDR4" }
-            34 { "DDR5" }
-            default {
-                if ($clock -ge 4800) { "DDR5" }
-                elseif ($clock -ge 2133) { "DDR4" }
-                elseif ($clock -ge 800) { "DDR3" }
-                else { "" }
-            }
-        }
-        $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
-        $part = if ($first.PartNumber) { ($first.PartNumber -as [string]).Trim() } else { "" }
-        $brand = if ($first.Manufacturer) { ($first.Manufacturer -as [string]).Trim() } else { "" }
-        if ($brand -match '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $brand = "" }
-        
-        $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
-        $stickCount = $memSticks.Count
-        $descList = New-Object System.Collections.Generic.List[string]
-        if ($memType) { $descList.Add($memType) }
-        if ($busStr) { $descList.Add($busStr) }
-        if ($stickCount -gt 1) {
-            $detailStr = if ($modelInfo) { " - $modelInfo" } else { "" }
-            $descList.Add("($stickCount ช่อง$detailStr)")
-        } elseif ($modelInfo) {
-            $descList.Add("($modelInfo)")
-        }
-        $details = $descList -join " "
-        if ($ramGB -gt 0) {
-            if ($details) { $ramInfo = "$ramGB GB $details" } else { $ramInfo = "$ramGB GB" }
-        } elseif ($details) {
-            $ramInfo = $details
-        }
-    }
-} catch {
-    $ramInfo = "ไม่สามารถระบุ RAM"
-}
-
-# Harddisk Type (SSD, NVMe M.2, SATA, HDD) & Capacity
-try {
-    $physDict = @{}
-    try {
-        Get-PhysicalDisk -ErrorAction SilentlyContinue | ForEach-Object {
-            $key = $_.FriendlyName
-            $mt = if ($_.MediaType) { $_.MediaType } else { "" }
-            $bt = if ($_.BusType) { $_.BusType } else { "" }
-            $physDict[$key] = @{ Media = $mt; Bus = $bt }
-        }
-    } catch {}
-
-    $diskMap = @{}
-    try {
-        Get-Disk -ErrorAction SilentlyContinue | ForEach-Object {
-            $d = $_
-            $bt = if ($d.BusType) { $d.BusType } else { "" }
-            $mt = if ($physDict.ContainsKey($d.FriendlyName)) { $physDict[$d.FriendlyName].Media } else { "" }
-            if (-not $bt -and $physDict.ContainsKey($d.FriendlyName)) { $bt = $physDict[$d.FriendlyName].Bus }
-            
-            $typeLabel = if ($bt -match 'NVMe') { "SSD NVMe M.2" }
-                         elseif ($mt -eq "SSD" -and $bt) { "SSD $bt" }
-                         elseif ($mt -eq "SSD") { "SSD" }
-                         elseif ($mt -eq "HDD" -and $bt) { "HDD $bt" }
-                         elseif ($mt -eq "HDD") { "HDD" }
-                         elseif ($bt) { "$bt" }
-                         else { "" }
-                         
-            Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue | Where-Object { $_.DriveLetter } | ForEach-Object {
-                $ltr = "$($_.DriveLetter):"
-                $diskMap[$ltr] = $typeLabel
-            }
-        }
-    } catch {}
-
-    $diskItems = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | ForEach-Object {
-        $dId = $_.DeviceID
-        $free = [math]::Round($_.FreeSpace / 1GB, 1)
-        $total = [math]::Round($_.Size / 1GB, 1)
-        $type = if ($diskMap.ContainsKey($dId) -and $diskMap[$dId]) { " (" + $diskMap[$dId] + ")" } else { "" }
-        "$dId$type ว่าง $free/$total GB"
-    }
-    $diskInfo = if ($diskItems) { $diskItems -join ", " } else { "ไม่สามารถระบุ DISK" }
-} catch {
-    $diskInfo = "ไม่สามารถระบุ DISK"
-}
-
-$remoteReady = 0
-try {
-    $tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
-    if ($tvnSvc -and $tvnSvc.Status -eq 'Running') {
-        $remoteReady = 1
-    }
-} catch {}
-
-$osCaption = ($osInfo -replace 'Microsoft\s*', '').Trim()
-$osVerStr = $osCaption
-try {
-    $regNT = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -ErrorAction SilentlyContinue
-    $dispVer = if ($regNT.DisplayVersion) { $regNT.DisplayVersion } elseif ($regNT.ReleaseId) { $regNT.ReleaseId } else { "" }
-    $build = $regNT.CurrentBuild
-    $arch = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture
-    if ($dispVer) { $osVerStr += " $dispVer" }
-    if ($arch -or $build) {
-        $p = @()
-        if ($arch) { $p += $arch }
-        if ($build) { $p += "Build $build" }
-        $osVerStr += " (" + ($p -join ", ") + ")"
-    }
-} catch {}
-
-$officeFinal = "Not Installed"
-try {
-    $c2r = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" -ErrorAction SilentlyContinue
-    if ($c2r -and $c2r.ProductReleaseIds) {
-        $idStr = "$($c2r.ProductReleaseIds)"
-        $verReport = $c2r.VersionToReport
-        $platform = $c2r.Platform
-        $friendly = if ($idStr -match '2024') { "Microsoft Office 2024" }
-                    elseif ($idStr -match '2021') { "Microsoft Office 2021" }
-                    elseif ($idStr -match '2019') { "Microsoft Office 2019" }
-                    elseif ($idStr -match 'O365|M365|365') { "Microsoft 365 Apps" }
-                    elseif ($idStr -match '2016') { "Microsoft Office 2016" }
-                    elseif ($idStr -match '2013') { "Microsoft Office 2013" }
-                    elseif ($idStr -match '2010') { "Microsoft Office 2010" }
-                    else { "Microsoft Office" }
-        $edition = if ($idStr -match 'ProPlus') { " Professional Plus" }
-                   elseif ($idStr -match 'Standard') { " Standard" }
-                   elseif ($idStr -match 'HomeBusiness') { " Home & Business" }
-                   elseif ($idStr -match 'HomeStudent') { " Home & Student" }
-                   else { "" }
-        $officeFinal = "$friendly$edition"
-        if ($verReport) { $officeFinal += " ($verReport" + (if ($platform) { " $platform" } else { "" }) + ")" }
-    }
-    if ($officeFinal -eq "Not Installed") {
-        $keys = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
-        $installed = Get-ItemProperty $keys -ErrorAction SilentlyContinue | Where-Object { 
-            $_.DisplayName -match '^Microsoft Office (Professional|Standard|Home|Personal|365|Enterprise)' -or
-            $_.DisplayName -match '^Microsoft 365'
-        } | Select-Object -First 1
-        if ($installed) {
-            $officeFinal = $installed.DisplayName + (if ($installed.DisplayVersion) { " ($($installed.DisplayVersion))" } else { "" })
-        }
-    }
-    if ($officeFinal -eq "Not Installed") {
-        $appPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\excel.exe" -ErrorAction SilentlyContinue).'(Default)'
-        if (-not $appPath) { $appPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\winword.exe" -ErrorAction SilentlyContinue).'(Default)' }
-        if ($appPath -and (Test-Path $appPath)) {
-            $vi = (Get-Item $appPath -ErrorAction SilentlyContinue).VersionInfo
-            $m = $vi.ProductMajorPart
-            $known = switch ($m) { 16 { "Microsoft Office 2016/2019/365" } 15 { "Microsoft Office 2013" } 14 { "Microsoft Office 2010" } 12 { "Microsoft Office 2007" } default { "Microsoft Office" } }
-            $officeFinal = "$known" + (if ($vi.ProductVersion) { " ($($vi.ProductVersion))" } else { "" })
-        }
-    }
-} catch {}
-
-$reportObj = @{
-    device_id      = $devId
-    hostname       = $compName
-    device_name    = $userName
-    ip_address     = $clientIp
-    os             = $osInfo
-    os_version     = $osVerStr
-    office_version = $officeFinal
-    cpu            = $cpuInfo
-    ram            = $ramInfo
-    disk           = $diskInfo
-    remote_ready   = $remoteReady
-    install_type   = 'installed'
-    browser        = 'AutoSync Service'
-}
-$jsonPayload = $reportObj | ConvertTo-Json
-
-try {
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
-    $res = Invoke-RestMethod -Uri "{{APP_URL}}/api/track-install" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 -ErrorAction Stop
-    $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - OK: Host=$compName, IP=$clientIp, RAM=$ramInfo, DISK=$diskInfo"
-    Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
-} catch {
-    $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Err: $($_.Exception.Message)"
-    Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
-}
+{{SYNC_CODE}}
 '@
 
 try {
     Set-Content -Path $syncScriptPath -Value $syncCode -Encoding UTF8 -Force
 } catch {}
 
-# 1. Register Task Scheduler: Startup & Logon under SYSTEM (Never prompts for password, runs reliably)
+# 1. Register Task Scheduler: Startup & Logon under SYSTEM + Daily periodic sync
 try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:30 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 09:00 /ru "SYSTEM" /f 2>&1 | Out-Null
+} catch {}
+
+# Write initial version.txt
+try {
+    Set-Content -Path (Join-Path $sysDir "version.txt") -Value "{{CLIENT_VERSION}}" -Force
 } catch {}
 
 # 2. Register Windows Registry Run Key (Runs reliably on user logon across all Windows versions)
@@ -1615,7 +1937,13 @@ Write-Host "     * VNC Password                : " -NoNewline -ForegroundColor G
 Write-Host "{{VNC_PASSWORD}}" -ForegroundColor Yellow
 Write-Host "     * Mode                        : Screen Sharing (IT assistance without session logout)" -ForegroundColor DarkCyan
 Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
-Write-Host " [4] Auto-Sync System on Boot / Restart (Auto-Sync on Reboot):" -ForegroundColor Yellow
+Write-Host " [4] Auto-Start on Boot & Auto-Update System:" -ForegroundColor Yellow
+Write-Host "     * Auto-Start on Boot          : " -NoNewline -ForegroundColor Gray
+Write-Host "Enabled (Opens program automatically on Windows startup)" -ForegroundColor Green
+Write-Host "     * Client Version & Auto-Update: " -NoNewline -ForegroundColor Gray
+Write-Host "v{{CLIENT_VERSION}} (Auto-updates silently when server is updated)" -ForegroundColor Green
+Write-Host "------------------------------------------------------------------------" -ForegroundColor DarkGray
+Write-Host " [5] Auto-Sync System on Boot / Restart (Auto-Sync on Reboot):" -ForegroundColor Yellow
 Write-Host "     * Service Status              : " -NoNewline -ForegroundColor Gray
 Write-Host "Enabled (Windows Task Scheduler & Registry)" -ForegroundColor Green
 Write-Host "     * Feature                     : " -NoNewline -ForegroundColor Gray
@@ -1640,6 +1968,12 @@ $popupText = "ติดตั้งไอคอนแอปและอัปเ
     "• พื้นที่ DISK              : $diskInfo`n" +
     "• ระบบปฏิบัติการ OS        : $osVerStr`n" +
     "• โปรแกรม Microsoft Office  : $officeFinal`n`n" +
+    "================ เปิดโปรแกรมอัตโนมัติ (Auto-Start) ===============`n" +
+    "• สถานะ : เปิดใช้งานแล้ว (Windows Startup)`n" +
+    "• ทำงาน : เปิดโปรแกรม CSHOS StaffInfo ทันทีทุกครั้งที่เปิดเครื่องคอมพิวเตอร์`n`n" +
+    "================ ระบบ Auto-Update อัปเดตอัตโนมัติ ===============`n" +
+    "• สถานะ : เปิดใช้งานแล้ว (เวอร์ชัน {{CLIENT_VERSION}})`n" +
+    "• ทำงาน : ตรวจสอบและอัปเดตโปรแกรมเป็นเวอร์ชันล่าสุดจาก Server อัตโนมัติ`n`n" +
     "================ ระบบ Remote VNC ภายใน ================`n" +
     "• สถานะ : พร้อมเชื่อมต่อ (พอร์ต 5900)`n" +
     "• รหัสผ่าน VNC : {{VNC_PASSWORD}} (หน้าจอไม่ดับ)`n`n" +
@@ -1654,9 +1988,12 @@ try {
 } catch {}
 POWERSHELL;
 
+        $clientVersion = $this->getClientAppVersion();
+        $syncCode = $this->getClientSyncScriptTemplate();
+
         $psScript = str_replace(
-            ['{{APP_NAME}}', '{{APP_URL}}', '{{ICON_URL}}', '{{VNC_PASSWORD}}', '{{VNC_HASH}}'],
-            [$appName, $appUrl, $iconUrl, $vncPassword, $vncHash],
+            ['{{APP_NAME}}', '{{APP_URL}}', '{{ICON_URL}}', '{{VNC_PASSWORD}}', '{{VNC_HASH}}', '{{CLIENT_VERSION}}', '{{SYNC_CODE}}'],
+            [$appName, $appUrl, $iconUrl, $vncPassword, $vncHash, $clientVersion, $syncCode],
             $psTemplate
         );
 
@@ -1730,7 +2067,7 @@ POWERSHELL;
      */
     public function downloadAutoSyncInstaller(Request $request)
     {
-        $appName = config('app.name', 'CSHOS DATACENTER');
+        $appName = config('app.name', 'CSHOS StaffInfo');
         $appUrl = url('/');
 
         $psTemplate = <<<'POWERSHELL'
@@ -2677,7 +3014,7 @@ POWERSHELL;
     public function downloadUrlShortcut(Request $request)
     {
         $appUrl = url('/');
-        $appName = "CSHOS DATACENTER";
+        $appName = "CSHOS StaffInfo";
         $faviconUrl = asset('favicon.ico');
         
         $urlContent = "[InternetShortcut]\r\n"
@@ -2697,7 +3034,7 @@ POWERSHELL;
      */
     public function downloadUninstaller(Request $request)
     {
-        $appName = "CSHOS DATACENTER";
+        $appName = "CSHOS StaffInfo";
         $fileName = "Uninstall-CSHOS.bat";
 
         $batContent = "@echo off\r\n"
@@ -2722,6 +3059,7 @@ POWERSHELL;
             . "echo [1/5] Removing Auto-Sync tasks in Windows Task Scheduler...\r\n"
             . "schtasks /delete /tn \"CSHOS-AutoSync-Startup\" /f >nul 2>&1\r\n"
             . "schtasks /delete /tn \"CSHOS-AutoSync-Logon\" /f >nul 2>&1\r\n"
+            . "schtasks /delete /tn \"CSHOS-AutoSync-Daily\" /f >nul 2>&1\r\n"
             . "\r\n"
             . "echo [2/5] Removing startup entries in Windows Registry (Run Keys)...\r\n"
             . "reg delete \"HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run\" /v \"CSHOS_AutoSync\" /f >nul 2>&1\r\n"
@@ -2730,11 +3068,14 @@ POWERSHELL;
             . "echo [3/5] Removing VNC Protocol Launcher registration...\r\n"
             . "reg delete \"HKCU\\Software\\Classes\\vnc\" /f >nul 2>&1\r\n"
             . "\r\n"
-            . "echo [4/5] Removing Desktop shortcuts...\r\n"
+            . "echo [4/5] Removing Desktop & Startup shortcuts...\r\n"
             . "del /f /q \"%PUBLIC%\\Desktop\\{$appName}.lnk\" >nul 2>&1\r\n"
             . "del /f /q \"%USERPROFILE%\\Desktop\\{$appName}.lnk\" >nul 2>&1\r\n"
             . "del /f /q \"%ALLUSERSPROFILE%\\Desktop\\{$appName}.lnk\" >nul 2>&1\r\n"
+            . "del /f /q \"%ProgramData%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{$appName}.lnk\" >nul 2>&1\r\n"
+            . "del /f /q \"%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{$appName}.lnk\" >nul 2>&1\r\n"
             . "powershell.exe -NoProfile -Command \"Get-ChildItem 'C:\\Users\\*\\Desktop\\{$appName}.lnk' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue\"\r\n"
+            . "powershell.exe -NoProfile -Command \"Get-ChildItem 'C:\\Users\\*\\AppData\\Roaming\\Microsoft\\Windows\\Start Menu\\Programs\\Startup\\{$appName}.lnk' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue\"\r\n"
             . "\r\n"
             . "echo [5/5] Removing CSHOS system directories and cache...\r\n"
             . "rmdir /s /q \"C:\\ProgramData\\CSHOS\" >nul 2>&1\r\n"
@@ -2780,5 +3121,160 @@ POWERSHELL;
             }
             return '51bb787873401462';
         });
+    }
+
+    /**
+     * Deduplicate records across the entire installations table.
+     */
+    public function deduplicateRecords(): void
+    {
+        try {
+            // Group by LAN IP (exclude localhost / empty)
+            $lanIps = AppInstallation::whereNotNull('ip_address')
+                ->whereNotIn('ip_address', ['127.0.0.1', '::1', ''])
+                ->select('ip_address')
+                ->groupBy('ip_address')
+                ->havingRaw('COUNT(*) > 1')
+                ->pluck('ip_address');
+
+            foreach ($lanIps as $ip) {
+                $group = AppInstallation::where('ip_address', $ip)->orderByDesc('last_active_at')->get();
+                if ($group->count() > 1) {
+                    $master = $group->first();
+                    foreach ($group as $candidate) {
+                        if (!str_starts_with($candidate->device_id, 'csh-') && str_starts_with($master->device_id, 'csh-')) {
+                            $master = $candidate;
+                        }
+                    }
+                    $this->deduplicateSingleRecord($master);
+                }
+            }
+
+            // Group by normalized hostname (exclude empty)
+            $hostnames = AppInstallation::whereNotNull('hostname')
+                ->where('hostname', '!=', '')
+                ->selectRaw("LOWER(TRIM(SUBSTRING_INDEX(hostname, '.', 1))) as clean_host")
+                ->groupBy('clean_host')
+                ->havingRaw('COUNT(*) > 1')
+                ->pluck('clean_host');
+
+            foreach ($hostnames as $cleanHost) {
+                $group = AppInstallation::whereRaw("LOWER(TRIM(SUBSTRING_INDEX(hostname, '.', 1))) = ?", [$cleanHost])
+                    ->orderByDesc('last_active_at')
+                    ->get();
+                if ($group->count() > 1) {
+                    $master = $group->first();
+                    foreach ($group as $candidate) {
+                        if (!str_starts_with($candidate->device_id, 'csh-') && str_starts_with($master->device_id, 'csh-')) {
+                            $master = $candidate;
+                        }
+                    }
+                    $this->deduplicateSingleRecord($master);
+                }
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Deduplication failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Merge any duplicate records matching master's hostname or LAN IP into master.
+     */
+    public function deduplicateSingleRecord(AppInstallation $master): void
+    {
+        if (!$master->id) {
+            return;
+        }
+
+        try {
+            $isLanIp = $master->ip_address && !in_array($master->ip_address, ['127.0.0.1', '::1', '']);
+            $cleanHost = $master->hostname ? strtolower(trim(explode('.', $master->hostname)[0])) : null;
+
+            // Only search if master has LAN IP or hostname or device_id
+            $duplicates = AppInstallation::where('id', '!=', $master->id)
+                ->where(function ($q) use ($master, $isLanIp, $cleanHost) {
+                    $hasCondition = false;
+                    if ($isLanIp) {
+                        $q->where('ip_address', $master->ip_address);
+                        $hasCondition = true;
+                    }
+                    if ($cleanHost) {
+                        if ($hasCondition) {
+                            $q->orWhereRaw("LOWER(TRIM(SUBSTRING_INDEX(hostname, '.', 1))) = ?", [$cleanHost]);
+                        } else {
+                            $q->whereRaw("LOWER(TRIM(SUBSTRING_INDEX(hostname, '.', 1))) = ?", [$cleanHost]);
+                            $hasCondition = true;
+                        }
+                    }
+                    if ($master->device_id) {
+                        if ($hasCondition) {
+                            $q->orWhere('device_id', $master->device_id);
+                        } else {
+                            $q->where('device_id', $master->device_id);
+                        }
+                    }
+                })->get();
+
+            if ($duplicates->isEmpty()) {
+                return;
+            }
+
+            $mergedLaunches = (int) ($master->launch_count ?? 1);
+            $needsSave = false;
+
+            foreach ($duplicates as $dup) {
+                $mergedLaunches += (int) ($dup->launch_count ?? 0);
+
+                // Preserve earliest install date
+                if ($dup->first_installed_at && (!$master->first_installed_at || $dup->first_installed_at < $master->first_installed_at)) {
+                    $master->first_installed_at = $dup->first_installed_at;
+                    $needsSave = true;
+                }
+
+                // Preserve latest active date
+                if ($dup->last_active_at && (!$master->last_active_at || $dup->last_active_at > $master->last_active_at)) {
+                    $master->last_active_at = $dup->last_active_at;
+                    $needsSave = true;
+                }
+
+                // Fill in hardware/OS specs if master is missing them
+                $fieldsToBackfill = ['cpu', 'ram', 'disk', 'os_version', 'office_version', 'os', 'department', 'notes', 'device_name', 'hostname'];
+                foreach ($fieldsToBackfill as $field) {
+                    if (empty($master->$field) && !empty($dup->$field)) {
+                        $master->$field = $dup->$field;
+                        $needsSave = true;
+                    }
+                }
+
+                // If master had browser csh- ID and dup had desktop GUID, adopt GUID
+                if (str_starts_with($master->device_id, 'csh-') && !str_starts_with($dup->device_id, 'csh-')) {
+                    $master->device_id = $dup->device_id;
+                    $needsSave = true;
+                }
+
+                if ($dup->remote_ready && !$master->remote_ready) {
+                    $master->remote_ready = true;
+                    $needsSave = true;
+                }
+
+                if ($dup->install_type === 'installed' && $master->install_type !== 'installed') {
+                    $master->install_type = 'installed';
+                    $needsSave = true;
+                }
+
+                $dup->delete();
+            }
+
+            if ($master->launch_count !== $mergedLaunches) {
+                $master->launch_count = $mergedLaunches;
+                $needsSave = true;
+            }
+
+            if ($needsSave) {
+                $master->save();
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Single deduplication failed: ' . $e->getMessage());
+        }
     }
 }
