@@ -62,12 +62,27 @@ class AppInstallationController extends Controller
             }
         }
 
-        // Attempt reverse DNS lookup for hostname (LAN computer name) only if not provided
+        // Attempt reverse DNS lookup and NetBIOS lookup for hostname & MAC if not provided
         $hostname = null;
-        if (empty($data['hostname']) && $ip && !in_array($ip, ['127.0.0.1', '::1'])) {
-            $resolved = @gethostbyaddr($ip);
-            if ($resolved && $resolved !== $ip) {
-                $hostname = $resolved;
+        if ($ip && !in_array($ip, ['127.0.0.1', '::1'])) {
+            if (empty($data['hostname'])) {
+                $resolved = @gethostbyaddr($ip);
+                if ($resolved && $resolved !== $ip) {
+                    $hostname = $resolved;
+                }
+            }
+            // If hostname or MAC is still missing, try fast NetBIOS probe on Windows server
+            if ((!$hostname || empty($data['mac_address'])) && strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                try {
+                    $escapedIp = escapeshellarg($ip);
+                    $nbtOut = shell_exec("nbtstat -A {$escapedIp} 2>&1") ?: '';
+                    if (!$hostname && preg_match('/^\s*([a-zA-Z0-9_\-]+)\s+<00>\s+UNIQUE/m', $nbtOut, $mHost)) {
+                        $hostname = trim($mHost[1]);
+                    }
+                    if (empty($data['mac_address']) && preg_match('/MAC\s+Address\s*=\s*([0-9A-Fa-f\-]{17})/i', $nbtOut, $mMac)) {
+                        $data['mac_address'] = trim($mMac[1]);
+                    }
+                } catch (\Throwable $e) {}
             }
         }
 
@@ -4051,7 +4066,7 @@ POWERSHELL;
             }
 
             $duplicates = AppInstallation::where('id', '!=', $master->id)
-                ->where(function ($q) use ($cleanHost, $mac, $devId) {
+                ->where(function ($q) use ($cleanHost, $mac, $devId, $isLanIp, $master) {
                     $hasCondition = false;
                     if ($devId) {
                         $q->where('device_id', $devId);
@@ -4072,6 +4087,18 @@ POWERSHELL;
                             $q->whereRaw("LOWER(TRIM(SUBSTRING_INDEX(hostname, '.', 1))) = ?", [$cleanHost]);
                             $hasCondition = true;
                         }
+                    }
+                    // Also match anonymous browser-only entries (empty hostname & empty mac) on master's LAN IP
+                    if ($isLanIp) {
+                        $q->orWhere(function ($sub) use ($master) {
+                            $sub->where('ip_address', $master->ip_address)
+                                ->where(function ($w) {
+                                    $w->whereNull('hostname')->orWhere('hostname', '');
+                                })
+                                ->where(function ($w) {
+                                    $w->whereNull('mac_address')->orWhere('mac_address', '');
+                                });
+                        });
                     }
                 })->get();
 
