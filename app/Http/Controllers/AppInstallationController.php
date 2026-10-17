@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AppInstallation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AppInstallationController extends Controller
@@ -182,7 +183,7 @@ class AppInstallationController extends Controller
             'update_available' => $updateAvailable,
             'update_script_url' => url('/api/client/update-script'),
             'app_url' => url('/'),
-            'app_name' => "CSHOS StaffInfo",
+            'app_name' => "CSHOS STAFF INFO",
             'icon_url' => asset('app-icon.ico'),
             'last_active' => $installation->last_active_at->toDateTimeString(),
         ]);
@@ -201,7 +202,27 @@ class AppInstallationController extends Controller
         // Search query
         if ($request->filled('search')) {
             $search = trim($request->input('search'));
-            $query->where(function ($q) use ($search) {
+            
+            // Check if search term matches staff name or username in CSHOS_DB
+            $matchedIps = [];
+            try {
+                $matchedIps = DB::connection('cshos')
+                    ->table('onlineuser as o')
+                    ->leftJoin('opduser as u', function($join) {
+                        $join->on('u.loginname', '=', DB::raw("IF(o.kskloginname IS NOT NULL AND o.kskloginname != '', o.kskloginname, o.loginname)"));
+                    })
+                    ->where(function ($sub) use ($search) {
+                        $sub->where('u.name', 'like', "%{$search}%")
+                            ->orWhere('o.kskloginname', 'like', "%{$search}%")
+                            ->orWhere('o.department', 'like', "%{$search}%");
+                    })
+                    ->pluck('o.ip_address')
+                    ->filter()
+                    ->unique()
+                    ->toArray();
+            } catch (\Throwable $e) {}
+
+            $query->where(function ($q) use ($search, $matchedIps) {
                 $q->where('ip_address', 'like', "%{$search}%")
                   ->orWhere('hostname', 'like', "%{$search}%")
                   ->orWhere('department', 'like', "%{$search}%")
@@ -213,6 +234,10 @@ class AppInstallationController extends Controller
                   ->orWhere('cpu', 'like', "%{$search}%")
                   ->orWhere('ram', 'like', "%{$search}%")
                   ->orWhere('disk', 'like', "%{$search}%");
+
+                if (!empty($matchedIps)) {
+                    $q->orWhereIn('ip_address', $matchedIps);
+                }
             });
         }
 
@@ -249,7 +274,67 @@ class AppInstallationController extends Controller
         $installations = $query->orderBy('last_active_at', 'desc')->paginate(25)->withQueryString();
         $vnc_password = $this->getVncPassword();
 
+        // Query CSHOS_DB (onlineuser + opduser) for current page IPs to display Staff Name
+        $ipList = $installations->pluck('ip_address')->filter()->unique()->values()->toArray();
+        $staffMap = $this->getStaffMapByIps($ipList);
+
+        foreach ($installations as $item) {
+            if (isset($staffMap[$item->ip_address])) {
+                $info = $staffMap[$item->ip_address];
+                $item->staff_name = $info->staff_name ?: null;
+                $item->staff_login = $info->kskloginname ?: null;
+                $item->hos_dept = $info->hos_dept ?: null;
+                $item->staff_position = $info->staff_position ?: null;
+            } else {
+                $item->staff_name = null;
+                $item->staff_login = null;
+                $item->hos_dept = null;
+                $item->staff_position = null;
+            }
+        }
+
         return view('admin.installations', compact('installations', 'stats', 'departments', 'vnc_password'));
+    }
+
+    /**
+     * Fetch staff name and details from CSHOS_DB (onlineuser joined with opduser by ip_address).
+     */
+    public function getStaffMapByIps(array $ips): array
+    {
+        if (empty($ips)) {
+            return [];
+        }
+
+        try {
+            $onlineUsers = DB::connection('cshos')
+                ->table('onlineuser as o')
+                ->leftJoin('opduser as u', function($join) {
+                    $join->on('u.loginname', '=', DB::raw("IF(o.kskloginname IS NOT NULL AND o.kskloginname != '', o.kskloginname, o.loginname)"));
+                })
+                ->whereIn('o.ip_address', $ips)
+                ->select(
+                    'o.ip_address',
+                    'o.computername',
+                    'o.kskloginname',
+                    'o.ksklogintime',
+                    'o.department as hos_dept',
+                    'u.name as staff_name',
+                    'u.entryposition as staff_position'
+                )
+                ->orderBy('o.ksklogintime', 'desc')
+                ->get();
+
+            $map = [];
+            foreach ($onlineUsers as $ou) {
+                if (!isset($map[$ou->ip_address])) {
+                    $map[$ou->ip_address] = $ou;
+                }
+            }
+            return $map;
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('CSHOS_DB getStaffMapByIps failed: ' . $e->getMessage());
+            return [];
+        }
     }
 
     /**
@@ -367,7 +452,8 @@ class AppInstallationController extends Controller
                 'Device UUID',
                 'IP Address (LAN)',
                 'Hostname (ชื่อคอมพิวเตอร์)',
-                'แผนก/ฝ่าย',
+                'ชื่อเจ้าหน้าที่ (CSHOS / Staff Name)',
+                'แผนก/ฝ่าย (HOSxP)',
                 'ชื่อเครื่อง/เจ้าของ',
                 'ระบบปฏิบัติการ (OS)',
                 'เวอร์ชั่นระบบปฏิบัติการ (OS Version)',
@@ -385,15 +471,24 @@ class AppInstallationController extends Controller
                 'หมายเหตุ',
             ]);
 
+            // Pre-fetch staff map for all active IPs
+            $allIps = AppInstallation::whereNotNull('ip_address')->pluck('ip_address')->filter()->unique()->toArray();
+            $staffMap = $this->getStaffMapByIps($allIps);
+
             // Stream chunked data
-            AppInstallation::orderBy('last_active_at', 'desc')->chunk(200, function ($records) use ($handle) {
+            AppInstallation::orderBy('last_active_at', 'desc')->chunk(200, function ($records) use ($handle, $staffMap) {
                 foreach ($records as $item) {
+                    $staffInfo = $staffMap[$item->ip_address] ?? null;
+                    $staffName = $staffInfo ? ($staffInfo->staff_name ?: $staffInfo->kskloginname) : ($item->department ?: '-');
+                    $hosDept = $staffInfo ? ($staffInfo->hos_dept ?: ($item->department ?: '-')) : ($item->department ?: '-');
+
                     fputcsv($handle, [
                         $item->id,
                         $item->device_id,
                         $item->ip_address,
                         $item->hostname ?? '-',
-                        $item->department ?? '-',
+                        $staffName,
+                        $hosDept,
                         $item->device_name ?? '-',
                         $item->os ?? '-',
                         $item->os_version ?? ($item->os ?? '-'),
@@ -501,7 +596,7 @@ class AppInstallationController extends Controller
             'is_local'         => $isLocal,
             'shortcut_created' => $shortcutCreated,
             'message'          => $shortcutCreated 
-                ? 'ติดตั้งไอคอน CSHOS StaffInfo บนหน้าจอ Desktop เรียบร้อยแล้ว!' 
+                ? 'ติดตั้งไอคอน CSHOS STAFF INFO บนหน้าจอ Desktop เรียบร้อยแล้ว!' 
                 : 'บันทึกสถานะเรียบร้อยแล้ว',
             'output'           => $output
         ]);
@@ -515,7 +610,7 @@ class AppInstallationController extends Controller
         return response()->json([
             'status'            => 'success',
             'server_version'    => $this->getClientAppVersion(),
-            'app_name'          => "CSHOS StaffInfo",
+            'app_name'          => "CSHOS STAFF INFO",
             'app_url'           => url('/'),
             'icon_url'          => asset('app-icon.ico'),
             'update_script_url' => url('/api/client/update-script'),
@@ -530,7 +625,7 @@ class AppInstallationController extends Controller
     public function clientUpdateScript(Request $request)
     {
         $appUrl = url('/');
-        $appName = "CSHOS StaffInfo";
+        $appName = "CSHOS STAFF INFO";
         $iconUrl = asset('app-icon.ico');
         $serverVersion = $this->getClientAppVersion();
         $vncPassword = $this->getVncPassword();
@@ -1099,7 +1194,7 @@ SYNC_SCRIPT;
     public function downloadShortcutInstaller(Request $request)
     {
         $appUrl = url('/');
-        $appName = "CSHOS StaffInfo";
+        $appName = "CSHOS STAFF INFO";
         $iconUrl = asset('app-icon.ico');
         
         $deviceId = $request->query('device_id');
@@ -1970,7 +2065,7 @@ $popupText = "ติดตั้งไอคอนแอปและอัปเ
     "• โปรแกรม Microsoft Office  : $officeFinal`n`n" +
     "================ เปิดโปรแกรมอัตโนมัติ (Auto-Start) ===============`n" +
     "• สถานะ : เปิดใช้งานแล้ว (Windows Startup)`n" +
-    "• ทำงาน : เปิดโปรแกรม CSHOS StaffInfo ทันทีทุกครั้งที่เปิดเครื่องคอมพิวเตอร์`n`n" +
+    "• ทำงาน : เปิดโปรแกรม CSHOS STAFF INFO ทันทีทุกครั้งที่เปิดเครื่องคอมพิวเตอร์`n`n" +
     "================ ระบบ Auto-Update อัปเดตอัตโนมัติ ===============`n" +
     "• สถานะ : เปิดใช้งานแล้ว (เวอร์ชัน {{CLIENT_VERSION}})`n" +
     "• ทำงาน : ตรวจสอบและอัปเดตโปรแกรมเป็นเวอร์ชันล่าสุดจาก Server อัตโนมัติ`n`n" +
@@ -2067,7 +2162,7 @@ POWERSHELL;
      */
     public function downloadAutoSyncInstaller(Request $request)
     {
-        $appName = config('app.name', 'CSHOS StaffInfo');
+        $appName = config('app.name', 'CSHOS STAFF INFO');
         $appUrl = url('/');
 
         $psTemplate = <<<'POWERSHELL'
@@ -3014,7 +3109,7 @@ POWERSHELL;
     public function downloadUrlShortcut(Request $request)
     {
         $appUrl = url('/');
-        $appName = "CSHOS StaffInfo";
+        $appName = "CSHOS STAFF INFO";
         $faviconUrl = asset('favicon.ico');
         
         $urlContent = "[InternetShortcut]\r\n"
@@ -3034,7 +3129,7 @@ POWERSHELL;
      */
     public function downloadUninstaller(Request $request)
     {
-        $appName = "CSHOS StaffInfo";
+        $appName = "CSHOS STAFF INFO";
         $fileName = "Uninstall-CSHOS.bat";
 
         $batContent = "@echo off\r\n"

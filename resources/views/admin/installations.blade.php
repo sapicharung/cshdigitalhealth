@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>ระบบตรวจสอบการติดตั้ง CSHOS StaffInfo - โรงพยาบาลเชียงแสน</title>
+    <title>ระบบตรวจสอบการติดตั้ง CSHOS STAFF INFO - โรงพยาบาลเชียงแสน</title>
     <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -752,6 +752,40 @@
             font-size: 0.78rem;
         }
 
+        /* Staff Name Cell */
+        .staff-compact-cell {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: #EFF6FF;
+            border: 1px solid #BFDBFE;
+            color: #1D4ED8;
+            padding: 2px 8px;
+            border-radius: 7px;
+            max-width: 175px;
+            transition: all 0.15s;
+        }
+
+        .staff-compact-cell:hover {
+            background: #DBEAFE;
+            border-color: #93C5FD;
+            color: #1E40AF;
+        }
+
+        .staff-badge-icon {
+            font-size: 15px;
+            color: #2563EB;
+            flex-shrink: 0;
+        }
+
+        .staff-name-text {
+            font-size: 0.82rem;
+            font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
         /* Compact User & OS */
         .user-os-compact {
             display: inline-flex;
@@ -1377,6 +1411,209 @@
             max-width: 96vw;
         }
 
+        /* Confirmation Modal Styles */
+        .modal-card-confirm {
+            max-width: 440px !important;
+            text-align: center;
+            padding: 2.2rem 2rem 1.8rem;
+            border-radius: 24px;
+            box-shadow: 0 25px 60px rgba(15, 23, 42, 0.25);
+            animation: confirmPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes confirmPop {
+            from { opacity: 0; transform: scale(0.92) translateY(10px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .confirm-icon-wrapper {
+            width: 68px;
+            height: 68px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 1.1rem;
+            transition: transform 0.2s;
+        }
+
+        .confirm-icon-wrapper .material-symbols-Outlined {
+            font-size: 34px;
+        }
+
+        .confirm-icon-wrapper.theme-danger {
+            background: #FEE2E2;
+            color: #DC2626;
+            box-shadow: 0 0 0 6px #FEF2F2;
+        }
+
+        .confirm-icon-wrapper.theme-warning {
+            background: #FEF3C7;
+            color: #D97706;
+            box-shadow: 0 0 0 6px #FFFBEB;
+        }
+
+        .confirm-icon-wrapper.theme-info {
+            background: #DBEAFE;
+            color: #2563EB;
+            box-shadow: 0 0 0 6px #EFF6FF;
+        }
+
+        .confirm-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #0F172A;
+            margin-bottom: 0.5rem;
+        }
+
+        .confirm-message {
+            font-size: 0.92rem;
+            color: #475569;
+            line-height: 1.55;
+            margin-bottom: 1rem;
+        }
+
+        .confirm-target-box {
+            background: #F8FAFC;
+            border: 1.5px solid #E2E8F0;
+            border-radius: 12px;
+            padding: 0.75rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 1rem;
+            text-align: left;
+        }
+
+        .confirm-target-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: #EEF2F6;
+            color: #475569;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .confirm-target-info {
+            min-width: 0;
+            flex: 1;
+        }
+
+        .confirm-target-name {
+            font-size: 0.92rem;
+            font-weight: 700;
+            color: #1E293B;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .confirm-target-sub {
+            font-size: 0.78rem;
+            font-family: monospace;
+            color: #64748B;
+        }
+
+        .confirm-hint {
+            font-size: 0.8rem;
+            color: #991B1B;
+            background: #FEF2F2;
+            border: 1px dashed #FECACA;
+            border-radius: 10px;
+            padding: 0.6rem 0.9rem;
+            margin-bottom: 1.2rem;
+            line-height: 1.5;
+            text-align: left;
+        }
+
+        .confirm-hint.hint-warning {
+            color: #92400E;
+            background: #FFFBEB;
+            border-color: #FDE68A;
+        }
+
+        .confirm-hint.hint-info {
+            color: #1E40AF;
+            background: #EFF6FF;
+            border-color: #BFDBFE;
+        }
+
+        .confirm-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 0.8rem;
+        }
+
+        .btn-confirm-cancel {
+            flex: 1;
+            padding: 0.7rem 1.1rem;
+            border-radius: 11px;
+            border: 1.5px solid #CBD5E1;
+            background: #FFFFFF;
+            color: #475569;
+            font-size: 0.92rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-confirm-cancel:hover {
+            background: #F1F5F9;
+            color: #1E293B;
+            border-color: #94A3B8;
+        }
+
+        .btn-confirm-proceed {
+            flex: 1.35;
+            padding: 0.7rem 1.2rem;
+            border-radius: 11px;
+            border: none;
+            font-size: 0.92rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            color: #FFFFFF;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-confirm-proceed.btn-theme-danger {
+            background: #DC2626;
+            box-shadow: 0 4px 14px rgba(220, 38, 38, 0.3);
+        }
+        .btn-confirm-proceed.btn-theme-danger:hover {
+            background: #B91C1C;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(220, 38, 38, 0.4);
+        }
+
+        .btn-confirm-proceed.btn-theme-warning {
+            background: #D97706;
+            box-shadow: 0 4px 14px rgba(217, 119, 6, 0.3);
+        }
+        .btn-confirm-proceed.btn-theme-warning:hover {
+            background: #B45309;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(217, 119, 6, 0.4);
+        }
+
+        .btn-confirm-proceed.btn-theme-info {
+            background: #2563EB;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+        }
+        .btn-confirm-proceed.btn-theme-info:hover {
+            background: #1D4ED8;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(37, 99, 235, 0.4);
+        }
+
         @keyframes modalFadeIn {
             from { opacity: 0; transform: scale(0.95); }
             to { opacity: 1; transform: scale(1); }
@@ -1529,7 +1766,7 @@
                 <span class="material-symbols-Outlined">desktop_windows</span>
             </div>
             <div class="brand-text">
-                <h1>CSHOS StaffInfo</h1>
+                <h1>CSHOS STAFF INFO</h1>
                 <p>ระบบติดตามและตรวจสอบการติดตั้งคอมพิวเตอร์ลูกข่าย</p>
             </div>
         </div>
@@ -1665,11 +1902,6 @@
                         <span>รีเซ็ตทุกเครื่อง</span>
                     </button>
 
-                    <button type="button" class="btn-clear-offline" onclick="submitClearOffline()">
-                        <span class="material-symbols-Outlined" style="font-size: 17px;">delete_sweep</span>
-                        <span>ลบเครื่องออฟไลน์</span>
-                    </button>
-
                     <button type="button" class="btn-refresh" onclick="location.reload()">
                         <span class="material-symbols-Outlined" style="font-size: 17px;">refresh</span>
                         <span>รีเฟรช</span>
@@ -1682,9 +1914,6 @@
                 </div>
             </form>
             <form id="resetAllForm" action="{{ route('admin.installations.reset-all') }}" method="POST" style="display: none;">
-                @csrf
-            </form>
-            <form id="clearOfflineForm" action="{{ route('admin.installations.clear-offline') }}" method="POST" style="display: none;">
                 @csrf
             </form>
         </section>
@@ -1701,7 +1930,7 @@
                             <th style="width: 140px;">IP Address</th>
                             <th style="width: 100px; text-align: center;">สเปกเครื่อง</th>
                             <th style="width: 110px; text-align: center;">รีโมท (VNC)</th>
-                            <th style="width: 150px;">แผนก / หน่วยงาน</th>
+                            <th style="width: 170px;">ชื่อเจ้าหน้าที่</th>
                             <th style="width: 120px;">ใช้งานล่าสุด</th>
                             <th style="width: 115px; text-align: center;">จัดการ</th>
                         </tr>
@@ -1766,7 +1995,12 @@
                                     @endif
                                 </td>
                                 <td>
-                                    @if($item->department)
+                                    @if($item->staff_name)
+                                        <div class="staff-compact-cell" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;">
+                                            <span class="material-symbols-Outlined staff-badge-icon">badge</span>
+                                            <span class="staff-name-text">{{ $item->staff_name }}</span>
+                                        </div>
+                                    @elseif($item->department)
                                         <span class="dept-compact-tag" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;">
                                             {{ $item->department }}
                                         </span>
@@ -1789,19 +2023,14 @@
                                                 onclick="openEditModal({{ json_encode($item) }})">
                                             <span class="material-symbols-Outlined" style="font-size: 15px;">edit</span>
                                         </button>
-                                        <form action="{{ route('admin.installations.reset', $item->id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('ต้องการรีเซ็ตสถานะการติดตั้งของเครื่อง {{ $item->hostname ?: $item->ip_address }} ใช่หรือไม่? \n(สถานะจะเปลี่ยนเป็น \'รอติดตั้งใหม่\' เพื่อให้เครื่องนี้ติดตั้งไอคอนใหม่ได้)')">
-                                            @csrf
-                                            <button type="submit" class="btn-action-icon btn-action-reset">
-                                                <span class="material-symbols-Outlined" style="font-size: 15px;">restart_alt</span>
-                                            </button>
-                                        </form>
-                                        <form action="{{ route('admin.installations.destroy', $item->id) }}" method="POST" style="margin: 0;" onsubmit="return confirm('ต้องการลบข้อมูลเครื่อง {{ $item->hostname ?: $item->ip_address }} ออกจากระบบใช่หรือไม่?')">
-                                            @csrf
-                                            @method('DELETE')
-                                            <button type="submit" class="btn-action-icon btn-action-delete">
-                                                <span class="material-symbols-Outlined" style="font-size: 15px;">delete</span>
-                                            </button>
-                                        </form>
+                                        <button type="button" class="btn-action-icon btn-action-reset"
+                                                onclick="confirmResetRow('{{ route('admin.installations.reset', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}')">
+                                            <span class="material-symbols-Outlined" style="font-size: 15px;">restart_alt</span>
+                                        </button>
+                                        <button type="button" class="btn-action-icon btn-action-delete"
+                                                onclick="confirmDeleteRow('{{ route('admin.installations.destroy', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}')">
+                                            <span class="material-symbols-Outlined" style="font-size: 15px;">delete</span>
+                                        </button>
                                     </div>
                                 </td>
                             </tr>
@@ -1811,7 +2040,7 @@
                                     <div class="empty-state">
                                         <span class="material-symbols-Outlined">devices_off</span>
                                         <h3>ยังไม่มีข้อมูลการติดตั้งในระบบ</h3>
-                                        <p>เมื่อเจ้าหน้าที่เปิดใช้งานหรือกดติดตั้งไอคอน CSHOS StaffInfo ระบบจะตรวจจับและบันทึกอัตโนมัติ</p>
+                                        <p>เมื่อเจ้าหน้าที่เปิดใช้งานหรือกดติดตั้งไอคอน CSHOS STAFF INFO ระบบจะตรวจจับและบันทึกอัตโนมัติ</p>
                                     </div>
                                 </td>
                             </tr>
@@ -1971,8 +2200,8 @@
                             <div id="dtCompName" class="detail-value" style="font-weight: 700; color: #0F172A;">-</div>
                         </div>
                         <div class="detail-item">
-                            <label>แผนก / หน่วยงาน</label>
-                            <div id="dtDept" class="detail-value">-</div>
+                            <label>ชื่อเจ้าหน้าที่ (ผู้ใช้งาน CSHOS)</label>
+                            <div id="dtStaff" class="detail-value text-highlight" style="font-size: 0.92rem;">-</div>
                         </div>
                         <div class="detail-item">
                             <label>ผู้ใช้งานประจำเครื่อง / อุปกรณ์</label>
@@ -2028,6 +2257,47 @@
         </div>
     </div>
 
+    <!-- Beautiful Confirmation Modal -->
+    <div class="modal-overlay" id="confirmActionModal">
+        <div class="modal-card modal-card-confirm">
+            <div class="confirm-icon-wrapper" id="confirmIconWrapper">
+                <span class="material-symbols-Outlined" id="confirmIcon">warning</span>
+            </div>
+            
+            <h3 class="confirm-title" id="confirmTitle">ยืนยันการดำเนินการ</h3>
+            
+            <p class="confirm-message" id="confirmMessage">
+                คุณแน่ใจหรือไม่ว่าต้องการดำเนินการนี้?
+            </p>
+
+            <div class="confirm-target-box" id="confirmTargetBox" style="display: none;">
+                <div class="confirm-target-icon">
+                    <span class="material-symbols-Outlined" style="font-size: 20px;">computer</span>
+                </div>
+                <div class="confirm-target-info">
+                    <div class="confirm-target-name" id="confirmTargetName">-</div>
+                    <div class="confirm-target-sub" id="confirmTargetSub">-</div>
+                </div>
+            </div>
+
+            <div class="confirm-hint" id="confirmHint" style="display: none;"></div>
+
+            <div class="confirm-actions">
+                <button type="button" class="btn-confirm-cancel" onclick="closeConfirmModal()">ยกเลิก</button>
+                <button type="button" class="btn-confirm-proceed" id="confirmProceedBtn">
+                    <span class="material-symbols-Outlined" id="confirmProceedIcon" style="font-size: 18px;">check</span>
+                    <span id="confirmProceedText">ยืนยัน</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Form for Dynamic POST/DELETE Actions -->
+    <form id="genericActionForm" method="POST" style="display: none;">
+        @csrf
+        <input type="hidden" name="_method" id="genericActionMethod" value="POST">
+    </form>
+
     <!-- Toast Notification -->
     <div id="toastNotification" class="toast-notify">
         <span class="material-symbols-Outlined" style="color: #34D399; font-size: 20px;">check_circle</span>
@@ -2078,7 +2348,18 @@
             // Network & Identity
             document.getElementById('dtIp').textContent = item.ip_address || 'ไม่พบ IP';
             document.getElementById('dtCompName').textContent = item.hostname || '-';
-            document.getElementById('dtDept').textContent = item.department || 'ยังไม่ระบุแผนก';
+            const staffEl = document.getElementById('dtStaff');
+            if (staffEl) {
+                if (item.staff_name) {
+                    staffEl.innerHTML = '<span style="color: #1D4ED8; font-weight: 700;">' + item.staff_name + '</span>' +
+                        (item.staff_login ? ' <span style="font-size: 0.78rem; color: #64748B;">(' + item.staff_login + ')</span>' : '') +
+                        (item.hos_dept ? '<div style="font-size: 0.78rem; color: #059669; margin-top: 2px;">' + item.hos_dept + '</div>' : '');
+                } else if (item.department) {
+                    staffEl.textContent = item.department;
+                } else {
+                    staffEl.textContent = 'ยังไม่ระบุ / ไม่อยู่ในระบบออนไลน์';
+                }
+            }
             document.getElementById('dtDeviceName').textContent = item.device_name || '-';
             document.getElementById('dtUuid').textContent = item.device_id || '-';
 
@@ -2283,26 +2564,145 @@
             }
         }
 
-        function resetThisDevice() {
-            if (confirm('คุณต้องการรีเซ็ตสถานะการติดตั้งของเครื่องปัจจุบันนี้ เพื่อกลับไปหน้าหลักและติดตั้งไอคอน CSHOS StaffInfo ลงหน้าจอ Desktop ใหม่อีกครั้ง ใช่หรือไม่?')) {
-                try {
-                    localStorage.removeItem('csh_app_installed');
-                    localStorage.removeItem('csh_device_uuid');
-                } catch(e) {}
-                window.location.href = '{{ route("home") }}?reset=1';
+        // --- Beautiful Confirmation Modal System ---
+        let confirmActionCallback = null;
+
+        function openConfirmModal(config) {
+            const modal = document.getElementById('confirmActionModal');
+            const iconWrapper = document.getElementById('confirmIconWrapper');
+            const iconEl = document.getElementById('confirmIcon');
+            const titleEl = document.getElementById('confirmTitle');
+            const msgEl = document.getElementById('confirmMessage');
+            const targetBox = document.getElementById('confirmTargetBox');
+            const targetName = document.getElementById('confirmTargetName');
+            const targetSub = document.getElementById('confirmTargetSub');
+            const hintEl = document.getElementById('confirmHint');
+            const proceedBtn = document.getElementById('confirmProceedBtn');
+            const proceedIcon = document.getElementById('confirmProceedIcon');
+            const proceedText = document.getElementById('confirmProceedText');
+
+            const type = config.type || 'warning';
+            iconWrapper.className = 'confirm-icon-wrapper theme-' + type;
+            iconEl.textContent = config.icon || 'warning';
+            titleEl.textContent = config.title || 'ยืนยันการดำเนินการ';
+            msgEl.innerHTML = config.message || '';
+
+            if (config.targetName) {
+                targetBox.style.display = 'flex';
+                targetName.textContent = config.targetName;
+                targetSub.textContent = config.targetSub || '';
+            } else {
+                targetBox.style.display = 'none';
             }
+
+            if (config.hint) {
+                hintEl.style.display = 'block';
+                hintEl.className = 'confirm-hint hint-' + type;
+                hintEl.innerHTML = config.hint;
+            } else {
+                hintEl.style.display = 'none';
+            }
+
+            proceedBtn.className = 'btn-confirm-proceed btn-theme-' + type;
+            proceedIcon.textContent = config.proceedIcon || 'check';
+            proceedText.textContent = config.proceedText || 'ยืนยัน';
+
+            confirmActionCallback = config.onConfirm;
+            modal.classList.add('active');
+        }
+
+        function closeConfirmModal() {
+            const modal = document.getElementById('confirmActionModal');
+            if (modal) modal.classList.remove('active');
+            confirmActionCallback = null;
+        }
+
+        document.getElementById('confirmProceedBtn').addEventListener('click', function() {
+            if (typeof confirmActionCallback === 'function') {
+                const cb = confirmActionCallback;
+                closeConfirmModal();
+                cb();
+            }
+        });
+
+        document.getElementById('confirmActionModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeConfirmModal();
+            }
+        });
+
+        function confirmDeleteRow(url, hostname, ip) {
+            openConfirmModal({
+                type: 'danger',
+                icon: 'delete',
+                title: 'ยืนยันการลบข้อมูลเครื่อง',
+                message: 'คุณต้องการลบข้อมูลเครื่องคอมพิวเตอร์นี้ออกจากระบบ ใช่หรือไม่?',
+                targetName: hostname ? (hostname + (ip ? ' (' + ip + ')' : '')) : (ip || 'ไม่ระบุชื่อเครื่อง'),
+                targetSub: 'IP Address: ' + (ip || '-'),
+                hint: '⚠️ หมายเหตุ: การลบจะนำรายการเครื่องนี้ออกจากตารางทันที (หากเครื่องเปิดใช้งานใหม่ ระบบจะบันทึกกลับเข้ามาอัตโนมัติ)',
+                proceedIcon: 'delete',
+                proceedText: 'ยืนยันการลบ',
+                onConfirm: function() {
+                    const form = document.getElementById('genericActionForm');
+                    form.action = url;
+                    document.getElementById('genericActionMethod').value = 'DELETE';
+                    form.submit();
+                }
+            });
+        }
+
+        function confirmResetRow(url, hostname, ip) {
+            openConfirmModal({
+                type: 'warning',
+                icon: 'restart_alt',
+                title: 'ยืนยันการรีเซ็ตสถานะเครื่อง',
+                message: 'คุณต้องการรีเซ็ตสถานะการติดตั้งของเครื่องนี้ ใช่หรือไม่?',
+                targetName: hostname ? (hostname + (ip ? ' (' + ip + ')' : '')) : (ip || 'ไม่ระบุชื่อเครื่อง'),
+                targetSub: 'IP Address: ' + (ip || '-'),
+                hint: '🔄 สถานะจะเปลี่ยนเป็น <strong>"รอติดตั้งใหม่"</strong> เพื่อให้เครื่องนี้สามารถติดตั้งไอคอน CSHOS STAFF INFO ได้ใหม่อีกครั้ง',
+                proceedIcon: 'restart_alt',
+                proceedText: 'ยืนยันรีเซ็ต',
+                onConfirm: function() {
+                    const form = document.getElementById('genericActionForm');
+                    form.action = url;
+                    document.getElementById('genericActionMethod').value = 'POST';
+                    form.submit();
+                }
+            });
+        }
+
+        function resetThisDevice() {
+            openConfirmModal({
+                type: 'info',
+                icon: 'devices',
+                title: 'รีเซ็ตสถานะเครื่องปัจจุบันนี้',
+                message: 'ต้องการรีเซ็ตสถานะการติดตั้งของเครื่องที่คุณกำลังใช้งานอยู่ เพื่อกลับไปหน้าหลักและติดตั้งไอคอน CSHOS STAFF INFO ลง Desktop ใหม่อีกครั้ง ใช่หรือไม่?',
+                hint: '💡 ระบบจะล้างค่าการติดตั้งในเบราว์เซอร์ของเครื่องนี้ แล้วพากลับสู่หน้าหลักเพื่อเริ่มการติดตั้งใหม่',
+                proceedIcon: 'refresh',
+                proceedText: 'รีเซ็ตเครื่องนี้',
+                onConfirm: function() {
+                    try {
+                        localStorage.removeItem('csh_app_installed');
+                        localStorage.removeItem('csh_device_uuid');
+                    } catch(e) {}
+                    window.location.href = '{{ route("home") }}?reset=1';
+                }
+            });
         }
 
         function submitResetAll() {
-            if (confirm('คำเตือน: คุณต้องการรีเซ็ตสถานะการติดตั้งของ "ทุกเครื่องในระบบ" ให้กลับเป็นสถานะ "รอติดตั้งใหม่" ใช่หรือไม่?')) {
-                document.getElementById('resetAllForm').submit();
-            }
-        }
-
-        function submitClearOffline() {
-            if (confirm('ต้องการลบเครื่องที่ออฟไลน์ทั้งหมดออกจากตารางใช่หรือไม่?\n(ระบบจะลบเฉพาะเครื่องที่ไม่ได้ออนไลน์ในวันนี้ และคงเหลือไว้เฉพาะเครื่องที่ออนไลน์สถานะวันนี้)')) {
-                document.getElementById('clearOfflineForm').submit();
-            }
+            openConfirmModal({
+                type: 'danger',
+                icon: 'history_toggle_off',
+                title: 'คำเตือน: รีเซ็ตทุกเครื่องในระบบ',
+                message: 'คุณต้องการรีเซ็ตสถานะการติดตั้งของ <strong>"ทุกเครื่องในระบบ"</strong> ให้กลับเป็นสถานะ <strong>"รอติดตั้งใหม่"</strong> ทั้งหมด ใช่หรือไม่?',
+                hint: '⚠️ ทุกเครื่องในตารางจะถูกปรับสถานะเป็นรอติดตั้งใหม่ทั้งหมด โปรดตรวจสอบก่อนยืนยัน',
+                proceedIcon: 'restart_alt',
+                proceedText: 'ยืนยันรีเซ็ตทุกเครื่อง',
+                onConfirm: function() {
+                    document.getElementById('resetAllForm').submit();
+                }
+            });
         }
     </script>
 </body>

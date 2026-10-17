@@ -28,7 +28,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="CSHOS StaffInfo">
+    <meta name="apple-mobile-web-app-title" content="CSHOS STAFF INFO">
 
     <!-- PWA Installation Engine & ServiceWorker -->
     <script>
@@ -1113,7 +1113,7 @@
                 <div class="install-modal-title">
                     <span class="material-symbols-outlined" style="font-size: 28px; color: #93c5fd;">install_desktop</span>
                     <div>
-                        <h3>ติดตั้ง CSHOS StaffInfo บนคอมพิวเตอร์</h3>
+                        <h3>ติดตั้ง CSHOS STAFF INFO บนคอมพิวเตอร์</h3>
                         <small>โรงพยาบาลเชียงแสน (Chiang Saen Digital Health)</small>
                     </div>
                 </div>
@@ -1133,7 +1133,7 @@
                         <span class="install-step-badge" style="background: #16a34a;">คลิกเดียว</span>
                     </div>
                     <p class="install-step-desc" style="color: #166534; margin-bottom: 6px;">
-                        คลิกปุ่มด้านล่างเพื่อดาวน์โหลดไฟล์สร้างไอคอน แล้ว<strong>กดเปิดไฟล์ที่ดาวน์โหลดมา 1 ครั้ง</strong> ระบบจะสร้างไอคอน <strong>CSHOS StaffInfo</strong> ไว้บนหน้าจอ Desktop ให้อัตโนมัติทันที
+                        คลิกปุ่มด้านล่างเพื่อดาวน์โหลดไฟล์สร้างไอคอน แล้ว<strong>กดเปิดไฟล์ที่ดาวน์โหลดมา 1 ครั้ง</strong> ระบบจะสร้างไอคอน <strong>CSHOS STAFF INFO</strong> ไว้บนหน้าจอ Desktop ให้อัตโนมัติทันที
                     </p>
                     <button type="button" class="btn-download-shortcut" onclick="downloadShortcutInstaller()">
                         <span class="material-symbols-outlined" style="font-size: 22px;">download</span>
@@ -1156,7 +1156,7 @@
                     <ul class="install-guide-steps">
                         <li>
                             <span class="step-num">1</span>
-                            <div>มองที่ <strong>แถบที่อยู่เว็บ (Address Bar ด้านบนขวา)</strong> จะมีไอคอน <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; color: #2563eb;">install_desktop</span> <strong>"ติดตั้ง CSHOS StaffInfo"</strong> &rarr; คลิกแล้วกดปุ่ม <strong>"ติดตั้ง" (Install)</strong></div>
+                            <div>มองที่ <strong>แถบที่อยู่เว็บ (Address Bar ด้านบนขวา)</strong> จะมีไอคอน <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle; color: #2563eb;">install_desktop</span> <strong>"ติดตั้ง CSHOS STAFF INFO"</strong> &rarr; คลิกแล้วกดปุ่ม <strong>"ติดตั้ง" (Install)</strong></div>
                         </li>
                         <li>
                             <span class="step-num">2</span>
@@ -1306,7 +1306,7 @@
         }
 
         window.addEventListener('appinstalled', () => {
-            console.log('CSHOS StaffInfo app was installed');
+            console.log('CSHOS STAFF INFO app was installed');
             window.deferredPrompt = null;
             markAppInstalled();
             sendInstallTracking('installed');
@@ -1340,7 +1340,7 @@
 
                 if (result.shortcut_created) {
                     markAppInstalled();
-                    showInstallToast('🎉 ติดตั้งไอคอน CSHOS StaffInfo บนหน้าจอ Desktop เรียบร้อยแล้ว!');
+                    showInstallToast('🎉 ติดตั้งไอคอน CSHOS STAFF INFO บนหน้าจอ Desktop เรียบร้อยแล้ว!');
                     if (btn) btn.style.pointerEvents = 'auto';
                     return;
                 }
@@ -1363,7 +1363,7 @@
                     if (choiceResult.outcome === 'accepted') {
                         markAppInstalled();
                         sendInstallTracking('installed');
-                        showInstallToast('🎉 ติดตั้ง CSHOS StaffInfo ลงบนคอมพิวเตอร์เรียบร้อยแล้ว!');
+                        showInstallToast('🎉 ติดตั้ง CSHOS STAFF INFO ลงบนคอมพิวเตอร์เรียบร้อยแล้ว!');
                     }
                     window.deferredPrompt = null;
                     return;
@@ -1430,14 +1430,14 @@
             const downloadUrl = `{{ route('download.url.shortcut') }}`;
             const link = document.createElement('a');
             link.href = downloadUrl;
-            link.setAttribute('download', 'CSHOS StaffInfo.url');
+            link.setAttribute('download', 'CSHOS STAFF INFO.url');
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
 
             markAppInstalled();
             sendInstallTracking('installed');
-            showInstallToast('📥 ดาวน์โหลดไฟล์ทางลัดเว็บ CSHOS StaffInfo.url เรียบร้อยแล้ว (สามารถลากไปวางไว้บนหน้าจอ Desktop ได้ทันที)');
+            showInstallToast('📥 ดาวน์โหลดไฟล์ทางลัดเว็บ CSHOS STAFF INFO.url เรียบร้อยแล้ว (สามารถลากไปวางไว้บนหน้าจอ Desktop ได้ทันที)');
         }
 
         function copyClientIp() {
