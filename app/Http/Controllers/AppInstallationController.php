@@ -11,7 +11,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AppInstallationController extends Controller
 {
-    public const CLIENT_APP_VERSION = '2.6.0';
+    public const CLIENT_APP_VERSION = '2.7.0';
 
     /**
      * Get the latest client application version.
@@ -1103,6 +1103,13 @@ try {
     reg add "HKLM\SOFTWARE\TightVNC\Server" /v RfbPort /t REG_DWORD /d 5900 /f | Out-Null
     reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v Password /t REG_BINARY /d $vncHash /f | Out-Null
     reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v UseVncAuthentication /t REG_DWORD /d 1 /f | Out-Null
+    reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v AcceptRfbConnections /t REG_DWORD /d 1 /f | Out-Null
+    try {
+        Set-Service -Name "tvnserver" -StartupType Automatic -ErrorAction SilentlyContinue
+        Stop-Service -Name "tvnserver" -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 500
+        Start-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+    } catch {}
     $passFile = Join-Path $sysDir "vnc_password.txt"
     if (Test-Path $passFile) { Remove-Item $passFile -Force -ErrorAction SilentlyContinue }
     $vncLauncherVbs = Join-Path $sysDir "vnc-launcher.vbs"
@@ -3871,13 +3878,29 @@ POWERSHELL;
         $pass = $this->getVncPassword();
         $p8 = substr($pass, 0, 8);
         return \Illuminate\Support\Facades\Cache::remember('vnc_hash_' . md5($p8), 86400 * 30, function () use ($p8) {
-            $pSafe = addslashes($p8);
-            $psCmd = 'powershell.exe -NoProfile -Command "$des=[System.Security.Cryptography.DES]::Create(); $des.Mode=[System.Security.Cryptography.CipherMode]::CBC; $des.Padding=[System.Security.Cryptography.PaddingMode]::None; $des.Key=[byte[]]@(0xe8,0x4a,0xd6,0x60,0xc4,0x72,0x1a,0xe0); $des.IV=[byte[]]::new(8); $pBytes=[System.Text.Encoding]::ASCII.GetBytes(\'' . $pSafe . '\'.PadRight(8, [char]0).Substring(0,8)); $enc=$des.CreateEncryptor(); $res=$enc.TransformFinalBlock($pBytes,0,8); [System.BitConverter]::ToString($res).Replace(\'-\',\'\').ToLower()"';
-            $out = trim(shell_exec($psCmd) ?: '');
-            if (preg_match('/^[a-f0-9]{16}$/i', $out)) {
-                return strtolower($out);
-            }
-            return '51bb787873401462';
+            // Method 1: PHP OpenSSL (Fastest & Native, des-ede3-cbc with repeated key == DES CBC)
+            try {
+                $rawKey = hex2bin('e84ad660c4721ae0');
+                $keyTriple = $rawKey . $rawKey . $rawKey;
+                $data = str_pad($p8, 8, chr(0));
+                $iv = str_repeat(chr(0), 8);
+                $cipher = @openssl_encrypt($data, 'des-ede3-cbc', $keyTriple, OPENSSL_RAW_DATA | OPENSSL_NO_PADDING, $iv);
+                if ($cipher && strlen($cipher) === 8) {
+                    return strtolower(bin2hex($cipher));
+                }
+            } catch (\Throwable $e) {}
+
+            // Method 2: PowerShell .NET DES
+            try {
+                $pSafe = addslashes($p8);
+                $psCmd = 'powershell.exe -NoProfile -Command "[byte[]]$k=0xe8,0x4a,0xd6,0x60,0xc4,0x72,0x1a,0xe0; [byte[]]$p=[System.Text.Encoding]::ASCII.GetBytes(\'' . $pSafe . '\'.PadRight(8,[char]0).Substring(0,8)); $des=[System.Security.Cryptography.DES]::Create(); $des.Mode=[System.Security.Cryptography.CipherMode]::ECB; $des.Padding=[System.Security.Cryptography.PaddingMode]::None; $des.Key=$k; $enc=$des.CreateEncryptor(); $res=$enc.TransformFinalBlock($p,0,8); [System.BitConverter]::ToString($res).Replace(\'-\',\'\').ToLower()"';
+                $out = trim(shell_exec($psCmd) ?: '');
+                if (preg_match('/^[a-f0-9]{16}$/i', $out)) {
+                    return strtolower($out);
+                }
+            } catch (\Throwable $e) {}
+
+            return '42eee47285988d91';
         });
     }
 

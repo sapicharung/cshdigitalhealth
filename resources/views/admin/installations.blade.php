@@ -2784,7 +2784,7 @@
 
         function copyCurrentVnc() {
             if (!currentDetailItem || !currentDetailItem.ip_address) return;
-            copyVnc(currentDetailItem.ip_address, '{{ $vnc_password ?? 'cshos123' }}');
+            copyVnc(currentDetailItem.ip_address, '{{ $vnc_password ?? "4Sh0sp@remote" }}');
         }
 
         function copyTextToClipboard(text, msg) {
@@ -2821,7 +2821,7 @@
             if (item.ram) specs.push('<strong>RAM:</strong> ' + item.ram);
             if (item.disk) specs.push('<strong>DISK:</strong> ' + item.disk);
             if (item.remote_ready) {
-                specs.push('<span style="color:#059669; font-weight:600;">✓ เปิดระบบ Remote VNC (พอร์ต 5900 / รหัส: {{ $vnc_password ?? 'cshos123' }} - หน้าจอไม่ดับ)</span>');
+                specs.push('<span style="color:#059669; font-weight:600;">✓ เปิดระบบ Remote VNC (พอร์ต 5900 / รหัส: {{ $vnc_password ?? "4Sh0sp@remote" }} - หน้าจอไม่ดับ)</span>');
                 specs.push('<span style="color:#64748B; font-size:0.75rem;">(และเปิด Windows Remote Desktop RDP สำรองแล้ว)</span>');
             }
             if (specs.length === 0) {
