@@ -11,14 +11,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AppInstallationController extends Controller
 {
-    public const CLIENT_APP_VERSION = '2.9.0';
+    public const CLIENT_APP_VERSION = '2.9.1';
 
     /**
      * Get the latest client application version.
      */
     public function getClientAppVersion(): string
     {
-        return env('CLIENT_APP_VERSION', self::CLIENT_APP_VERSION);
+        return self::CLIENT_APP_VERSION;
     }
 
     /**
@@ -842,8 +842,10 @@ class AppInstallationController extends Controller
         $isOnline = false;
         $pushed = false;
 
-        // Check reachability
-        if ($ip && !in_array($ip, ['127.0.0.1', '::1'])) {
+        $isLocal = in_array($ip, ['127.0.0.1', '::1']) || $ip === gethostbyname(gethostname()) || $ip === ($request->server('SERVER_ADDR') ?: '');
+        if ($isLocal) {
+            $isOnline = true;
+        } elseif ($ip) {
             $fpVnc = @fsockopen($ip, 5900, $errno, $errstr, 0.8);
             if ($fpVnc) {
                 $isOnline = true;
@@ -866,16 +868,29 @@ class AppInstallationController extends Controller
                     $isOnline = true;
                 }
             }
+        }
 
-            // Proactively trigger the AutoSync task remotely over LAN
-            if ($isOnline && strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                try {
+        // Proactively trigger the AutoSync task remotely over LAN or locally
+        if ($isOnline && strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            try {
+                $serverVersion = $this->getClientAppVersion();
+                if ($installation->client_version !== $serverVersion || empty($installation->uptime_text)) {
+                    $installation->pending_update = true;
+                }
+
+                if ($isLocal) {
+                    $cmd = "start /b schtasks /run /tn CSHOS-AutoSync-Startup >nul 2>&1";
+                } elseif ($ip) {
                     $escapedIp = escapeshellarg($ip);
-                    $cmd = "start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Startup >nul 2>&1";
+                    $cmd = "start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Startup >nul 2>&1 & start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Hourly >nul 2>&1";
+                } else {
+                    $cmd = null;
+                }
+                if ($cmd) {
                     pclose(popen($cmd, "r"));
                     $pushed = true;
-                } catch (\Throwable $e) {}
-            }
+                }
+            } catch (\Throwable $e) {}
         }
 
         $installation->is_online = $isOnline;
@@ -928,12 +943,18 @@ class AppInstallationController extends Controller
         $triggered = 0;
         $isWin = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
 
+        $serverVersion = $this->getClientAppVersion();
         foreach ($installations as $inst) {
             $ip = $inst->ip_address;
+            if ($inst->client_version !== $serverVersion || empty($inst->uptime_text)) {
+                $inst->pending_update = true;
+                $inst->save();
+            }
+
             if ($isWin && $ip) {
                 try {
                     $escapedIp = escapeshellarg($ip);
-                    $cmd = "start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Startup >nul 2>&1";
+                    $cmd = "start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Startup >nul 2>&1 & start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Hourly >nul 2>&1";
                     pclose(popen($cmd, "r"));
                     $triggered++;
                 } catch (\Throwable $e) {}
@@ -1919,48 +1940,196 @@ try {
     }
 } catch {}
 
-# Detect AnyDesk Installation & AnyDesk ID
+# Detect AnyDesk Installation & AnyDesk ID (Multi-path & Multi-method Detection)
 $anydeskFound = $false
 $anydeskIdStr = ""
+$anydeskExe = ""
 try {
-    # 1. Check Service
-    $adSvc = Get-Service -Name "AnyDesk" -ErrorAction SilentlyContinue
-    if ($adSvc) { $anydeskFound = $true }
-
-    # 2. Check File Paths
-    $adPaths = @(
-        "C:\Program Files (x86)\AnyDesk\AnyDesk.exe",
-        "C:\Program Files\AnyDesk\AnyDesk.exe",
-        "$env:ALLUSERSPROFILE\AnyDesk\AnyDesk.exe",
-        "$env:APPDATA\AnyDesk\AnyDesk.exe"
-    )
-    foreach ($p in $adPaths) {
-        if (Test-Path $p) { $anydeskFound = $true; break }
+    # 1. Running Process Detection
+    $adProc = Get-Process -Name "AnyDesk" -ErrorAction SilentlyContinue
+    if ($adProc) {
+        $anydeskFound = $true
+        foreach ($pr in $adProc) {
+            if ($pr.Path -and (Test-Path $pr.Path)) {
+                $anydeskExe = $pr.Path
+                break
+            }
+        }
     }
 
-    # 3. Check Uninstall Registry
-    if (-not $anydeskFound) {
+    # 2. Windows Service Detection (AnyDesk Service)
+    if (-not $anydeskExe) {
+        $adSvc = Get-Service -Name "AnyDesk" -ErrorAction SilentlyContinue
+        if ($adSvc) {
+            $anydeskFound = $true
+            try {
+                $cimSvc = Get-CimInstance Win32_Service -Filter "Name='AnyDesk'" -ErrorAction SilentlyContinue
+                if ($cimSvc -and $cimSvc.PathName) {
+                    $sClean = $cimSvc.PathName -replace '^\s*"([^"]+)".*$', '$1' -replace '^\s*([^\s]+).*$', '$1'
+                    if (Test-Path $sClean) { $anydeskExe = $sClean }
+                }
+            } catch {}
+        }
+    }
+
+    # 3. Registry App Paths (HKLM 64-bit, HKLM 32-bit WOW64, HKCU)
+    if (-not $anydeskExe) {
+        $regAppPaths = @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\AnyDesk.exe",
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\AnyDesk.exe",
+            "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\AnyDesk.exe"
+        )
+        foreach ($rap in $regAppPaths) {
+            $apVal = (Get-ItemProperty $rap -ErrorAction SilentlyContinue).'(Default)'
+            if ($apVal -and (Test-Path $apVal)) {
+                $anydeskExe = $apVal
+                $anydeskFound = $true
+                break
+            }
+        }
+    }
+
+    # 4. Registry URL Protocol Handler (anydesk:// command)
+    if (-not $anydeskExe) {
+        $protoKeys = @(
+            "HKLM:\SOFTWARE\Classes\anydesk\shell\open\command",
+            "HKCU:\SOFTWARE\Classes\anydesk\shell\open\command"
+        )
+        foreach ($pk in $protoKeys) {
+            $cmdVal = (Get-ItemProperty $pk -ErrorAction SilentlyContinue).'(Default)'
+            if ($cmdVal) {
+                $m = [regex]::Match($cmdVal, '(?i)"?([a-zA-Z]:\\[^"]+?anydesk\.exe)"?')
+                if ($m.Success -and (Test-Path $m.Groups[1].Value)) {
+                    $anydeskExe = $m.Groups[1].Value
+                    $anydeskFound = $true
+                    break
+                }
+            }
+        }
+    }
+
+    # 5. Registry Uninstall Entries
+    if (-not $anydeskFound -or -not $anydeskExe) {
         $adReg = Get-ItemProperty @(
             "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
-            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
         ) -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'AnyDesk' }
-        if ($adReg) { $anydeskFound = $true }
+        if ($adReg) {
+            $anydeskFound = $true
+            foreach ($u in $adReg) {
+                if ($u.DisplayIcon) {
+                    $iconExe = $u.DisplayIcon -replace ',.*$', '' -replace '"', ''
+                    if (Test-Path $iconExe) { $anydeskExe = $iconExe; break }
+                }
+                if ($u.InstallLocation) {
+                    $cand = Join-Path $u.InstallLocation "AnyDesk.exe"
+                    if (Test-Path $cand) { $anydeskExe = $cand; break }
+                }
+            }
+        }
     }
 
-    # 4. Check Running Process
-    if (-not $anydeskFound) {
-        $adProc = Get-Process -Name "AnyDesk" -ErrorAction SilentlyContinue
-        if ($adProc) { $anydeskFound = $true }
+    # 6. Comprehensive File Path Check across All Drives (C:, D:, etc.)
+    if (-not $anydeskExe) {
+        $drives = @("C:")
+        try {
+            $allDrives = @(Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Root)
+            if ($allDrives -and $allDrives.Count -gt 0) { $drives = $allDrives }
+        } catch {}
+
+        $candRel = @(
+            "Program Files (x86)\AnyDesk\AnyDesk.exe",
+            "Program Files\AnyDesk\AnyDesk.exe",
+            "AnyDesk\AnyDesk.exe",
+            "ProgramData\AnyDesk\AnyDesk.exe"
+        )
+        foreach ($drv in $drives) {
+            $cleanDrv = $drv.TrimEnd('\')
+            foreach ($rel in $candRel) {
+                $fp = "$cleanDrv\$rel"
+                if (Test-Path $fp) {
+                    $anydeskExe = $fp
+                    $anydeskFound = $true
+                    break
+                }
+            }
+            if ($anydeskExe) { break }
+        }
     }
 
-    # 5. Extract AnyDesk ID from system.conf or user.conf
-    $confPaths = @(
-        "$env:ALLUSERSPROFILE\AnyDesk\system.conf",
-        "$env:ProgramData\AnyDesk\system.conf",
-        "$env:APPDATA\AnyDesk\user.conf"
-    )
-    foreach ($cp in $confPaths) {
-        if (Test-Path $cp) {
+    # 7. User AppData, Local Programs, and User Profile Searches
+    if (-not $anydeskExe) {
+        $userAdPaths = @(
+            "$env:ProgramData\AnyDesk\AnyDesk.exe",
+            "$env:LOCALAPPDATA\Programs\AnyDesk\AnyDesk.exe",
+            "$env:LOCALAPPDATA\AnyDesk\AnyDesk.exe",
+            "$env:APPDATA\AnyDesk\AnyDesk.exe"
+        )
+        foreach ($uap in $userAdPaths) {
+            if ($uap -and (Test-Path $uap)) {
+                $anydeskExe = $uap
+                $anydeskFound = $true
+                break
+            }
+        }
+    }
+    if (-not $anydeskExe) {
+        $foundExes = @(Get-ChildItem -Path "C:\Users\*\AppData\Local\Programs\AnyDesk\AnyDesk.exe", "C:\Users\*\AppData\Roaming\AnyDesk\AnyDesk.exe" -ErrorAction SilentlyContinue)
+        if ($foundExes -and $foundExes.Count -gt 0) {
+            $anydeskExe = $foundExes[0].FullName
+            $anydeskFound = $true
+        }
+    }
+
+    # 8. Extract AnyDesk ID
+    # Method A: Query AnyDesk CLI directly (Fastest, 100% accurate regardless of path)
+    if ($anydeskExe -and (Test-Path $anydeskExe)) {
+        try {
+            $rawCli = (cmd /c "`"$anydeskExe`" --get-id" 2>&1 | Out-String).Trim()
+            if ($rawCli -match '^\d{9,10}$') {
+                $rawId = $rawCli
+                if ($rawId.Length -eq 9) {
+                    $anydeskIdStr = $rawId.Substring(0,3) + " " + $rawId.Substring(3,3) + " " + $rawId.Substring(6,3)
+                } elseif ($rawId.Length -eq 10) {
+                    $anydeskIdStr = $rawId.Substring(0,4) + " " + $rawId.Substring(4,3) + " " + $rawId.Substring(7,3)
+                } else {
+                    $anydeskIdStr = $rawId
+                }
+                $anydeskFound = $true
+            }
+        } catch {}
+    }
+
+    # Method B: Search and parse system.conf and user.conf across system and all user profiles
+    if (-not $anydeskIdStr) {
+        $confFiles = New-Object System.Collections.Generic.List[string]
+        $knownConfs = @(
+            "$env:ProgramData\AnyDesk\system.conf",
+            "$env:ALLUSERSPROFILE\AnyDesk\system.conf",
+            "C:\ProgramData\AnyDesk\system.conf",
+            "C:\ProgramData\AnyDesk\user.conf",
+            "C:\Windows\SysWOW64\config\systemprofile\AppData\Roaming\AnyDesk\system.conf",
+            "C:\Windows\System32\config\systemprofile\AppData\Roaming\AnyDesk\system.conf",
+            "$env:APPDATA\AnyDesk\user.conf",
+            "$env:APPDATA\AnyDesk\system.conf"
+        )
+        foreach ($kc in $knownConfs) {
+            if ($kc -and (Test-Path $kc) -and -not $confFiles.Contains($kc)) {
+                $confFiles.Add($kc)
+            }
+        }
+
+        try {
+            $userConfs = @(Get-ChildItem -Path "C:\Users\*\AppData\Roaming\AnyDesk" -Filter "*.conf" -ErrorAction SilentlyContinue)
+            foreach ($uc in $userConfs) {
+                if (-not $confFiles.Contains($uc.FullName)) {
+                    $confFiles.Add($uc.FullName)
+                }
+            }
+        } catch {}
+
+        foreach ($cp in $confFiles) {
             $confText = Get-Content -Path $cp -ErrorAction SilentlyContinue | Out-String
             if ($confText -match 'ad\.anynet\.id\s*=\s*(\d+)') {
                 $rawId = $matches[1].Trim()
@@ -2876,43 +3045,196 @@ try {
     }
 } catch {}
 
-# Detect AnyDesk Installation & AnyDesk ID
+# Detect AnyDesk Installation & AnyDesk ID (Multi-path & Multi-method Detection)
 $anydeskFound = $false
 $anydeskIdStr = ""
+$anydeskExe = ""
 try {
-    $adSvc = Get-Service -Name "AnyDesk" -ErrorAction SilentlyContinue
-    if ($adSvc) { $anydeskFound = $true }
-
-    $adPaths = @(
-        "C:\Program Files (x86)\AnyDesk\AnyDesk.exe",
-        "C:\Program Files\AnyDesk\AnyDesk.exe",
-        "$env:ALLUSERSPROFILE\AnyDesk\AnyDesk.exe",
-        "$env:APPDATA\AnyDesk\AnyDesk.exe"
-    )
-    foreach ($p in $adPaths) {
-        if (Test-Path $p) { $anydeskFound = $true; break }
+    # 1. Running Process Detection
+    $adProc = Get-Process -Name "AnyDesk" -ErrorAction SilentlyContinue
+    if ($adProc) {
+        $anydeskFound = $true
+        foreach ($pr in $adProc) {
+            if ($pr.Path -and (Test-Path $pr.Path)) {
+                $anydeskExe = $pr.Path
+                break
+            }
+        }
     }
 
-    if (-not $anydeskFound) {
+    # 2. Windows Service Detection (AnyDesk Service)
+    if (-not $anydeskExe) {
+        $adSvc = Get-Service -Name "AnyDesk" -ErrorAction SilentlyContinue
+        if ($adSvc) {
+            $anydeskFound = $true
+            try {
+                $cimSvc = Get-CimInstance Win32_Service -Filter "Name='AnyDesk'" -ErrorAction SilentlyContinue
+                if ($cimSvc -and $cimSvc.PathName) {
+                    $sClean = $cimSvc.PathName -replace '^\s*"([^"]+)".*$', '$1' -replace '^\s*([^\s]+).*$', '$1'
+                    if (Test-Path $sClean) { $anydeskExe = $sClean }
+                }
+            } catch {}
+        }
+    }
+
+    # 3. Registry App Paths (HKLM 64-bit, HKLM 32-bit WOW64, HKCU)
+    if (-not $anydeskExe) {
+        $regAppPaths = @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\AnyDesk.exe",
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\AnyDesk.exe",
+            "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\AnyDesk.exe"
+        )
+        foreach ($rap in $regAppPaths) {
+            $apVal = (Get-ItemProperty $rap -ErrorAction SilentlyContinue).'(Default)'
+            if ($apVal -and (Test-Path $apVal)) {
+                $anydeskExe = $apVal
+                $anydeskFound = $true
+                break
+            }
+        }
+    }
+
+    # 4. Registry URL Protocol Handler (anydesk:// command)
+    if (-not $anydeskExe) {
+        $protoKeys = @(
+            "HKLM:\SOFTWARE\Classes\anydesk\shell\open\command",
+            "HKCU:\SOFTWARE\Classes\anydesk\shell\open\command"
+        )
+        foreach ($pk in $protoKeys) {
+            $cmdVal = (Get-ItemProperty $pk -ErrorAction SilentlyContinue).'(Default)'
+            if ($cmdVal) {
+                $m = [regex]::Match($cmdVal, '(?i)"?([a-zA-Z]:\\[^"]+?anydesk\.exe)"?')
+                if ($m.Success -and (Test-Path $m.Groups[1].Value)) {
+                    $anydeskExe = $m.Groups[1].Value
+                    $anydeskFound = $true
+                    break
+                }
+            }
+        }
+    }
+
+    # 5. Registry Uninstall Entries
+    if (-not $anydeskFound -or -not $anydeskExe) {
         $adReg = Get-ItemProperty @(
             "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
-            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
         ) -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'AnyDesk' }
-        if ($adReg) { $anydeskFound = $true }
+        if ($adReg) {
+            $anydeskFound = $true
+            foreach ($u in $adReg) {
+                if ($u.DisplayIcon) {
+                    $iconExe = $u.DisplayIcon -replace ',.*$', '' -replace '"', ''
+                    if (Test-Path $iconExe) { $anydeskExe = $iconExe; break }
+                }
+                if ($u.InstallLocation) {
+                    $cand = Join-Path $u.InstallLocation "AnyDesk.exe"
+                    if (Test-Path $cand) { $anydeskExe = $cand; break }
+                }
+            }
+        }
     }
 
-    if (-not $anydeskFound) {
-        $adProc = Get-Process -Name "AnyDesk" -ErrorAction SilentlyContinue
-        if ($adProc) { $anydeskFound = $true }
+    # 6. Comprehensive File Path Check across All Drives (C:, D:, etc.)
+    if (-not $anydeskExe) {
+        $drives = @("C:")
+        try {
+            $allDrives = @(Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Root)
+            if ($allDrives -and $allDrives.Count -gt 0) { $drives = $allDrives }
+        } catch {}
+
+        $candRel = @(
+            "Program Files (x86)\AnyDesk\AnyDesk.exe",
+            "Program Files\AnyDesk\AnyDesk.exe",
+            "AnyDesk\AnyDesk.exe",
+            "ProgramData\AnyDesk\AnyDesk.exe"
+        )
+        foreach ($drv in $drives) {
+            $cleanDrv = $drv.TrimEnd('\')
+            foreach ($rel in $candRel) {
+                $fp = "$cleanDrv\$rel"
+                if (Test-Path $fp) {
+                    $anydeskExe = $fp
+                    $anydeskFound = $true
+                    break
+                }
+            }
+            if ($anydeskExe) { break }
+        }
     }
 
-    $confPaths = @(
-        "$env:ALLUSERSPROFILE\AnyDesk\system.conf",
-        "$env:ProgramData\AnyDesk\system.conf",
-        "$env:APPDATA\AnyDesk\user.conf"
-    )
-    foreach ($cp in $confPaths) {
-        if (Test-Path $cp) {
+    # 7. User AppData, Local Programs, and User Profile Searches
+    if (-not $anydeskExe) {
+        $userAdPaths = @(
+            "$env:ProgramData\AnyDesk\AnyDesk.exe",
+            "$env:LOCALAPPDATA\Programs\AnyDesk\AnyDesk.exe",
+            "$env:LOCALAPPDATA\AnyDesk\AnyDesk.exe",
+            "$env:APPDATA\AnyDesk\AnyDesk.exe"
+        )
+        foreach ($uap in $userAdPaths) {
+            if ($uap -and (Test-Path $uap)) {
+                $anydeskExe = $uap
+                $anydeskFound = $true
+                break
+            }
+        }
+    }
+    if (-not $anydeskExe) {
+        $foundExes = @(Get-ChildItem -Path "C:\Users\*\AppData\Local\Programs\AnyDesk\AnyDesk.exe", "C:\Users\*\AppData\Roaming\AnyDesk\AnyDesk.exe" -ErrorAction SilentlyContinue)
+        if ($foundExes -and $foundExes.Count -gt 0) {
+            $anydeskExe = $foundExes[0].FullName
+            $anydeskFound = $true
+        }
+    }
+
+    # 8. Extract AnyDesk ID
+    # Method A: Query AnyDesk CLI directly (Fastest, 100% accurate regardless of path)
+    if ($anydeskExe -and (Test-Path $anydeskExe)) {
+        try {
+            $rawCli = (cmd /c "`"$anydeskExe`" --get-id" 2>&1 | Out-String).Trim()
+            if ($rawCli -match '^\d{9,10}$') {
+                $rawId = $rawCli
+                if ($rawId.Length -eq 9) {
+                    $anydeskIdStr = $rawId.Substring(0,3) + " " + $rawId.Substring(3,3) + " " + $rawId.Substring(6,3)
+                } elseif ($rawId.Length -eq 10) {
+                    $anydeskIdStr = $rawId.Substring(0,4) + " " + $rawId.Substring(4,3) + " " + $rawId.Substring(7,3)
+                } else {
+                    $anydeskIdStr = $rawId
+                }
+                $anydeskFound = $true
+            }
+        } catch {}
+    }
+
+    # Method B: Search and parse system.conf and user.conf across system and all user profiles
+    if (-not $anydeskIdStr) {
+        $confFiles = New-Object System.Collections.Generic.List[string]
+        $knownConfs = @(
+            "$env:ProgramData\AnyDesk\system.conf",
+            "$env:ALLUSERSPROFILE\AnyDesk\system.conf",
+            "C:\ProgramData\AnyDesk\system.conf",
+            "C:\ProgramData\AnyDesk\user.conf",
+            "C:\Windows\SysWOW64\config\systemprofile\AppData\Roaming\AnyDesk\system.conf",
+            "C:\Windows\System32\config\systemprofile\AppData\Roaming\AnyDesk\system.conf",
+            "$env:APPDATA\AnyDesk\user.conf",
+            "$env:APPDATA\AnyDesk\system.conf"
+        )
+        foreach ($kc in $knownConfs) {
+            if ($kc -and (Test-Path $kc) -and -not $confFiles.Contains($kc)) {
+                $confFiles.Add($kc)
+            }
+        }
+
+        try {
+            $userConfs = @(Get-ChildItem -Path "C:\Users\*\AppData\Roaming\AnyDesk" -Filter "*.conf" -ErrorAction SilentlyContinue)
+            foreach ($uc in $userConfs) {
+                if (-not $confFiles.Contains($uc.FullName)) {
+                    $confFiles.Add($uc.FullName)
+                }
+            }
+        } catch {}
+
+        foreach ($cp in $confFiles) {
             $confText = Get-Content -Path $cp -ErrorAction SilentlyContinue | Out-String
             if ($confText -match 'ad\.anynet\.id\s*=\s*(\d+)') {
                 $rawId = $matches[1].Trim()
