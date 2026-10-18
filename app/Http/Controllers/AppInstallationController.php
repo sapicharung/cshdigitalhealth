@@ -22,6 +22,46 @@ class AppInstallationController extends Controller
     }
 
     /**
+     * Determine reachable base URL for client requests (avoids localhost for remote clients).
+     */
+    public function getEffectiveAppUrl(?Request $request = null): string
+    {
+        $request = $request ?: request();
+        $schemeAndHost = $request ? $request->getSchemeAndHttpHost() : null;
+        $host = $request ? $request->getHost() : null;
+
+        // If request came with a valid non-loopback host (e.g. 192.168.61.180 or domain), use it
+        if ($schemeAndHost && $host && !in_array($host, ['localhost', '127.0.0.1', '::1', '0.0.0.0'])) {
+            return rtrim($schemeAndHost, '/');
+        }
+
+        // Check if APP_URL in config/env is valid and not localhost
+        $configured = rtrim(config('app.url') ?: env('APP_URL', ''), '/');
+        if ($configured && !preg_match('#^https?://(localhost|127\.0\.0\.1|::1)#i', $configured)) {
+            return $configured;
+        }
+
+        // Fallback: Detect local server IP on hospital LAN
+        $serverIp = '192.168.61.180';
+        $port = $request ? $request->getPort() : 80;
+        $scheme = ($request && $request->isSecure()) ? 'https' : 'http';
+        $portStr = ($port && !in_array($port, [80, 443])) ? ":{$port}" : '';
+
+        return "{$scheme}://{$serverIp}{$portStr}";
+    }
+
+    /**
+     * Determine reachable asset/endpoint URL for client.
+     */
+    public function getEffectiveUrl(string $path = '/', ?Request $request = null): string
+    {
+        $base = $this->getEffectiveAppUrl($request);
+        $cleanPath = '/' . ltrim($path, '/');
+        return $base . $cleanPath;
+    }
+
+
+    /**
      * Track client app installation or launch beacon (Public/API endpoint).
      */
     public function track(Request $request)
@@ -107,11 +147,12 @@ class AppInstallationController extends Controller
 
         // 4. DHCP / LAN IP Match: Only match by IP if existing record does NOT belong to a different active computer
         if (!$installation && $isLanIp) {
-            $candidateByIp = AppInstallation::where('ip_address', $ip)->first();
+            $candidateByIp = AppInstallation::where('ip_address', $ip)->orderByDesc('last_active_at')->first();
             if ($candidateByIp) {
                 $candHost = $candidateByIp->hostname ? strtolower(trim(explode('.', $candidateByIp->hostname)[0])) : null;
-                // If candidate has no hostname or matched incoming hostname, it's safe to claim
-                if (!$candHost || ($cleanIncomingHost && $candHost === $cleanIncomingHost)) {
+                $isAnonymousBrowser = str_starts_with($deviceId, 'csh-') && empty($data['cpu']) && empty($data['ram']);
+                // If candidate has no hostname, matched incoming hostname, or incoming request is an anonymous browser visit on same LAN IP
+                if (!$candHost || ($cleanIncomingHost && $candHost === $cleanIncomingHost) || ($isAnonymousBrowser && !$cleanIncomingHost)) {
                     $installation = $candidateByIp;
                 }
             }
@@ -246,10 +287,10 @@ class AppInstallationController extends Controller
             'update_available' => $updateAvailable,
             'force_update' => $isPendingUpdate || $isGlobalForce,
             'pending_update' => (bool) $installation->pending_update,
-            'update_script_url' => url('/api/client/update-script'),
-            'app_url' => url('/'),
+            'update_script_url' => $this->getEffectiveUrl('/api/client/update-script', $request),
+            'app_url' => $this->getEffectiveAppUrl($request),
             'app_name' => "CSHOS STAFF INFO",
-            'icon_url' => asset('app-icon.ico'),
+            'icon_url' => $this->getEffectiveUrl('/app-icon.ico', $request),
             'last_active' => $installation->last_active_at->toDateTimeString(),
         ]);
     }
@@ -1058,13 +1099,13 @@ class AppInstallationController extends Controller
      */
     public function clientUpdateScript(Request $request)
     {
-        $appUrl = url('/');
+        $appUrl = $this->getEffectiveAppUrl($request);
         $appName = "CSHOS STAFF INFO";
-        $iconUrl = asset('app-icon.ico');
+        $iconUrl = $this->getEffectiveUrl('/app-icon.ico', $request);
         $serverVersion = $this->getClientAppVersion();
         $vncPassword = $this->getVncPassword();
         $vncHash = $this->getVncPasswordHash();
-        $syncCode = $this->getClientSyncScriptTemplate();
+        $syncCode = $this->getClientSyncScriptTemplate($appUrl, $appName);
 
         $updateTemplate = <<<'POWERSHELL'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -1269,9 +1310,10 @@ POWERSHELL;
     /**
      * Get PowerShell code template for cshos_sync.ps1 (used in installer and auto-update).
      */
-    public function getClientSyncScriptTemplate(): string
+    public function getClientSyncScriptTemplate(string $appUrl = '', string $appName = 'CSHOS STAFF INFO'): string
     {
-        return <<<'SYNC_SCRIPT'
+        $template = <<<'SYNC_SCRIPT'
+
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -1752,6 +1794,16 @@ try {
     Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
 }
 SYNC_SCRIPT;
+
+        if ($appUrl) {
+            $template = str_replace(
+                ['{{APP_URL}}', '{{APP_NAME}}'],
+                [$appUrl, $appName],
+                $template
+            );
+        }
+
+        return $template;
     }
 
     /**
@@ -1759,9 +1811,9 @@ SYNC_SCRIPT;
      */
     public function downloadShortcutInstaller(Request $request)
     {
-        $appUrl = url('/');
+        $appUrl = $this->getEffectiveAppUrl($request);
         $appName = "CSHOS STAFF INFO";
-        $iconUrl = asset('app-icon.ico');
+        $iconUrl = $this->getEffectiveUrl('/app-icon.ico', $request);
         
         $serverVersion = $this->getClientAppVersion();
         $deviceId = $request->query('device_id');
@@ -2655,7 +2707,7 @@ try {
 POWERSHELL;
 
         $clientVersion = $this->getClientAppVersion();
-        $syncCode = $this->getClientSyncScriptTemplate();
+        $syncCode = $this->getClientSyncScriptTemplate($appUrl, $appName);
 
         $psScript = str_replace(
             ['{{APP_NAME}}', '{{APP_URL}}', '{{ICON_URL}}', '{{VNC_PASSWORD}}', '{{VNC_HASH}}', '{{CLIENT_VERSION}}', '{{SYNC_CODE}}'],
@@ -2733,8 +2785,8 @@ POWERSHELL;
      */
     public function downloadAutoSyncInstaller(Request $request)
     {
-        $appName = config('app.name', 'CSHOS STAFF INFO');
-        $appUrl = url('/');
+        $appName = "CSHOS STAFF INFO";
+        $appUrl = $this->getEffectiveAppUrl($request);
 
         $psTemplate = <<<'POWERSHELL'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
@@ -2772,393 +2824,7 @@ try { Set-Content -Path $devIdFile -Value $devId -Force } catch {}
 # --- Setup Background Auto-Sync Script ---
 $syncScriptPath = Join-Path $sysDir "cshos_sync.ps1"
 $syncCode = @'
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$OutputEncoding = [System.Text.Encoding]::UTF8
-
-$maxWait = 30
-$waited = 0
-$detectedIps = @()
-
-while ($waited -lt $maxWait) {
-    # 1. Prefer active physical interface with Default Gateway route (0.0.0.0/0)
-    try {
-        $gwRoutes = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -AddressFamily IPv4 -ErrorAction SilentlyContinue | Sort-Object RouteMetric)
-        foreach ($route in $gwRoutes) {
-            $adapter = Get-NetAdapter -InterfaceIndex $route.InterfaceIndex -ErrorAction SilentlyContinue
-            if ($adapter) {
-                $desc = "$($adapter.InterfaceDescription) $($adapter.Name)"
-                if ($desc -match 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN|WireGuard|Tailscale|ZeroTier') {
-                    continue
-                }
-                $ipObj = Get-NetIPAddress -InterfaceIndex $route.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
-                         Where-Object { $_.IPAddress -notmatch '^(169\.254\.|127\.)' } | Select-Object -First 1
-                if ($ipObj -and $ipObj.IPAddress) {
-                    $detectedIps += $ipObj.IPAddress
-                }
-            }
-        }
-    } catch {}
-
-    # 2. Physical adapters that are 'Up' without gateway filter
-    if (-not $detectedIps -or $detectedIps.Count -eq 0) {
-        try {
-            $upAdapters = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { 
-                $_.Status -eq 'Up' -and 
-                $_.InterfaceDescription -notmatch 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN|WireGuard|Tailscale|ZeroTier' -and
-                $_.Name -notmatch 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth'
-            }
-            foreach ($ad in $upAdapters) {
-                $ips = @(Get-NetIPAddress -InterfaceIndex $ad.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | 
-                         Where-Object { $_.IPAddress -notmatch '^(169\.254\.|127\.)' } | Select-Object -ExpandProperty IPAddress)
-                $detectedIps += $ips
-            }
-        } catch {}
-    }
-
-    # 3. Fallback via Win32_NetworkAdapterConfiguration (excluding virtual)
-    if (-not $detectedIps -or $detectedIps.Count -eq 0) {
-        try {
-            $netConfigs = Get-CimInstance Win32_NetworkAdapterConfiguration -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
-            foreach ($nc in $netConfigs) {
-                $desc = "$($nc.Description)"
-                if ($desc -match 'VMware|VirtualBox|Virtual|vEthernet|Hyper-V|WSL|Loopback|Bluetooth|Npcap|TAP|VPN') {
-                    continue
-                }
-                foreach ($ip in $nc.IPAddress) {
-                    if ($ip -match '^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$' -and $ip -ne '127.0.0.1' -and $ip -notmatch '^169\.254\.') {
-                        $detectedIps += $ip
-                    }
-                }
-            }
-        } catch {}
-    }
-
-    if ($detectedIps -and $detectedIps.Count -gt 0) {
-        break
-    }
-
-    Start-Sleep -Seconds 3
-    $waited += 3
-}
-
-$clientIp = if ($detectedIps -and $detectedIps.Count -gt 0) { $detectedIps[0] } else { "" }
-
-$sysDir = "$env:ProgramData\CSHOS"
-if (-not (Test-Path $sysDir)) { $sysDir = "$env:LOCALAPPDATA\CSHOS" }
-
-$devIdFile = Join-Path $sysDir "device_id.txt"
-$devId = ""
-if (Test-Path $devIdFile) {
-    try { $devId = (Get-Content $devIdFile -Raw).Trim() } catch {}
-}
-if (-not $devId) {
-    $devId = [guid]::NewGuid().ToString()
-    try { Set-Content -Path $devIdFile -Value $devId -Force } catch {}
-}
-
-$compName = $env:COMPUTERNAME
-$userName = (Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue).UserName
-if (-not $userName) { $userName = $env:USERNAME }
-if (-not $userName) { $userName = "System" }
-
-$osInfo = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).Caption
-if (-not $osInfo) { $osInfo = [System.Environment]::OSVersion.VersionString }
-
-$cpuObj = Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
-if (-not $cpuObj) {
-    $cpuObj = Get-WmiObject Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
-}
-if ($cpuObj -and $cpuObj.Name) {
-    $rawName = ($cpuObj.Name -replace '\s+', ' ').Trim()
-    $clock = 0
-    if ($cpuObj.MaxClockSpeed) { $clock = [int]$cpuObj.MaxClockSpeed }
-    elseif ($cpuObj.CurrentClockSpeed) { $clock = [int]$cpuObj.CurrentClockSpeed }
-    
-    $cores = if ($cpuObj.NumberOfCores) { [int]$cpuObj.NumberOfCores } else { 0 }
-    $threads = if ($cpuObj.NumberOfLogicalProcessors) { [int]$cpuObj.NumberOfLogicalProcessors } else { 0 }
-
-    $speedStr = ""
-    if ($clock -gt 0 -and $rawName -notmatch '@\s*[0-9\.]+\s*GHz') {
-        $ghz = [math]::Round(($clock / 1000), 2)
-        $speedStr = "@ $ghz GHz"
-    }
-
-    $coreStr = ""
-    if ($cores -gt 0 -and $threads -gt 0) {
-        $coreStr = "($cores Cores, $threads Threads)"
-    } elseif ($cores -gt 0) {
-        $coreStr = "($cores Cores)"
-    }
-
-    $cpuParts = @($rawName)
-    if ($speedStr) { $cpuParts += $speedStr }
-    if ($coreStr) { $cpuParts += $coreStr }
-    $cpuInfo = $cpuParts -join " "
-} else {
-    $cpuInfo = "ไม่สามารถระบุ CPU"
-}
-
-# RAM Specs & Bus Speed
-try {
-    # 1. Query physical memory sticks (try CIM then WMI)
-    $memSticks = @(Get-CimInstance Win32_PhysicalMemory -ErrorAction SilentlyContinue)
-    if (-not $memSticks -or $memSticks.Count -eq 0) {
-        $memSticks = @(Get-WmiObject Win32_PhysicalMemory -ErrorAction SilentlyContinue)
-    }
-
-    # 2. Total RAM bytes determination (4-layer cascade)
-    $totalRamBytes = 0
-
-    # Layer 1: Sum capacity of physical sticks (hardware level, e.g. 16GB instead of APU-shared 13.9GB)
-    if ($memSticks -and $memSticks.Count -gt 0) {
-        try {
-            $sumVal = ($memSticks | Measure-Object -Property Capacity -Sum).Sum
-            if ($sumVal -and $sumVal -gt 0) { $totalRamBytes = [double]$sumVal }
-        } catch {}
-    }
-
-    # Layer 2: Win32_ComputerSystem TotalPhysicalMemory (CIM & WMI)
-    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
-        try {
-            $cs = Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
-            if (-not $cs) { $cs = Get-WmiObject Win32_ComputerSystem -ErrorAction SilentlyContinue }
-            if ($cs -and $cs.TotalPhysicalMemory) { $totalRamBytes = [double]$cs.TotalPhysicalMemory }
-        } catch {}
-    }
-
-    # Layer 3: Kernel Win32 API via ComputerInfo (Direct OS call, never fails even if WMI/CIM broken)
-    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
-        try {
-            Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
-            $ci = New-Object Microsoft.VisualBasic.Devices.ComputerInfo -ErrorAction SilentlyContinue
-            if ($ci -and $ci.TotalPhysicalMemory) { $totalRamBytes = [double]$ci.TotalPhysicalMemory }
-        } catch {}
-    }
-
-    # Layer 4: Win32_OperatingSystem VisibleMemory (CIM & WMI)
-    if (-not $totalRamBytes -or $totalRamBytes -le 0) {
-        try {
-            $os = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
-            if (-not $os) { $os = Get-WmiObject Win32_OperatingSystem -ErrorAction SilentlyContinue }
-            if ($os -and $os.TotalVisibleMemorySize) { $totalRamBytes = [double]$os.TotalVisibleMemorySize * 1KB }
-        } catch {}
-    }
-
-    $ramGB = if ($totalRamBytes -gt 0) { [math]::Round(($totalRamBytes / 1GB), 1) } else { 0 }
-    $ramInfo = if ($ramGB -gt 0) { "$ramGB GB" } else { "ไม่สามารถระบุ RAM" }
-
-    if ($memSticks -and $memSticks.Count -gt 0) {
-        $first = $memSticks[0]
-        $clock = 0
-        if ($first.ConfiguredClockSpeed) { $clock = [int]$first.ConfiguredClockSpeed }
-        elseif ($first.Speed) { $clock = [int]$first.Speed }
-
-        $smb = if ($first.SMBIOSMemoryType) { [int]$first.SMBIOSMemoryType } else { 0 }
-        $memType = switch ($smb) {
-            20 { "DDR" }
-            21 { "DDR2" }
-            24 { "DDR3" }
-            26 { "DDR4" }
-            34 { "DDR5" }
-            default {
-                if ($clock -ge 4800) { "DDR5" }
-                elseif ($clock -ge 2133) { "DDR4" }
-                elseif ($clock -ge 800) { "DDR3" }
-                else { "" }
-            }
-        }
-        $busStr = if ($clock -gt 0) { "Bus $clock MHz" } else { "" }
-        $part = if ($first.PartNumber) { ($first.PartNumber -as [string]).Trim() } else { "" }
-        $brand = if ($first.Manufacturer) { ($first.Manufacturer -as [string]).Trim() } else { "" }
-        if ($brand -match '^(Undefined|None|0x[0-9A-Fa-f]+)$') { $brand = "" }
-        
-        $modelInfo = if ($brand -and $part) { "$brand $part" } elseif ($brand) { "$brand" } elseif ($part) { "$part" } else { "" }
-        $stickCount = $memSticks.Count
-        $descList = New-Object System.Collections.Generic.List[string]
-        if ($memType) { $descList.Add($memType) }
-        if ($busStr) { $descList.Add($busStr) }
-        if ($stickCount -gt 1) {
-            $detailStr = if ($modelInfo) { " - $modelInfo" } else { "" }
-            $descList.Add("($stickCount ช่อง$detailStr)")
-        } elseif ($modelInfo) {
-            $descList.Add("($modelInfo)")
-        }
-        $details = $descList -join " "
-        if ($ramGB -gt 0) {
-            if ($details) { $ramInfo = "$ramGB GB $details" } else { $ramInfo = "$ramGB GB" }
-        } elseif ($details) {
-            $ramInfo = $details
-        }
-    }
-} catch {
-    $ramInfo = "ไม่สามารถระบุ RAM"
-}
-
-# Harddisk Type (SSD, NVMe M.2, SATA, HDD) & Capacity
-try {
-    $physDict = @{}
-    try {
-        Get-PhysicalDisk -ErrorAction SilentlyContinue | ForEach-Object {
-            $key = $_.FriendlyName
-            $mt = if ($_.MediaType) { $_.MediaType } else { "" }
-            $bt = if ($_.BusType) { $_.BusType } else { "" }
-            $physDict[$key] = @{ Media = $mt; Bus = $bt }
-        }
-    } catch {}
-
-    $diskMap = @{}
-    try {
-        Get-Disk -ErrorAction SilentlyContinue | ForEach-Object {
-            $d = $_
-            $bt = if ($d.BusType) { $d.BusType } else { "" }
-            $mt = if ($physDict.ContainsKey($d.FriendlyName)) { $physDict[$d.FriendlyName].Media } else { "" }
-            if (-not $bt -and $physDict.ContainsKey($d.FriendlyName)) { $bt = $physDict[$d.FriendlyName].Bus }
-            
-            $typeLabel = if ($bt -match 'NVMe') { "SSD NVMe M.2" }
-                         elseif ($mt -eq "SSD" -and $bt) { "SSD $bt" }
-                         elseif ($mt -eq "SSD") { "SSD" }
-                         elseif ($mt -eq "HDD" -and $bt) { "HDD $bt" }
-                         elseif ($mt -eq "HDD") { "HDD" }
-                         elseif ($bt) { "$bt" }
-                         else { "" }
-                         
-            Get-Partition -DiskNumber $d.Number -ErrorAction SilentlyContinue | Where-Object { $_.DriveLetter } | ForEach-Object {
-                $ltr = "$($_.DriveLetter):"
-                $diskMap[$ltr] = $typeLabel
-            }
-        }
-    } catch {}
-
-    $diskItems = Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3" -ErrorAction SilentlyContinue | ForEach-Object {
-        $dId = $_.DeviceID
-        $free = [math]::Round($_.FreeSpace / 1GB, 1)
-        $total = [math]::Round($_.Size / 1GB, 1)
-        $type = if ($diskMap.ContainsKey($dId) -and $diskMap[$dId]) { " (" + $diskMap[$dId] + ")" } else { "" }
-        "$dId$type ว่าง $free/$total GB"
-    }
-    $diskInfo = if ($diskItems) { $diskItems -join ", " } else { "ไม่สามารถระบุ DISK" }
-} catch {
-    $diskInfo = "ไม่สามารถระบุ DISK"
-}
-
-# Remote VNC Status & Self-Healing
-$remoteReady = 0
-try {
-    $tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
-    if ($tvnSvc) {
-        if ($tvnSvc.Status -ne 'Running') {
-            Set-Service -Name "tvnserver" -StartupType Automatic -ErrorAction SilentlyContinue
-            Start-Service -Name "tvnserver" -ErrorAction SilentlyContinue
-            Start-Sleep -Milliseconds 500
-            $tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
-        }
-        if ($tvnSvc -and $tvnSvc.Status -eq 'Running') {
-            $remoteReady = 1
-        }
-    } else {
-        $tvnExe = "C:\Program Files\TightVNC\tvnserver.exe"
-        if (-not (Test-Path $tvnExe)) { $tvnExe = "C:\Program Files (x86)\TightVNC\tvnserver.exe" }
-        if (Test-Path $tvnExe) {
-            & "$tvnExe" -install -silent 2>&1 | Out-Null
-            Set-Service -Name "tvnserver" -StartupType Automatic -ErrorAction SilentlyContinue
-            Start-Service -Name "tvnserver" -ErrorAction SilentlyContinue
-            $tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
-            if ($tvnSvc -and $tvnSvc.Status -eq 'Running') { $remoteReady = 1 }
-        }
-    }
-    if ($remoteReady -eq 1) {
-        netsh advfirewall firewall add rule name="TightVNC Server Port 5900" dir=in action=allow protocol=TCP localport=5900 profile=any | Out-Null
-    }
-} catch {}
-
-$osCaption = ($osInfo -replace 'Microsoft\s*', '').Trim()
-$osVerStr = $osCaption
-try {
-    $regNT = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion" -ErrorAction SilentlyContinue
-    $dispVer = if ($regNT.DisplayVersion) { $regNT.DisplayVersion } elseif ($regNT.ReleaseId) { $regNT.ReleaseId } else { "" }
-    $build = $regNT.CurrentBuild
-    $arch = (Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture
-    if ($dispVer) { $osVerStr += " $dispVer" }
-    if ($arch -or $build) {
-        $p = @()
-        if ($arch) { $p += $arch }
-        if ($build) { $p += "Build $build" }
-        $osVerStr += " (" + ($p -join ", ") + ")"
-    }
-} catch {}
-
-$officeFinal = "Not Installed"
-try {
-    $c2r = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Office\ClickToRun\Configuration" -ErrorAction SilentlyContinue
-    if ($c2r -and $c2r.ProductReleaseIds) {
-        $idStr = "$($c2r.ProductReleaseIds)"
-        $verReport = $c2r.VersionToReport
-        $platform = $c2r.Platform
-        $friendly = if ($idStr -match '2024') { "Microsoft Office 2024" }
-                    elseif ($idStr -match '2021') { "Microsoft Office 2021" }
-                    elseif ($idStr -match '2019') { "Microsoft Office 2019" }
-                    elseif ($idStr -match 'O365|M365|365') { "Microsoft 365 Apps" }
-                    elseif ($idStr -match '2016') { "Microsoft Office 2016" }
-                    elseif ($idStr -match '2013') { "Microsoft Office 2013" }
-                    elseif ($idStr -match '2010') { "Microsoft Office 2010" }
-                    else { "Microsoft Office" }
-        $edition = if ($idStr -match 'ProPlus') { " Professional Plus" }
-                   elseif ($idStr -match 'Standard') { " Standard" }
-                   elseif ($idStr -match 'HomeBusiness') { " Home & Business" }
-                   elseif ($idStr -match 'HomeStudent') { " Home & Student" }
-                   else { "" }
-        $officeFinal = "$friendly$edition"
-        if ($verReport) { $officeFinal += " ($verReport" + (if ($platform) { " $platform" } else { "" }) + ")" }
-    }
-    if ($officeFinal -eq "Not Installed") {
-        $keys = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
-        $installed = Get-ItemProperty $keys -ErrorAction SilentlyContinue | Where-Object { 
-            $_.DisplayName -match '^Microsoft Office (Professional|Standard|Home|Personal|365|Enterprise)' -or
-            $_.DisplayName -match '^Microsoft 365'
-        } | Select-Object -First 1
-        if ($installed) {
-            $officeFinal = $installed.DisplayName + (if ($installed.DisplayVersion) { " ($($installed.DisplayVersion))" } else { "" })
-        }
-    }
-    if ($officeFinal -eq "Not Installed") {
-        $appPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\excel.exe" -ErrorAction SilentlyContinue).'(Default)'
-        if (-not $appPath) { $appPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\winword.exe" -ErrorAction SilentlyContinue).'(Default)' }
-        if ($appPath -and (Test-Path $appPath)) {
-            $vi = (Get-Item $appPath -ErrorAction SilentlyContinue).VersionInfo
-            $m = $vi.ProductMajorPart
-            $known = switch ($m) { 16 { "Microsoft Office 2016/2019/365" } 15 { "Microsoft Office 2013" } 14 { "Microsoft Office 2010" } 12 { "Microsoft Office 2007" } default { "Microsoft Office" } }
-            $officeFinal = "$known" + (if ($vi.ProductVersion) { " ($($vi.ProductVersion))" } else { "" })
-        }
-    }
-} catch {}
-
-$reportObj = @{
-    device_id      = $devId
-    hostname       = $compName
-    device_name    = $userName
-    ip_address     = $clientIp
-    os             = $osInfo
-    os_version     = $osVerStr
-    office_version = $officeFinal
-    cpu            = $cpuInfo
-    ram            = $ramInfo
-    disk           = $diskInfo
-    remote_ready   = $remoteReady
-    install_type   = 'installed'
-    browser        = 'AutoSync Service'
-    client_version = '{{CLIENT_VERSION}}'
-}
-$jsonPayload = $reportObj | ConvertTo-Json
-
-try {
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
-    $res = Invoke-RestMethod -Uri "{{APP_URL}}/api/track-install" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 -ErrorAction Stop
-    $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - OK: Host=$compName, IP=$clientIp, RAM=$ramInfo, DISK=$diskInfo"
-    Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
-} catch {
-    $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Err: $($_.Exception.Message)"
-    Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
-}
+{{SYNC_CODE}}
 '@
 
 try {
@@ -3550,9 +3216,10 @@ try {
 POWERSHELL;
 
         $clientVersion = $this->getClientAppVersion();
+        $syncCode = $this->getClientSyncScriptTemplate($appUrl, $appName);
         $psScript = str_replace(
-            ['{{APP_NAME}}', '{{APP_URL}}', '{{CLIENT_VERSION}}'],
-            [$appName, $appUrl, $clientVersion],
+            ['{{APP_NAME}}', '{{APP_URL}}', '{{CLIENT_VERSION}}', '{{SYNC_CODE}}'],
+            [$appName, $appUrl, $clientVersion, $syncCode],
             $psTemplate
         );
 
@@ -4111,6 +3778,29 @@ POWERSHELL;
                     $this->deduplicateSingleRecord($master);
                 }
             }
+
+            // Group by LAN IP address (merge duplicate entries sharing the same LAN IP)
+            $duplicateIps = AppInstallation::whereNotNull('ip_address')
+                ->where('ip_address', '!=', '')
+                ->whereNotIn('ip_address', ['127.0.0.1', '::1'])
+                ->select('ip_address')
+                ->groupBy('ip_address')
+                ->havingRaw('COUNT(*) > 1')
+                ->pluck('ip_address');
+
+            foreach ($duplicateIps as $dupIp) {
+                $group = AppInstallation::where('ip_address', $dupIp)->orderByDesc('last_active_at')->get();
+                if ($group->count() <= 1) continue;
+
+                // Priority for master: prefer genuine hardware record with hostname/specs over anonymous browser csh-...
+                $master = $group->first(function ($r) {
+                    return !str_starts_with($r->device_id, 'csh-') && !empty($r->hostname);
+                }) ?: ($group->first(function ($r) {
+                    return !empty($r->hostname) || !empty($r->cpu);
+                }) ?: $group->first());
+
+                $this->deduplicateSingleRecord($master);
+            }
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('Deduplication failed: ' . $e->getMessage());
         }
@@ -4159,15 +3849,14 @@ POWERSHELL;
                             $hasCondition = true;
                         }
                     }
-                    // Also match anonymous browser-only entries (empty hostname & empty mac) on master's LAN IP
+                    // Also match anonymous browser-only entries (empty hostname, empty mac, or csh- browser device_id) on master's LAN IP
                     if ($isLanIp) {
                         $q->orWhere(function ($sub) use ($master) {
                             $sub->where('ip_address', $master->ip_address)
                                 ->where(function ($w) {
-                                    $w->whereNull('hostname')->orWhere('hostname', '');
-                                })
-                                ->where(function ($w) {
-                                    $w->whereNull('mac_address')->orWhere('mac_address', '');
+                                    $w->whereNull('hostname')
+                                      ->orWhere('hostname', '')
+                                      ->orWhere('device_id', 'like', 'csh-%');
                                 });
                         });
                     }

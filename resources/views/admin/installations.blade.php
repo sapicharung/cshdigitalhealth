@@ -902,11 +902,31 @@
             border: 1px solid #BAE6FD;
         }
 
-        /* Compact Last Active */
-        .time-compact-cell {
+        /* Compact Notes */
+        .note-compact-cell {
             font-size: 0.82rem;
             color: #334155;
             cursor: pointer;
+            max-width: 150px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            transition: color 0.15s;
+        }
+
+        .note-compact-cell:hover {
+            color: var(--primary);
+        }
+
+        .note-text {
+            font-weight: 500;
+            color: #1E293B;
+        }
+
+        .note-empty {
+            color: #94A3B8;
+            font-style: italic;
+            font-size: 0.78rem;
         }
 
         /* Compact Action Buttons */
@@ -2147,7 +2167,7 @@
                             <th style="width: 90px; text-align: center;">รีโมท (VNC)</th>
                             <th style="width: 170px;">ชื่อเจ้าหน้าที่</th>
                             <th style="width: 105px; text-align: center;">เวอร์ชัน</th>
-                            <th style="width: 120px;">ใช้งานล่าสุด</th>
+                            <th style="width: 140px;">หมายเหตุ</th>
                             <th style="width: 145px; text-align: center;">จัดการ</th>
                         </tr>
                     </thead>
@@ -2246,8 +2266,12 @@
                                     @endif
                                 </td>
                                 <td>
-                                    <div class="time-compact-cell" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;">
-                                        {{ $item->last_active_at ? $item->last_active_at->format('d/m/y H:i') : '-' }}
+                                    <div class="note-compact-cell" onclick="openEditModal({{ json_encode($item) }})" style="cursor: pointer;" title="{{ $item->notes ? $item->notes . ' (คลิกเพื่อแก้ไข)' : 'คลิกเพื่อระบุหมายเหตุ' }}">
+                                        @if($item->notes)
+                                            <span class="note-text">{{ $item->notes }}</span>
+                                        @else
+                                            <span class="note-empty">-</span>
+                                        @endif
                                     </div>
                                 </td>
                                 <td style="text-align: center;">
