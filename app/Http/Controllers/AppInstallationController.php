@@ -235,8 +235,37 @@ class AppInstallationController extends Controller
             $installation->disk = mb_substr($data['disk'], 0, 255);
         }
 
-        if (isset($data['remote_ready'])) {
-            $installation->remote_ready = (bool) $data['remote_ready'];
+        if (isset($data['remote_ready']) && (bool) $data['remote_ready']) {
+            $installation->remote_ready = true;
+        } else {
+            // Verify if Port 5900 (VNC) is actually listening on this IP before declaring not ready
+            $probeIp = $installation->ip_address ?: $clientIp;
+            if ($probeIp && !in_array($probeIp, ['127.0.0.1', '::1'])) {
+                $fpVnc = @fsockopen($probeIp, 5900, $errno, $errstr, 0.5);
+                if ($fpVnc) {
+                    $installation->remote_ready = true;
+                    fclose($fpVnc);
+                } elseif (isset($data['remote_ready'])) {
+                    $installation->remote_ready = false;
+                }
+            } elseif (isset($data['remote_ready'])) {
+                $installation->remote_ready = false;
+            }
+        }
+
+        if (!empty($data['last_boot_time'])) {
+            try {
+                $installation->last_boot_time = \Carbon\Carbon::parse($data['last_boot_time']);
+            } catch (\Throwable $e) {}
+        }
+        if (!empty($data['uptime_text'])) {
+            $installation->uptime_text = mb_substr($data['uptime_text'], 0, 100);
+        }
+        if (isset($data['anydesk_installed'])) {
+            $installation->anydesk_installed = (bool) $data['anydesk_installed'];
+        }
+        if (!empty($data['anydesk_id'])) {
+            $installation->anydesk_id = mb_substr($data['anydesk_id'], 0, 50);
         }
 
         $serverVersion = $this->getClientAppVersion();
@@ -728,21 +757,25 @@ class AppInstallationController extends Controller
         $vncReady = false;
 
         if ($ip && !in_array($ip, ['127.0.0.1', '::1'])) {
-            // 1. Quick TCP socket probe to port 5900 (TightVNC) or 445 (SMB) or 135 (RPC) - max 0.8s timeout
-            $ports = [5900, 445, 135];
-            foreach ($ports as $port) {
-                $fp = @fsockopen($ip, $port, $errno, $errstr, 0.8);
-                if ($fp) {
-                    $isOnline = true;
-                    if ($port === 5900) {
-                        $vncReady = true;
+            // 1. Probe Port 5900 (VNC) explicitly with 1.0s timeout
+            $fpVnc = @fsockopen($ip, 5900, $errno, $errstr, 1.0);
+            if ($fpVnc) {
+                $isOnline = true;
+                $vncReady = true;
+                fclose($fpVnc);
+            } else {
+                // 2. If 5900 is not open, probe standard Windows management ports (445 SMB, 135 RPC)
+                foreach ([445, 135] as $port) {
+                    $fp = @fsockopen($ip, $port, $errno, $errstr, 0.8);
+                    if ($fp) {
+                        $isOnline = true;
+                        fclose($fp);
+                        break;
                     }
-                    fclose($fp);
-                    break;
                 }
             }
 
-            // 2. If not connected via standard ports, try fast ping
+            // 3. If not connected via standard ports, try fast ping
             if (!$isOnline) {
                 if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
                     exec("ping -n 1 -w 800 " . escapeshellarg($ip), $pingOut, $pingCode);
@@ -781,12 +814,13 @@ class AppInstallationController extends Controller
         }
 
         $name = $installation->hostname ?: ($installation->device_name ?: $installation->ip_address);
-        $statusMsg = $isOnline ? "เครื่องออนไลน์ (ตรวจพบการตอบสนองบนเครือข่าย)" : "ตรวจสอบแล้ว เครื่องอาจอยู่ในสถานะออฟไลน์หรือยังไม่เปิด";
+        $statusMsg = $isOnline ? "เครื่องออนไลน์" . ($vncReady ? " (พอร์ต VNC 5900 พร้อม)" : "") : "ตรวจสอบแล้ว เครื่องอาจอยู่ในสถานะออฟไลน์หรือยังไม่เปิด";
 
         if ($request->wantsJson()) {
             return response()->json([
                 'status'       => 'success',
                 'is_online'    => $isOnline,
+                'remote_ready' => (bool) $installation->remote_ready,
                 'message'      => "รีเฟรชข้อมูลเครื่อง {$name} เรียบร้อยแล้ว ({$statusMsg})",
                 'installation' => $installation,
                 'staff_name'   => $staffInfo ? ($staffInfo->staff_name ?: $staffInfo->kskloginname) : $installation->department,
@@ -810,13 +844,19 @@ class AppInstallationController extends Controller
 
         // Check reachability
         if ($ip && !in_array($ip, ['127.0.0.1', '::1'])) {
-            $ports = [5900, 445, 135];
-            foreach ($ports as $port) {
-                $fp = @fsockopen($ip, $port, $errno, $errstr, 0.6);
-                if ($fp) {
-                    $isOnline = true;
-                    fclose($fp);
-                    break;
+            $fpVnc = @fsockopen($ip, 5900, $errno, $errstr, 0.8);
+            if ($fpVnc) {
+                $isOnline = true;
+                $installation->remote_ready = true;
+                fclose($fpVnc);
+            } else {
+                foreach ([445, 135] as $port) {
+                    $fp = @fsockopen($ip, $port, $errno, $errstr, 0.6);
+                    if ($fp) {
+                        $isOnline = true;
+                        fclose($fp);
+                        break;
+                    }
                 }
             }
 
@@ -842,6 +882,8 @@ class AppInstallationController extends Controller
         $installation->last_probed_at = now();
         if ($isOnline) {
             $installation->last_active_at = now();
+        } else {
+            $installation->remote_ready = false;
         }
         $installation->save();
 
@@ -862,6 +904,7 @@ class AppInstallationController extends Controller
             return response()->json([
                 'status'       => 'success',
                 'is_online'    => $isOnline,
+                'remote_ready' => (bool) $installation->remote_ready,
                 'pushed_lan'   => $pushed,
                 'message'      => $msg,
                 'installation' => $installation,
@@ -926,23 +969,32 @@ class AppInstallationController extends Controller
         foreach ($items as $item) {
             $ip = $item->ip_address;
             $isOnline = false;
+            $vncReady = false;
 
             if ($ip && !in_array($ip, ['127.0.0.1', '::1'])) {
-                // Fast socket probe on port 5900 or 445 (timeout 0.3s)
-                $ports = [5900, 445];
-                foreach ($ports as $port) {
-                    $fp = @fsockopen($ip, $port, $errno, $errstr, 0.3);
-                    if ($fp) {
-                        $isOnline = true;
-                        fclose($fp);
-                        break;
+                // 1. Probe port 5900 (VNC) specifically
+                $fpVnc = @fsockopen($ip, 5900, $errno, $errstr, 0.6);
+                if ($fpVnc) {
+                    $isOnline = true;
+                    $vncReady = true;
+                    fclose($fpVnc);
+                } else {
+                    // 2. If 5900 not responding, probe 445 (SMB) / 135 (RPC)
+                    foreach ([445, 135] as $port) {
+                        $fp = @fsockopen($ip, $port, $errno, $errstr, 0.4);
+                        if ($fp) {
+                            $isOnline = true;
+                            fclose($fp);
+                            break;
+                        }
                     }
-                }
 
-                if (!$isOnline && strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                    exec("ping -n 1 -w 300 " . escapeshellarg($ip), $out, $code);
-                    if ($code === 0) {
-                        $isOnline = true;
+                    // 3. Fallback to ping
+                    if (!$isOnline && strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                        exec("ping -n 1 -w 500 " . escapeshellarg($ip), $out, $code);
+                        if ($code === 0) {
+                            $isOnline = true;
+                        }
                     }
                 }
             }
@@ -951,14 +1003,18 @@ class AppInstallationController extends Controller
             $item->last_probed_at = now();
             if ($isOnline) {
                 $item->last_active_at = now();
+                if ($vncReady) {
+                    $item->remote_ready = true;
+                }
             } else {
                 $item->remote_ready = false;
             }
             $item->save();
 
             $results[$item->id] = [
-                'is_online'  => $isOnline,
-                'last_active'=> $item->last_active_at ? $item->last_active_at->diffForHumans() : '-',
+                'is_online'    => $isOnline,
+                'remote_ready' => (bool) $item->remote_ready,
+                'last_active'  => $item->last_active_at ? $item->last_active_at->diffForHumans() : '-',
             ];
         }
 
@@ -1005,6 +1061,9 @@ class AppInstallationController extends Controller
                 'CPU (หน่วยประมวลผล)',
                 'RAM (หน่วยความจำ)',
                 'DISK (พื้นที่จัดเก็บข้อมูล)',
+                'เวลาเปิดเครื่องล่าสุด',
+                'เปิดต่อเนื่องมาแล้ว',
+                'AnyDesk',
                 'Remote VNC (Port 5900)',
                 'Remote (RDP)',
                 'ประเภท',
@@ -1040,6 +1099,9 @@ class AppInstallationController extends Controller
                         $item->cpu ?? '-',
                         $item->ram ?? '-',
                         $item->disk ?? '-',
+                        $item->last_boot_time ? $item->last_boot_time->format('Y-m-d H:i:s') : '-',
+                        $item->dynamic_uptime ?: ($item->uptime_text ?: '-'),
+                        $item->anydesk_installed ? ('ติดตั้งแล้ว' . ($item->anydesk_id ? ' (ID: ' . $item->anydesk_id . ')' : '')) : 'ไม่ได้ติดตั้ง',
                         $item->remote_ready ? 'พร้อม VNC (Port 5900)' : 'ไม่ระบุ',
                         $item->remote_ready ? 'พร้อม RDP' : 'ไม่ระบุ',
                         $item->install_type === 'installed' ? 'ติดตั้งลงเครื่อง' : 'เปิดผ่านเบราว์เซอร์',
@@ -1752,6 +1814,23 @@ try {
             if ($tvn -and $tvn.Status -eq 'Running') { $remoteReady = $true }
         }
     }
+
+    # Fallback 1: Check if Port 5900 is actively listening locally (TCP Listen)
+    if (-not $remoteReady) {
+        try {
+            $tcp5900 = Get-NetTCPConnection -LocalPort 5900 -State Listen -ErrorAction SilentlyContinue
+            if ($tcp5900) { $remoteReady = $true }
+        } catch {}
+    }
+
+    # Fallback 2: Check if tvnserver process is active in user session / tray mode
+    if (-not $remoteReady) {
+        try {
+            $procTvn = Get-Process -Name "tvnserver" -ErrorAction SilentlyContinue
+            if ($procTvn) { $remoteReady = $true }
+        } catch {}
+    }
+
     # Ensure Windows Firewall rule allows Port 5900 for all network profiles
     if ($remoteReady) {
         netsh advfirewall firewall add rule name="TightVNC Server Port 5900" dir=in action=allow protocol=TCP localport=5900 profile=any | Out-Null
@@ -1821,22 +1900,104 @@ try {
     }
 } catch {}
 
+# Detect OS Last Boot Up Time & System Uptime
+$lastBootStr = ""
+$uptimeFormatted = ""
+try {
+    $osCim = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+    if ($osCim -and $osCim.LastBootUpTime) {
+        $lastBootStr = $osCim.LastBootUpTime.ToString('yyyy-MM-dd HH:mm:ss')
+        $upSpan = (Get-Date) - $osCim.LastBootUpTime
+        $d = [math]::Floor($upSpan.TotalDays)
+        $h = $upSpan.Hours
+        $m = $upSpan.Minutes
+        $parts = @()
+        if ($d -gt 0) { $parts += "$d วัน" }
+        if ($h -gt 0) { $parts += "$h ชม." }
+        if ($m -gt 0 -or $parts.Count -eq 0) { $parts += "$m นาที" }
+        $uptimeFormatted = $parts -join " "
+    }
+} catch {}
+
+# Detect AnyDesk Installation & AnyDesk ID
+$anydeskFound = $false
+$anydeskIdStr = ""
+try {
+    # 1. Check Service
+    $adSvc = Get-Service -Name "AnyDesk" -ErrorAction SilentlyContinue
+    if ($adSvc) { $anydeskFound = $true }
+
+    # 2. Check File Paths
+    $adPaths = @(
+        "C:\Program Files (x86)\AnyDesk\AnyDesk.exe",
+        "C:\Program Files\AnyDesk\AnyDesk.exe",
+        "$env:ALLUSERSPROFILE\AnyDesk\AnyDesk.exe",
+        "$env:APPDATA\AnyDesk\AnyDesk.exe"
+    )
+    foreach ($p in $adPaths) {
+        if (Test-Path $p) { $anydeskFound = $true; break }
+    }
+
+    # 3. Check Uninstall Registry
+    if (-not $anydeskFound) {
+        $adReg = Get-ItemProperty @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+        ) -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'AnyDesk' }
+        if ($adReg) { $anydeskFound = $true }
+    }
+
+    # 4. Check Running Process
+    if (-not $anydeskFound) {
+        $adProc = Get-Process -Name "AnyDesk" -ErrorAction SilentlyContinue
+        if ($adProc) { $anydeskFound = $true }
+    }
+
+    # 5. Extract AnyDesk ID from system.conf or user.conf
+    $confPaths = @(
+        "$env:ALLUSERSPROFILE\AnyDesk\system.conf",
+        "$env:ProgramData\AnyDesk\system.conf",
+        "$env:APPDATA\AnyDesk\user.conf"
+    )
+    foreach ($cp in $confPaths) {
+        if (Test-Path $cp) {
+            $confText = Get-Content -Path $cp -ErrorAction SilentlyContinue | Out-String
+            if ($confText -match 'ad\.anynet\.id\s*=\s*(\d+)') {
+                $rawId = $matches[1].Trim()
+                if ($rawId.Length -eq 9) {
+                    $anydeskIdStr = $rawId.Substring(0,3) + " " + $rawId.Substring(3,3) + " " + $rawId.Substring(6,3)
+                } elseif ($rawId.Length -eq 10) {
+                    $anydeskIdStr = $rawId.Substring(0,4) + " " + $rawId.Substring(4,3) + " " + $rawId.Substring(7,3)
+                } else {
+                    $anydeskIdStr = $rawId
+                }
+                $anydeskFound = $true
+                break
+            }
+        }
+    }
+} catch {}
+
 $reportObj = @{
-    device_id      = $devId
-    hostname       = $compName
-    device_name    = $userName
-    ip_address     = $clientIp
-    mac_address    = $macAddress
-    os             = $osInfo
-    os_version     = $osVerStr
-    office_version = $officeFinal
-    cpu            = $cpuInfo
-    ram            = $ramInfo
-    disk           = $diskInfo
-    remote_ready   = $remoteReady
-    install_type   = 'installed'
-    browser        = 'AutoSync Service'
-    client_version = $localVersion
+    device_id         = $devId
+    hostname          = $compName
+    device_name       = $userName
+    ip_address        = $clientIp
+    mac_address       = $macAddress
+    os                = $osInfo
+    os_version        = $osVerStr
+    office_version    = $officeFinal
+    cpu               = $cpuInfo
+    ram               = $ramInfo
+    disk              = $diskInfo
+    remote_ready      = $remoteReady
+    last_boot_time    = $lastBootStr
+    uptime_text       = $uptimeFormatted
+    anydesk_installed = $anydeskFound
+    anydesk_id        = $anydeskIdStr
+    install_type      = 'installed'
+    browser           = 'AutoSync Service'
+    client_version    = $localVersion
 }
 $jsonPayload = $reportObj | ConvertTo-Json
 
@@ -2695,21 +2856,99 @@ Write-Host "       -> Remote vnc:// protocol launcher registered." -ForegroundCo
 
 # --- Report Hardware Specs & Remote Status to CSHOS Server ---
 Write-Host " [Step 6/6] Synchronizing machine status with CSHOS Server..." -ForegroundColor Yellow
+
+# Detect OS Last Boot Up Time & System Uptime
+$lastBootStr = ""
+$uptimeFormatted = ""
+try {
+    $osCim = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+    if ($osCim -and $osCim.LastBootUpTime) {
+        $lastBootStr = $osCim.LastBootUpTime.ToString('yyyy-MM-dd HH:mm:ss')
+        $upSpan = (Get-Date) - $osCim.LastBootUpTime
+        $d = [math]::Floor($upSpan.TotalDays)
+        $h = $upSpan.Hours
+        $m = $upSpan.Minutes
+        $parts = @()
+        if ($d -gt 0) { $parts += "$d วัน" }
+        if ($h -gt 0) { $parts += "$h ชม." }
+        if ($m -gt 0 -or $parts.Count -eq 0) { $parts += "$m นาที" }
+        $uptimeFormatted = $parts -join " "
+    }
+} catch {}
+
+# Detect AnyDesk Installation & AnyDesk ID
+$anydeskFound = $false
+$anydeskIdStr = ""
+try {
+    $adSvc = Get-Service -Name "AnyDesk" -ErrorAction SilentlyContinue
+    if ($adSvc) { $anydeskFound = $true }
+
+    $adPaths = @(
+        "C:\Program Files (x86)\AnyDesk\AnyDesk.exe",
+        "C:\Program Files\AnyDesk\AnyDesk.exe",
+        "$env:ALLUSERSPROFILE\AnyDesk\AnyDesk.exe",
+        "$env:APPDATA\AnyDesk\AnyDesk.exe"
+    )
+    foreach ($p in $adPaths) {
+        if (Test-Path $p) { $anydeskFound = $true; break }
+    }
+
+    if (-not $anydeskFound) {
+        $adReg = Get-ItemProperty @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*"
+        ) -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'AnyDesk' }
+        if ($adReg) { $anydeskFound = $true }
+    }
+
+    if (-not $anydeskFound) {
+        $adProc = Get-Process -Name "AnyDesk" -ErrorAction SilentlyContinue
+        if ($adProc) { $anydeskFound = $true }
+    }
+
+    $confPaths = @(
+        "$env:ALLUSERSPROFILE\AnyDesk\system.conf",
+        "$env:ProgramData\AnyDesk\system.conf",
+        "$env:APPDATA\AnyDesk\user.conf"
+    )
+    foreach ($cp in $confPaths) {
+        if (Test-Path $cp) {
+            $confText = Get-Content -Path $cp -ErrorAction SilentlyContinue | Out-String
+            if ($confText -match 'ad\.anynet\.id\s*=\s*(\d+)') {
+                $rawId = $matches[1].Trim()
+                if ($rawId.Length -eq 9) {
+                    $anydeskIdStr = $rawId.Substring(0,3) + " " + $rawId.Substring(3,3) + " " + $rawId.Substring(6,3)
+                } elseif ($rawId.Length -eq 10) {
+                    $anydeskIdStr = $rawId.Substring(0,4) + " " + $rawId.Substring(4,3) + " " + $rawId.Substring(7,3)
+                } else {
+                    $anydeskIdStr = $rawId
+                }
+                $anydeskFound = $true
+                break
+            }
+        }
+    }
+} catch {}
+
 $reportObj = @{
-    device_id      = $devId
-    hostname       = $compName
-    device_name    = $userName
-    ip_address     = $clientIp
-    os             = $osInfo
-    os_version     = $osVerStr
-    office_version = $officeFinal
-    cpu            = $cpuInfo
-    ram            = $ramInfo
-    disk           = $diskInfo
-    remote_ready   = 1
-    install_type   = 'installed'
-    browser        = 'Desktop App'
-    client_version = '{{CLIENT_VERSION}}'
+    device_id         = $devId
+    hostname          = $compName
+    device_name       = $userName
+    ip_address        = $clientIp
+    os                = $osInfo
+    os_version        = $osVerStr
+    office_version    = $officeFinal
+    cpu               = $cpuInfo
+    ram               = $ramInfo
+    disk              = $diskInfo
+    remote_ready      = 1
+    last_boot_time    = $lastBootStr
+    uptime_text       = $uptimeFormatted
+    anydesk_installed = $anydeskFound
+    anydesk_id        = $anydeskIdStr
+    install_type      = 'installed'
+    browser           = 'Desktop App'
+    client_version    = '{{CLIENT_VERSION}}'
 }
 $jsonPayload = $reportObj | ConvertTo-Json
 

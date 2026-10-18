@@ -743,6 +743,43 @@
             background: linear-gradient(135deg, #B45309, #92400E);
         }
 
+        .btn-anydesk-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            background: #FFF1F2;
+            color: #BE123C;
+            border: 1px solid #FECDD3;
+            border-radius: 6px;
+            font-size: 0.74rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            text-decoration: none;
+            font-family: inherit;
+        }
+
+        .btn-anydesk-pill:hover {
+            background: #FFE4E6;
+            border-color: #FDA4AF;
+            transform: translateY(-1px);
+        }
+
+        .uptime-badge-cell {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 7px;
+            background: #F0F9FF;
+            border: 1px solid #BAE6FD;
+            border-radius: 6px;
+            font-size: 0.74rem;
+            font-weight: 600;
+            color: #0369A1;
+            white-space: nowrap;
+        }
+
         .btn-copy-icon {
             display: inline-flex;
             align-items: center;
@@ -2199,13 +2236,14 @@
                         <tr>
                             <th style="width: 45px; text-align: center;">ลำดับ</th>
                             <th style="width: 75px; text-align: center;">สถานะ</th>
-                            <th style="width: 160px;">ชื่อเครื่องคอมพิวเตอร์</th>
-                            <th style="width: 135px;">IP Address</th>
-                            <th style="width: 95px; text-align: center;">สเปกเครื่อง</th>
-                            <th style="width: 90px; text-align: center;">รีโมท (VNC)</th>
-                            <th style="width: 170px;">ชื่อเจ้าหน้าที่</th>
-                            <th style="width: 105px; text-align: center;">เวอร์ชัน</th>
-                            <th style="width: 140px;">หมายเหตุ</th>
+                            <th style="width: 150px;">ชื่อเครื่องคอมพิวเตอร์</th>
+                            <th style="width: 130px;">IP Address</th>
+                            <th style="width: 85px; text-align: center;">รีโมท (VNC)</th>
+                            <th style="width: 135px; text-align: center;">AnyDesk</th>
+                            <th style="width: 135px; text-align: center;">System Uptime</th>
+                            <th style="width: 160px;">ชื่อเจ้าหน้าที่</th>
+                            <th style="width: 95px; text-align: center;">เวอร์ชัน</th>
+                            <th style="width: 130px;">หมายเหตุ</th>
                             <th style="width: 145px; text-align: center;">จัดการ</th>
                         </tr>
                     </thead>
@@ -2244,31 +2282,58 @@
                                     @endif
                                 </td>
                                 <td style="text-align: center;">
-                                    @if($item->cpu || $item->ram || $item->disk)
-                                        <button type="button" class="btn-spec-pill" onclick="openDetailsModal({{ json_encode($item) }})">
-                                            <span class="material-symbols-Outlined">memory</span>
-                                            <span>ดูสเปก</span>
-                                        </button>
-                                    @else
-                                        <span class="spec-empty-compact" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;">- ยังไม่มีสเปก -</span>
-                                    @endif
-                                </td>
-                                <td style="text-align: center;">
                                     @if($item->ip_address)
                                         <div class="remote-compact-cell" style="justify-content: center;">
                                             <button type="button" 
+                                                    id="btn-remote-{{ $item->id }}"
                                                     class="btn-remote-pill {{ !$item->remote_ready ? 'vnc-unready' : '' }}" 
                                                     onclick="launchVnc('{{ $item->ip_address }}', {{ $item->remote_ready ? 'true' : 'false' }}, '{{ addslashes($item->hostname ?: ($item->device_name ?: $item->ip_address)) }}')"
                                                     title="{{ $item->remote_ready ? 'Remote VNC (พร้อมเชื่อมต่อ)' : 'พอร์ต VNC (5900) ยังไม่ตอบสนอง' }}">
                                                 <span class="material-symbols-Outlined" style="font-size: 13px;">screen_share</span>
                                                 <span>Remote</span>
                                                 @if(!$item->remote_ready)
-                                                    <span class="material-symbols-Outlined" style="font-size: 12px; margin-left: 1px;" title="พอร์ต 5900 ปิดอยู่">warning</span>
+                                                    <span class="material-symbols-Outlined remote-warn-icon" style="font-size: 12px; margin-left: 1px;" title="พอร์ต 5900 ปิดอยู่">warning</span>
                                                 @endif
                                             </button>
                                         </div>
                                     @else
                                         <span class="spec-empty-compact">ไม่พบ IP</span>
+                                    @endif
+                                </td>
+                                <td style="text-align: center;">
+                                    @if($item->anydesk_installed)
+                                        <div style="display: inline-flex; align-items: center; justify-content: center; gap: 3px;">
+                                            <button type="button" class="btn-anydesk-pill" 
+                                                    onclick="{{ $item->anydesk_id ? 'launchAnydesk(\'' . str_replace(' ', '', $item->anydesk_id) . '\')' : 'openDetailsModal(' . json_encode($item) . ')' }}"
+                                                    title="{{ $item->anydesk_id ? 'AnyDesk ID: ' . $item->anydesk_id . ' (คลิกเพื่อเชื่อมต่อ)' : 'เครื่องนี้มีโปรแกรม AnyDesk ติดตั้งอยู่' }}">
+                                                <span class="material-symbols-Outlined" style="font-size: 13px; color: #E11D48;">screen_share</span>
+                                                @if($item->anydesk_id)
+                                                    <span style="font-family: monospace; font-weight: 700;">{{ $item->anydesk_id }}</span>
+                                                @else
+                                                    <span>ติดตั้งแล้ว</span>
+                                                @endif
+                                            </button>
+                                            @if($item->anydesk_id)
+                                                <button type="button" class="btn-copy-icon-mini" onclick="copyTextToClipboard('{{ str_replace(' ', '', $item->anydesk_id) }}', 'คัดลอก AnyDesk ID: {{ $item->anydesk_id }} สำเร็จ!')" title="คัดลอก AnyDesk ID">
+                                                    <span class="material-symbols-Outlined" style="font-size: 12px;">content_copy</span>
+                                                </button>
+                                            @endif
+                                        </div>
+                                    @else
+                                        <span class="spec-empty-compact" style="color: #94A3B8;">-</span>
+                                    @endif
+                                </td>
+                                <td style="text-align: center;">
+                                    @php
+                                        $uptime = $item->dynamic_uptime ?: $item->uptime_text;
+                                    @endphp
+                                    @if($uptime)
+                                        <div class="uptime-badge-cell" title="{{ $item->last_boot_time ? 'เปิดเครื่องเมื่อ: ' . $item->last_boot_time->format('d/m/Y H:i น.') : '' }}">
+                                            <span class="material-symbols-Outlined" style="font-size: 13px; color: #0284C7;">timer</span>
+                                            <span>{{ $uptime }}</span>
+                                        </div>
+                                    @else
+                                        <span class="spec-empty-compact" style="color: #94A3B8;">-</span>
                                     @endif
                                 </td>
                                 <td>
@@ -2525,6 +2590,25 @@
                             <label>รหัสประจำอุปกรณ์ (Device UUID)</label>
                             <div id="dtUuid" class="detail-value font-mono text-muted" style="font-size: 0.76rem;">-</div>
                         </div>
+                        <div class="detail-item full-width" style="background: #FFF1F2; border: 1px solid #FECDD3; border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                            <div>
+                                <label style="color: #BE123C; font-weight: 700; margin-bottom: 2px; display: flex; align-items: center; gap: 4px;">
+                                    <span class="material-symbols-Outlined" style="font-size: 16px;">screen_share</span>
+                                    <span>โปรแกรมรีโมท AnyDesk</span>
+                                </label>
+                                <div id="dtAnyDeskStatus" style="font-weight: 600; color: #9F1239; font-size: 0.88rem;">-</div>
+                            </div>
+                            <div id="dtAnyDeskActions" style="display: none; gap: 6px; align-items: center;">
+                                <button type="button" class="btn-copy-chip" onclick="copyAnydeskId()" title="คัดลอกหมายเลข AnyDesk ID">
+                                    <span class="material-symbols-Outlined" style="font-size: 13px;">content_copy</span>
+                                    <span>คัดลอก ID</span>
+                                </button>
+                                <a id="dtAnyDeskLink" href="#" style="display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; background: #E11D48; color: white; border-radius: 6px; font-size: 0.78rem; font-weight: 600; text-decoration: none;">
+                                    <span class="material-symbols-Outlined" style="font-size: 14px;">open_in_new</span>
+                                    <span>เปิด AnyDesk</span>
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -2550,6 +2634,14 @@
                         <div class="detail-item">
                             <label>ใช้งานล่าสุด</label>
                             <div id="dtLastActive" class="detail-value">-</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>เวลาเปิดเครื่องล่าสุด (Last Boot)</label>
+                            <div id="dtLastBoot" class="detail-value">-</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>เปิดใช้งานต่อเนื่องมาแล้ว (System Uptime)</label>
+                            <div id="dtUptime" class="detail-value" style="font-weight: 700; color: #0284C7;">-</div>
                         </div>
                         <div class="detail-item full-width" style="background: #F5F3FF; border: 1px solid #DDD6FE; border-radius: 8px; padding: 6px 12px; display: flex; align-items: center; justify-content: space-between; margin-top: 4px;">
                             <div>
@@ -2773,6 +2865,26 @@
                 rdpLink.href = "{{ url('/admin/installations') }}/" + item.id + "/rdp";
             }
 
+            // AnyDesk Details
+            const anydeskStatusEl = document.getElementById('dtAnyDeskStatus');
+            const anydeskActionsEl = document.getElementById('dtAnyDeskActions');
+            const anydeskLinkEl = document.getElementById('dtAnyDeskLink');
+            if (anydeskStatusEl) {
+                if (item.anydesk_installed) {
+                    if (item.anydesk_id) {
+                        anydeskStatusEl.innerHTML = '<span style="color: #059669; font-weight: 700;">✅ มีการติดตั้ง AnyDesk</span> • หมายเลข ID: <strong style="font-family: monospace; font-size: 0.98rem; color: #BE123C; letter-spacing: 0.5px;">' + item.anydesk_id + '</strong>';
+                        if (anydeskActionsEl) anydeskActionsEl.style.display = 'inline-flex';
+                        if (anydeskLinkEl) anydeskLinkEl.href = 'anydesk:' + item.anydesk_id.replace(/\s+/g, '');
+                    } else {
+                        anydeskStatusEl.innerHTML = '<span style="color: #059669; font-weight: 700;">✅ มีการติดตั้ง AnyDesk บนเครื่องนี้</span> <span style="font-size: 0.78rem; color: #64748B;">(ยังไม่พบหมายเลข ID)</span>';
+                        if (anydeskActionsEl) anydeskActionsEl.style.display = 'none';
+                    }
+                } else {
+                    anydeskStatusEl.innerHTML = '<span style="color: #64748B;">เครื่องนี้ไม่ได้ติดตั้งโปรแกรม AnyDesk</span>';
+                    if (anydeskActionsEl) anydeskActionsEl.style.display = 'none';
+                }
+            }
+
             // Usage & Timestamps
             document.getElementById('dtLaunchCount').textContent = (item.launch_count || 0) + ' ครั้ง';
             const serverVer = '{{ $serverVersion }}';
@@ -2783,6 +2895,22 @@
             document.getElementById('dtFirstInstall').textContent = item.first_installed_at ? formatDateTime(item.first_installed_at) : '-';
             document.getElementById('dtLastActive').textContent = item.last_active_at ? formatDateTime(item.last_active_at) : '-';
             
+            // Uptime & Last Boot
+            const lastBootEl = document.getElementById('dtLastBoot');
+            if (lastBootEl) {
+                lastBootEl.textContent = item.last_boot_time ? formatDateTime(item.last_boot_time) : 'ยังไม่มีข้อมูล (จะอัปเดตเมื่อซิงก์รอบถัดไป)';
+            }
+            const uptimeEl = document.getElementById('dtUptime');
+            if (uptimeEl) {
+                const up = item.dynamic_uptime || item.uptime_text;
+                if (up) {
+                    uptimeEl.innerHTML = '<span style="color: #0284C7; font-weight: 700;">' + up + '</span>' + 
+                        (item.last_boot_time ? ' <span style="font-size: 0.78rem; color: #64748B; font-weight: 400;">(เปิดเครื่องเมื่อ ' + formatDateTime(item.last_boot_time) + ')</span>' : '');
+                } else {
+                    uptimeEl.textContent = '-';
+                }
+            }
+
             // Client Version Details
             const verEl = document.getElementById('dtClientVersion');
             if (verEl) {
@@ -2799,6 +2927,19 @@
             }
 
             modal.classList.add('active');
+        }
+
+        function copyAnydeskId() {
+            if (currentDetailItem && currentDetailItem.anydesk_id) {
+                copyTextToClipboard(currentDetailItem.anydesk_id.replace(/\s+/g, ''), '📋 คัดลอก AnyDesk ID (' + currentDetailItem.anydesk_id + ') เรียบร้อยแล้ว!');
+            }
+        }
+
+        function launchAnydesk(id) {
+            if (!id) return;
+            const cleanId = id.toString().replace(/\s+/g, '');
+            window.location.href = 'anydesk:' + cleanId;
+            showToast('🚀 กำลังเรียกเปิดโปรแกรม AnyDesk เชื่อมต่อไปยัง ID: ' + id);
         }
 
         function closeDetailsModal() {
@@ -3260,6 +3401,24 @@
                             } else {
                                 badgeEl.className = 'badge badge-offline';
                                 badgeEl.textContent = 'ออฟไลน์';
+                            }
+                        }
+
+                        // Live update Remote VNC button based on real-time probe
+                        const remoteBtn = document.getElementById('btn-remote-' + id);
+                        if (remoteBtn && info.remote_ready !== undefined) {
+                            const warnIcon = remoteBtn.querySelector('.remote-warn-icon');
+                            if (info.remote_ready) {
+                                remoteBtn.classList.remove('vnc-unready');
+                                remoteBtn.setAttribute('title', 'Remote VNC (พร้อมเชื่อมต่อ)');
+                                if (warnIcon) warnIcon.remove();
+                                const curClick = remoteBtn.getAttribute('onclick') || '';
+                                remoteBtn.setAttribute('onclick', curClick.replace(', false,', ', true,'));
+                            } else if (!info.is_online) {
+                                remoteBtn.classList.add('vnc-unready');
+                                remoteBtn.setAttribute('title', 'เครื่องออฟไลน์');
+                                const curClick = remoteBtn.getAttribute('onclick') || '';
+                                remoteBtn.setAttribute('onclick', curClick.replace(', true,', ', false,'));
                             }
                         }
                     }
