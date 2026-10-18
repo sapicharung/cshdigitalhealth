@@ -273,6 +273,7 @@ class AppInstallationController extends Controller
             try {
                 $matchedIps = DB::connection('cshos')
                     ->table('onlineuser as o')
+                    ->join('onlineuser_idle as i', 'i.onlineid', '=', 'o.onlineid')
                     ->leftJoin('opduser as u', function($join) {
                         $join->on('u.loginname', '=', DB::raw("IF(o.kskloginname IS NOT NULL AND o.kskloginname != '', o.kskloginname, o.loginname)"));
                     })
@@ -394,6 +395,7 @@ class AppInstallationController extends Controller
         try {
             $onlineUsers = DB::connection('cshos')
                 ->table('onlineuser as o')
+                ->join('onlineuser_idle as i', 'i.onlineid', '=', 'o.onlineid')
                 ->leftJoin('opduser as u', function($join) {
                     $join->on('u.loginname', '=', DB::raw("IF(o.kskloginname IS NOT NULL AND o.kskloginname != '', o.kskloginname, o.loginname)"));
                 })
@@ -714,9 +716,7 @@ class AppInstallationController extends Controller
 
             if ($isOnline) {
                 $installation->last_active_at = now();
-                if ($vncReady) {
-                    $installation->remote_ready = true;
-                }
+                $installation->remote_ready = (bool) $vncReady;
                 // Proactively trigger sync task on the remote machine if Windows host
                 if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
                     try {
@@ -1545,12 +1545,35 @@ try {
     $diskInfo = "N/A"
 }
 
-# Remote VNC Status
+# Remote VNC Status & Self-Healing
 $remoteReady = $false
 try {
     $tvn = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
-    if ($tvn -and $tvn.Status -eq 'Running') {
-        $remoteReady = $true
+    if ($tvn) {
+        if ($tvn.Status -ne 'Running') {
+            Set-Service -Name "tvnserver" -StartupType Automatic -ErrorAction SilentlyContinue
+            Start-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+            Start-Sleep -Milliseconds 500
+            $tvn = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+        }
+        if ($tvn -and $tvn.Status -eq 'Running') {
+            $remoteReady = $true
+        }
+    } else {
+        # Check if TightVNC is installed in Program Files but service not registered
+        $tvnExe = "C:\Program Files\TightVNC\tvnserver.exe"
+        if (-not (Test-Path $tvnExe)) { $tvnExe = "C:\Program Files (x86)\TightVNC\tvnserver.exe" }
+        if (Test-Path $tvnExe) {
+            & "$tvnExe" -install -silent 2>&1 | Out-Null
+            Set-Service -Name "tvnserver" -StartupType Automatic -ErrorAction SilentlyContinue
+            Start-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+            $tvn = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+            if ($tvn -and $tvn.Status -eq 'Running') { $remoteReady = $true }
+        }
+    }
+    # Ensure Windows Firewall rule allows Port 5900 for all network profiles
+    if ($remoteReady) {
+        netsh advfirewall firewall add rule name="TightVNC Server Port 5900" dir=in action=allow protocol=TCP localport=5900 profile=any | Out-Null
     }
 } catch {}
 
@@ -2992,11 +3015,33 @@ try {
     $diskInfo = "ไม่สามารถระบุ DISK"
 }
 
+# Remote VNC Status & Self-Healing
 $remoteReady = 0
 try {
     $tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
-    if ($tvnSvc -and $tvnSvc.Status -eq 'Running') {
-        $remoteReady = 1
+    if ($tvnSvc) {
+        if ($tvnSvc.Status -ne 'Running') {
+            Set-Service -Name "tvnserver" -StartupType Automatic -ErrorAction SilentlyContinue
+            Start-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+            Start-Sleep -Milliseconds 500
+            $tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+        }
+        if ($tvnSvc -and $tvnSvc.Status -eq 'Running') {
+            $remoteReady = 1
+        }
+    } else {
+        $tvnExe = "C:\Program Files\TightVNC\tvnserver.exe"
+        if (-not (Test-Path $tvnExe)) { $tvnExe = "C:\Program Files (x86)\TightVNC\tvnserver.exe" }
+        if (Test-Path $tvnExe) {
+            & "$tvnExe" -install -silent 2>&1 | Out-Null
+            Set-Service -Name "tvnserver" -StartupType Automatic -ErrorAction SilentlyContinue
+            Start-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+            $tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+            if ($tvnSvc -and $tvnSvc.Status -eq 'Running') { $remoteReady = 1 }
+        }
+    }
+    if ($remoteReady -eq 1) {
+        netsh advfirewall firewall add rule name="TightVNC Server Port 5900" dir=in action=allow protocol=TCP localport=5900 profile=any | Out-Null
     }
 } catch {}
 

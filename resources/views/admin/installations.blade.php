@@ -734,6 +734,15 @@
             transform: translateY(-1px);
         }
 
+        .btn-remote-pill.vnc-unready {
+            background: linear-gradient(135deg, #D97706, #B45309);
+            box-shadow: 0 1px 4px rgba(217, 119, 6, 0.25);
+        }
+
+        .btn-remote-pill.vnc-unready:hover {
+            background: linear-gradient(135deg, #B45309, #92400E);
+        }
+
         .btn-copy-icon {
             display: inline-flex;
             align-items: center;
@@ -2189,9 +2198,15 @@
                                 <td style="text-align: center;">
                                     @if($item->ip_address)
                                         <div class="remote-compact-cell" style="justify-content: center;">
-                                            <button type="button" class="btn-remote-pill" onclick="launchVnc('{{ $item->ip_address }}')">
+                                            <button type="button" 
+                                                    class="btn-remote-pill {{ !$item->remote_ready ? 'vnc-unready' : '' }}" 
+                                                    onclick="launchVnc('{{ $item->ip_address }}', {{ $item->remote_ready ? 'true' : 'false' }}, '{{ addslashes($item->hostname ?: ($item->device_name ?: $item->ip_address)) }}')"
+                                                    title="{{ $item->remote_ready ? 'Remote VNC (พร้อมเชื่อมต่อ)' : 'พอร์ต VNC (5900) ยังไม่ตอบสนอง' }}">
                                                 <span class="material-symbols-Outlined" style="font-size: 13px;">screen_share</span>
                                                 <span>Remote</span>
+                                                @if(!$item->remote_ready)
+                                                    <span class="material-symbols-Outlined" style="font-size: 12px; margin-left: 1px;" title="พอร์ต 5900 ปิดอยู่">warning</span>
+                                                @endif
                                             </button>
                                         </div>
                                     @else
@@ -2754,11 +2769,32 @@
             }
         }
 
-        function launchVnc(ip) {
+        function launchVnc(ip, isReady = true, hostName = '') {
             if (!ip) {
-                showToast('ไม่พบ IP Address ของเครื่องนี้', 'error');
+                showToast('ไม่พบ IP Address ของเครื่องนี้');
                 return;
             }
+            if (!isReady) {
+                openConfirmModal({
+                    type: 'warning',
+                    icon: 'desktop_access_disabled',
+                    title: 'พอร์ต VNC ยังไม่พร้อมเชื่อมต่อ',
+                    message: 'เครื่องปลายทางยังไม่ได้เปิด Service TightVNC (พอร์ต 5900 ปิดอยู่) หากเชื่อมต่อจะขึ้นข้อผิดพลาด <i>No connection could be made because the target machine actively refused it</i>',
+                    targetName: hostName || ip,
+                    targetSub: 'IP: ' + ip + ' (พอร์ต 5900 ไม่ตอบสนอง)',
+                    hint: '<b>วิธีแก้ไข:</b> ที่เครื่องลูกข่าย ให้เปิด PowerShell (Run as Administrator) แล้วสั่ง:<br><code style="background:#FFF; padding:3px 8px; border-radius:4px; display:inline-block; margin-top:5px; font-weight:700; color:#0369A1; font-size:0.88rem;">Start-Service tvnserver</code>',
+                    proceedText: 'ลองเปิด VNC ต่อไป',
+                    proceedIcon: 'screen_share',
+                    onConfirm: function() {
+                        doLaunchVnc(ip);
+                    }
+                });
+                return;
+            }
+            doLaunchVnc(ip);
+        }
+
+        function doLaunchVnc(ip) {
             const vncUri = 'vnc://' + ip + ':5900';
             
             // Trigger custom protocol handler safely without browser navigating away
@@ -2773,15 +2809,15 @@
                 }
             }, 600);
 
-            showToast('กำลังเรียกเปิดโปรแกรม TightVNC สำหรับเครื่อง IP: ' + ip + ' (กรุณากรอกรหัสผ่านเพื่อเชื่อมต่อ)', 'success');
+            showToast('กำลังเรียกเปิดโปรแกรม TightVNC สำหรับเครื่อง IP: ' + ip + ' (กรุณากรอกรหัสผ่านเพื่อเชื่อมต่อ)');
         }
 
         function launchCurrentVnc() {
             if (!currentDetailItem || !currentDetailItem.ip_address) {
-                showToast('ไม่พบ IP Address สำหรับเชื่อมต่อ VNC', 'error');
+                showToast('ไม่พบ IP Address สำหรับเชื่อมต่อ VNC');
                 return;
             }
-            launchVnc(currentDetailItem.ip_address);
+            launchVnc(currentDetailItem.ip_address, !!currentDetailItem.remote_ready, currentDetailItem.hostname || currentDetailItem.device_name || currentDetailItem.ip_address);
         }
 
         function copyCurrentIp() {
@@ -2831,6 +2867,8 @@
             if (item.remote_ready) {
                 specs.push('<span style="color:#059669; font-weight:600;">✓ เปิดระบบ Remote VNC (พอร์ต 5900 / รหัส: {{ $vnc_password ?? "4Sh0sp@remote" }} - หน้าจอไม่ดับ)</span>');
                 specs.push('<span style="color:#64748B; font-size:0.75rem;">(และเปิด Windows Remote Desktop RDP สำรองแล้ว)</span>');
+            } else {
+                specs.push('<span style="color:#D97706; font-weight:600;">⚠ บริการ Remote VNC (พอร์ต 5900) ยังไม่พร้อม / Service tvnserver ปิดอยู่</span>');
             }
             if (specs.length === 0) {
                 specs.push('<span style="color:#94A3B8; font-style:italic;">ยังไม่มีข้อมูลสเปก (ระบบจะตรวจจับอัตโนมัติเมื่อรันตัวติดตั้งบนเครื่องนี้)</span>');
