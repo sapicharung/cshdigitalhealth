@@ -798,6 +798,119 @@ class AppInstallationController extends Controller
     }
 
     /**
+     * Trigger immediate hardware & system specification rescan on a remote client.
+     */
+    public function resyncSpecs(Request $request, $id)
+    {
+        $installation = AppInstallation::findOrFail($id);
+        $name = $installation->hostname ?: ($installation->device_name ?: $installation->ip_address);
+        $ip = $installation->ip_address;
+        $isOnline = false;
+        $pushed = false;
+
+        // Check reachability
+        if ($ip && !in_array($ip, ['127.0.0.1', '::1'])) {
+            $ports = [5900, 445, 135];
+            foreach ($ports as $port) {
+                $fp = @fsockopen($ip, $port, $errno, $errstr, 0.6);
+                if ($fp) {
+                    $isOnline = true;
+                    fclose($fp);
+                    break;
+                }
+            }
+
+            if (!$isOnline && strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                exec("ping -n 1 -w 600 " . escapeshellarg($ip), $pingOut, $pingCode);
+                if ($pingCode === 0) {
+                    $isOnline = true;
+                }
+            }
+
+            // Proactively trigger the AutoSync task remotely over LAN
+            if ($isOnline && strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                try {
+                    $escapedIp = escapeshellarg($ip);
+                    $cmd = "start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Startup >nul 2>&1";
+                    pclose(popen($cmd, "r"));
+                    $pushed = true;
+                } catch (\Throwable $e) {}
+            }
+        }
+
+        $installation->is_online = $isOnline;
+        $installation->last_probed_at = now();
+        if ($isOnline) {
+            $installation->last_active_at = now();
+        }
+        $installation->save();
+
+        // Refresh staff info from CSHOS_DB
+        $staffInfo = null;
+        if ($ip) {
+            $map = $this->getStaffMapByIps([$ip]);
+            $staffInfo = $map[$ip] ?? null;
+        }
+
+        if ($isOnline) {
+            $msg = "ส่งคำสั่งสั่งตรวจสอบสเปกใหม่ไปยังเครื่อง {$name} ({$ip}) เรียบร้อยแล้ว ระบบบนเครื่องลูกจะรันสแกน CPU, RAM, DISK, OS, Office และส่งข้อมูลกลับมาอัปเดตอัตโนมัติ";
+        } else {
+            $msg = "ส่งคำสั่งตรวจสอบสเปกเครื่อง {$name} แล้ว (ขณะนี้เครื่องอาจอยู่ในสถานะออฟไลน์หรืออยู่นอกเครือข่าย ระบบจะตรวจจับเมื่อเครื่องเปิดทำงาน)";
+        }
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'status'       => 'success',
+                'is_online'    => $isOnline,
+                'pushed_lan'   => $pushed,
+                'message'      => $msg,
+                'installation' => $installation,
+                'staff_name'   => $staffInfo ? ($staffInfo->staff_name ?: $staffInfo->kskloginname) : $installation->department,
+                'last_active'  => $installation->last_active_at ? $installation->last_active_at->format('d/m/y H:i') : '-',
+            ]);
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    /**
+     * Trigger bulk specification rescan across all online client machines.
+     */
+    public function resyncAllSpecs(Request $request)
+    {
+        $installations = AppInstallation::whereNotNull('ip_address')
+            ->whereNotIn('ip_address', ['127.0.0.1', '::1'])
+            ->get();
+
+        $triggered = 0;
+        $isWin = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN';
+
+        foreach ($installations as $inst) {
+            $ip = $inst->ip_address;
+            if ($isWin && $ip) {
+                try {
+                    $escapedIp = escapeshellarg($ip);
+                    $cmd = "start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Startup >nul 2>&1";
+                    pclose(popen($cmd, "r"));
+                    $triggered++;
+                } catch (\Throwable $e) {}
+            }
+        }
+
+        $msg = "ส่งคำสั่งตรวจสอบสเปกเครื่องใหม่ไปยังเครื่องลูกข่ายทั้งหมด ({$triggered} เครื่อง) เรียบร้อยแล้ว เครื่องที่เปิดอยู่จะรันตรวจสอบสเปกและส่งผลกลับมาที่หน้า Admin ทันที";
+
+        if ($request->wantsJson()) {
+            return response()->json([
+                'status'    => 'success',
+                'triggered' => $triggered,
+                'message'   => $msg,
+            ]);
+        }
+
+        return back()->with('success', $msg);
+    }
+
+    /**
      * Bulk check live online/offline status for displayed devices.
      */
     public function checkLiveStatus(Request $request)
@@ -2772,9 +2885,11 @@ POWERSHELL;
             . $b64Payload
             . "-----END CERTIFICATE-----\r\n";
 
+        $fileName = "Install-CSHOS_v{$serverVersion}.bat";
+
         return response($batContent, 200, [
             'Content-Type'        => 'application/x-bat',
-            'Content-Disposition' => 'attachment; filename="Install-CSHOS-Desktop.bat"',
+            'Content-Disposition' => "attachment; filename=\"{$fileName}\"",
             'Cache-Control'       => 'no-cache, no-store, must-revalidate',
         ]);
     }

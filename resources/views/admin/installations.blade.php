@@ -1026,6 +1026,46 @@
             animation: spinMini 0.8s linear infinite;
         }
 
+        .btn-action-resync {
+            color: #2563EB;
+            border-color: #BFDBFE;
+            background: #EFF6FF;
+        }
+        .btn-action-resync:hover {
+            background: #DBEAFE;
+            color: #1D4ED8;
+            border-color: #93C5FD;
+            transform: translateY(-1px);
+        }
+        .btn-action-resync.spinning .material-symbols-Outlined {
+            animation: spinMini 0.8s linear infinite;
+        }
+
+        .btn-resync-all {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.48rem 0.9rem;
+            background: #EFF6FF;
+            color: #2563EB;
+            border: 1px solid #BFDBFE;
+            border-radius: 8px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-resync-all:hover {
+            background: #DBEAFE;
+            color: #1D4ED8;
+            border-color: #93C5FD;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.15);
+        }
+        .btn-resync-all.spinning .material-symbols-Outlined {
+            animation: spinMini 0.8s linear infinite;
+        }
+
         @keyframes pulse-update-border {
             0% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0.4); }
             70% { box-shadow: 0 0 0 4px rgba(217, 119, 6, 0); }
@@ -1998,9 +2038,9 @@
         </div>
 
         <div class="nav-actions">
-            <a href="{{ route('download.shortcut.installer') }}" class="btn-download-app">
+            <a href="{{ route('download.shortcut.installer') }}" class="btn-download-app" title="ดาวน์โหลดตัวติดตั้ง Install-CSHOS_v{{ $serverVersion }}.bat">
                 <span class="material-symbols-Outlined" style="font-size: 18px;">download</span>
-                <span>downloadตัวติดตั้งApp</span>
+                <span>downloadตัวติดตั้งApp (v{{ $serverVersion }})</span>
             </a>
 
             <a href="{{ route('download.uninstaller') }}" class="btn-download-uninstaller" title="ดาวน์โหลดตัวถอนการติดตั้งและลบข้อมูลระบบทั้งหมด">
@@ -2125,13 +2165,6 @@
                 </div>
 
                 <div class="action-buttons">
-                    <button type="button" class="btn-update-all" onclick="confirmUpdateAll('{{ $serverVersion }}', {{ $stats['outdated_count'] ?? 0 }})">
-                        <span class="material-symbols-Outlined" style="font-size: 17px;">system_update_alt</span>
-                        <span>สั่งอัพเดททุกเครื่อง (v{{ $serverVersion }})</span>
-                        @if(!empty($stats['outdated_count']) && $stats['outdated_count'] > 0)
-                            <span class="update-badge-pill" title="มี {{ $stats['outdated_count'] }} เครื่องที่ยังไม่เป็นเวอร์ชันล่าสุด">{{ $stats['outdated_count'] }}</span>
-                        @endif
-                    </button>
 
                     @if(!empty($stats['pending_count']) && $stats['pending_count'] > 0)
                         <button type="button" class="btn-clear-pending" onclick="confirmClearAllPending({{ $stats['pending_count'] }})" title="ล้างสถานะรออัพเดททั้งหมด">
@@ -2139,6 +2172,11 @@
                             <span>ล้างสถานะรออัพเดท ({{ $stats['pending_count'] }})</span>
                         </button>
                     @endif
+
+                    <button type="button" class="btn-resync-all" onclick="confirmResyncAllSpecs({{ $stats['total_devices'] ?? 0 }})" title="สั่งเครื่องลูกข่ายทุกเครื่องสแกนและอัปเดตสเปกฮาร์ดแวร์ใหม่ทันที">
+                        <span class="material-symbols-Outlined" style="font-size: 17px;">sync_saved_locally</span>
+                        <span>ตรวจสเปกทุกเครื่อง</span>
+                    </button>
 
                     <button type="button" class="btn-refresh" onclick="location.reload()">
                         <span class="material-symbols-Outlined" style="font-size: 17px;">refresh</span>
@@ -2259,9 +2297,8 @@
                                             <span>v{{ $item->client_version }}</span>
                                         </span>
                                     @else
-                                        <span class="ver-tag-old font-mono" onclick="confirmUpdateRow('{{ route('admin.installations.trigger-update', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}', '{{ $item->client_version ?: '1.0.0' }}')" title="คลิกเพื่อสั่งอัพเดทเป็น v{{ $serverVersion }}" style="display: inline-flex; align-items: center; gap: 2px; cursor: pointer;">
+                                        <span class="ver-tag-old font-mono" title="เวอร์ชัน v{{ $item->client_version ?: '1.0.0' }} (เซิร์ฟเวอร์ v{{ $serverVersion }})" style="display: inline-flex; align-items: center; gap: 2px;">
                                             <span>v{{ $item->client_version ?: '1.0.0' }}</span>
-                                            <span class="material-symbols-Outlined" style="font-size: 11px;">arrow_upward</span>
                                         </span>
                                     @endif
                                 </td>
@@ -2281,6 +2318,11 @@
                                                 title="รีเฟรชสถานะ / ตรวจสอบการเชื่อมต่อเครื่องนี้">
                                             <span class="material-symbols-Outlined" style="font-size: 15px;">refresh</span>
                                         </button>
+                                        <button type="button" class="btn-action-icon btn-action-resync" 
+                                                onclick="resyncSingleDevice('{{ route('admin.installations.resync-specs', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}', this, {{ $item->id }})" 
+                                                title="สั่งตรวจสอบสเปกเครื่องใหม่ (CPU, RAM, DISK, OS, Office)">
+                                            <span class="material-symbols-Outlined" style="font-size: 15px;">sync_saved_locally</span>
+                                        </button>
                                         <button type="button" class="btn-action-icon btn-action-view" 
                                                 onclick="openDetailsModal({{ json_encode($item) }})" title="ดูรายละเอียดสเปก">
                                             <span class="material-symbols-Outlined" style="font-size: 15px;">visibility</span>
@@ -2289,19 +2331,6 @@
                                                 onclick="openEditModal({{ json_encode($item) }})" title="แก้ไขข้อมูล">
                                             <span class="material-symbols-Outlined" style="font-size: 15px;">edit</span>
                                         </button>
-                                        @if($item->pending_update)
-                                            <button type="button" class="btn-action-icon btn-action-update needs-update" 
-                                                    onclick="openPendingUpdateModal({{ json_encode($item) }})"
-                                                    title="จัดการสถานะรออัพเดทของเครื่องนี้">
-                                                <span class="material-symbols-Outlined spin-mini" style="font-size: 15px;">sync</span>
-                                            </button>
-                                        @else
-                                            <button type="button" class="btn-action-icon btn-action-update {{ ($item->client_version && $item->client_version !== $serverVersion) ? 'needs-update' : '' }}" 
-                                                    onclick="confirmUpdateRow('{{ route('admin.installations.trigger-update', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}', '{{ $item->client_version ?: '1.0.0' }}')"
-                                                    title="สั่งอัพเดท CSHOS STAFF INFO เป็น v{{ $serverVersion }}">
-                                                <span class="material-symbols-Outlined" style="font-size: 15px;">system_update_alt</span>
-                                            </button>
-                                        @endif
                                         <button type="button" class="btn-action-icon btn-action-delete"
                                                 onclick="confirmDeleteRow('{{ route('admin.installations.destroy', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}')" title="ลบข้อมูลเครื่อง">
                                             <span class="material-symbols-Outlined" style="font-size: 15px;">delete</span>
@@ -2425,9 +2454,15 @@
             <div class="details-modal-body">
                 <!-- Section 1: สเปกฮาร์ดแวร์ & ซอฟต์แวร์ -->
                 <div class="detail-section">
-                    <div class="detail-section-title">
-                        <span class="material-symbols-Outlined" style="color: #2563EB;">memory</span>
-                        <span>สเปกฮาร์ดแวร์ & ซอฟต์แวร์ระบบ (Hardware & System Specs)</span>
+                    <div class="detail-section-title" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span class="material-symbols-Outlined" style="color: #2563EB;">memory</span>
+                            <span>สเปกฮาร์ดแวร์ & ซอฟต์แวร์ระบบ (Hardware & System Specs)</span>
+                        </div>
+                        <button type="button" class="btn-resync-chip" onclick="resyncSpecsFromDetails(this)" title="สั่งเครื่องนี้สแกนและอัปเดตสเปกใหม่ทันที" style="display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; font-size: 0.74rem; font-weight: 600; color: #1D4ED8; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 6px; cursor: pointer;">
+                            <span class="material-symbols-Outlined" style="font-size: 14px;">sync_saved_locally</span>
+                            <span>ตรวจสเปกใหม่</span>
+                        </button>
                     </div>
                     <div class="detail-grid">
                         <div class="detail-item full-width">
@@ -2521,10 +2556,6 @@
                                 <label style="color: #6D28D9; font-weight: 600; margin-bottom: 2px;">เวอร์ชันโปรแกรม (Client Version)</label>
                                 <div id="dtClientVersion" style="font-weight: 700; color: #4C1D95; font-size: 0.92rem;">-</div>
                             </div>
-                            <button type="button" id="dtBtnUpdate" onclick="triggerUpdateFromDetails()" style="display: inline-flex; align-items: center; gap: 5px; padding: 5px 11px; background: linear-gradient(135deg, #7C3AED, #6D28D9); color: white; border: none; border-radius: 7px; font-size: 0.78rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 5px rgba(124, 58, 237, 0.25);">
-                                <span class="material-symbols-Outlined" style="font-size: 15px;">system_update_alt</span>
-                                <span>สั่งอัพเดทเครื่องนี้</span>
-                            </button>
                         </div>
                         <div class="detail-item full-width" id="dtNotesContainer">
                             <label>หมายเหตุ</label>
@@ -2540,9 +2571,9 @@
                         <span class="material-symbols-Outlined" style="font-size: 16px;">edit</span>
                         <span>แก้ไขข้อมูลแผนก / ผู้ใช้</span>
                     </button>
-                    <button type="button" onclick="triggerUpdateFromDetails()" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 13px; background: linear-gradient(135deg, #7C3AED, #6D28D9); color: white; border: none; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; box-shadow: 0 2px 6px rgba(124, 58, 237, 0.3);">
-                        <span class="material-symbols-Outlined" style="font-size: 16px;">system_update_alt</span>
-                        <span>สั่งอัพเดทเครื่องนี้ (v{{ $serverVersion }})</span>
+                    <button type="button" onclick="resyncSpecsFromDetails(this)" style="display: inline-flex; align-items: center; gap: 5px; padding: 6px 13px; background: #EFF6FF; color: #2563EB; border: 1px solid #BFDBFE; border-radius: 8px; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease;">
+                        <span class="material-symbols-Outlined" style="font-size: 16px;">sync_saved_locally</span>
+                        <span>สั่งตรวจสอบสเปกใหม่</span>
                     </button>
                 </div>
                 <button type="button" class="btn-modal-cancel" onclick="closeDetailsModal()">ปิดหน้าต่าง</button>
@@ -2754,17 +2785,11 @@
             
             // Client Version Details
             const verEl = document.getElementById('dtClientVersion');
-            const btnUpd = document.getElementById('dtBtnUpdate');
             if (verEl) {
-                if (item.pending_update) {
-                    verEl.innerHTML = '<span style="color: #7C3AED;">v' + cVer + '</span> <span style="font-size: 0.78rem; color: #D97706; font-weight: 500;">(ส่งคำสั่งอัพเดทแล้ว รอเครื่องลูกรับงาน)</span>';
-                    if (btnUpd) btnUpd.style.display = 'none';
-                } else if (cVer === serverVer) {
+                if (cVer === serverVer) {
                     verEl.innerHTML = '<span style="color: #059669;">v' + cVer + ' (เวอร์ชันล่าสุด)</span>';
-                    if (btnUpd) btnUpd.style.display = 'none';
                 } else {
-                    verEl.innerHTML = '<span style="color: #DC2626;">v' + cVer + '</span> <span style="font-size: 0.78rem; color: #D97706;">(เวอร์ชันเก่า ➜ แนะนำอัพเดทเป็น v' + serverVer + ')</span>';
-                    if (btnUpd) btnUpd.style.display = 'inline-flex';
+                    verEl.innerHTML = '<span style="color: #DC2626;">v' + cVer + '</span> <span style="font-size: 0.78rem; color: #64748B;">(เวอร์ชันเซิร์ฟเวอร์คือ v' + serverVer + ')</span>';
                 }
             }
 
@@ -3112,6 +3137,97 @@
                 if (btnEl) {
                     btnEl.classList.remove('spinning');
                     btnEl.disabled = false;
+                }
+            });
+        }
+
+        function resyncSingleDevice(url, hostname, ip, btnEl, itemId) {
+            const displayName = hostname ? (hostname + (ip ? ' (' + ip + ')' : '')) : (ip || 'เครื่องลูกข่าย');
+            if (btnEl) {
+                btnEl.classList.add('spinning');
+                btnEl.disabled = true;
+            }
+            showToast('🔍 กำลังส่งคำสั่งตรวจสเปกเครื่อง ' + displayName + '...');
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showToast('✅ ' + data.message, 'success');
+                    if (itemId) {
+                        const badgeEl = document.getElementById('status-badge-' + itemId);
+                        if (badgeEl && data.is_online !== undefined) {
+                            if (data.is_online) {
+                                badgeEl.className = 'badge badge-online';
+                                badgeEl.innerHTML = '<span class="pulse-dot"></span> ออนไลน์';
+                            }
+                        }
+                    }
+                    setTimeout(() => { location.reload(); }, 1200);
+                } else {
+                    showToast('❌ ไม่สามารถสั่งตรวจสเปกได้: ' + (data.message || ''));
+                    if (btnEl) {
+                        btnEl.classList.remove('spinning');
+                        btnEl.disabled = false;
+                    }
+                }
+            })
+            .catch(() => {
+                showToast('❌ เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย');
+                if (btnEl) {
+                    btnEl.classList.remove('spinning');
+                    btnEl.disabled = false;
+                }
+            });
+        }
+
+        function resyncSpecsFromDetails(btnEl) {
+            if (!currentDetailItem) return;
+            const item = currentDetailItem;
+            const url = "{{ url('/admin/installations') }}/" + item.id + "/resync-specs";
+            resyncSingleDevice(url, item.hostname, item.ip_address, btnEl, item.id);
+        }
+
+        function confirmResyncAllSpecs(totalCount) {
+            openConfirmModal({
+                type: 'primary',
+                icon: 'sync_saved_locally',
+                title: 'สั่งตรวจสอบสเปกเครื่องลูกข่ายทั้งหมด',
+                message: 'คุณต้องการส่งคำสั่งสั่งให้เครื่องลูกข่ายทั้งหมด (ประมาณ <strong>' + totalCount + ' เครื่อง</strong>) รันสแกนและอัปเดตสเปกฮาร์ดแวร์ (CPU, RAM, DISK, OS, Office) ใหม่ ใช่หรือไม่?',
+                targetName: 'เครื่องลูกข่ายทั้งหมดในระบบ (' + totalCount + ' เครื่อง)',
+                targetSub: 'สแกน CPU ละเอียด, Bus RAM, พาร์ทิชัน DISK, Build OS, รุ่น Office',
+                hint: '💡 <b>การทำงาน:</b> ระบบจะส่งสัญญาณผ่าน Task Scheduler ไปยังเครื่องลูกข่ายในเครือข่าย LAN เพื่อสั่งรันตรวจจับสเปกและส่งรายงานกลับมาที่ฐานข้อมูลทันที',
+                proceedText: 'ยืนยันสั่งตรวจสเปกทั้งหมด',
+                proceedIcon: 'sync_saved_locally',
+                onConfirm: function() {
+                    showToast('🚀 กำลังส่งคำสั่งตรวจสเปกไปยังเครื่องลูกข่ายทั้งหมด...');
+                    fetch('{{ route("admin.installations.resync-all-specs") }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Accept': 'application/json'
+                        }
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            showToast('✅ ' + data.message, 'success');
+                            setTimeout(() => { location.reload(); }, 1500);
+                        } else {
+                            showToast('❌ เกิดข้อผิดพลาด: ' + (data.message || ''));
+                        }
+                    })
+                    .catch(() => {
+                        showToast('❌ เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์');
+                    });
                 }
             });
         }
