@@ -11,14 +11,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AppInstallationController extends Controller
 {
-    public const CLIENT_APP_VERSION = '2.9.1';
+    public const CLIENT_APP_VERSION = '2.9.2';
 
     /**
      * Get the latest client application version.
      */
     public function getClientAppVersion(): string
     {
-        return self::CLIENT_APP_VERSION;
+        return env('CLIENT_APP_VERSION', self::CLIENT_APP_VERSION);
     }
 
     /**
@@ -219,7 +219,11 @@ class AppInstallationController extends Controller
             $installation->office_version = $data['office_version'];
         }
 
-        if (!empty($data['browser'])) {
+        $isNativeClient = (!empty($data['cpu']) || !empty($data['ram']) || ($data['browser'] ?? '') === 'AutoSync Service');
+
+        if ($isNativeClient) {
+            $installation->browser = 'AutoSync Service';
+        } elseif (!empty($data['browser']) && empty($installation->browser)) {
             $installation->browser = $data['browser'];
         }
 
@@ -270,11 +274,17 @@ class AppInstallationController extends Controller
 
         $serverVersion = $this->getClientAppVersion();
 
-        if (!empty($data['client_version'])) {
-            $installation->client_version = mb_substr($data['client_version'], 0, 50);
-        } elseif (!$installation->client_version) {
-            // New installation or client without explicit version defaults to current server version
-            $installation->client_version = $serverVersion;
+        if ($isNativeClient) {
+            if (!empty($data['client_version'])) {
+                $installation->client_version = mb_substr($data['client_version'], 0, 50);
+            } elseif (!$installation->client_version) {
+                $installation->client_version = $serverVersion;
+            }
+        } else {
+            // For browser requests: do NOT overwrite existing client_version
+            if (!$installation->client_version) {
+                $installation->client_version = '1.0.0';
+            }
         }
 
         $installation->user_agent = $request->userAgent();
@@ -285,14 +295,18 @@ class AppInstallationController extends Controller
 
         $this->deduplicateSingleRecord($installation);
 
-        $clientVer = $installation->client_version ?: $serverVersion;
+        $clientVer = $installation->client_version ?: '1.0.0';
         $isPendingUpdate = (bool) ($installation->pending_update ?? false);
         $isGlobalForce = (bool) Cache::get('cshos_force_all_update', false);
 
-        $updateAvailable = version_compare($clientVer, $serverVersion, '<') || $isPendingUpdate || $isGlobalForce;
+        // Missing metrics indicates client is running an outdated sync script
+        $missingMetrics = empty($installation->last_boot_time) || empty($installation->uptime_text);
 
-        // If client reported it has successfully updated to serverVersion or higher, clear pending_update
-        if ($installation->pending_update && version_compare($clientVer, $serverVersion, '>=')) {
+        $updateAvailable = version_compare($clientVer, $serverVersion, '<') || $isPendingUpdate || $isGlobalForce || $missingMetrics;
+        $forceUpdate = $isPendingUpdate || $isGlobalForce || $missingMetrics;
+
+        // Only clear pending_update if native client is on serverVersion or higher AND has metrics
+        if ($isNativeClient && $installation->pending_update && version_compare($clientVer, $serverVersion, '>=') && !$missingMetrics) {
             $installation->pending_update = false;
             $installation->save();
         }
@@ -1318,6 +1332,14 @@ if (-not (Test-Path $sysDir)) {
     try { New-Item -ItemType Directory -Path $sysDir -Force | Out-Null } catch {}
 }
 
+# Grant full modify permissions to all users so standard non-admin users can update scripts and version
+try {
+    & icacls.exe "$sysDir" /grant "*S-1-5-32-545:(OI)(CI)M" /grant "Users:(OI)(CI)M" /grant "Authenticated Users:(OI)(CI)M" /q /c | Out-Null
+} catch {}
+
+# Wait 1.5 seconds for any previous cshos_sync.ps1 process to exit and release file locks
+Start-Sleep -Milliseconds 1500
+
 $appUrl = '{{APP_URL}}'
 $appName = "{{APP_NAME}}"
 $iconUrl = '{{ICON_URL}}'
@@ -1460,19 +1482,34 @@ shell.Run cmd, 1, False
 # 5. Update cshos_sync.ps1 to latest sync code
 $syncScriptPath = Join-Path $sysDir "cshos_sync.ps1"
 try {
+    # Ensure any lingering sync process is terminated before overwriting
+    Get-CimInstance Win32_Process -Filter "CommandLine LIKE '%cshos_sync%'" -ErrorAction SilentlyContinue | ForEach-Object {
+        Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue
+    }
+    Start-Sleep -Milliseconds 500
+
     $syncCode = @'
 {{SYNC_CODE}}
 '@
     Set-Content -Path $syncScriptPath -Value $syncCode -Encoding UTF8 -Force
-} catch {}
+} catch {
+    Add-Content -Path (Join-Path $sysDir "sync.log") -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Failed to overwrite sync script: $($_.Exception.Message)" -ErrorAction SilentlyContinue
+}
 
-# 6. Ensure Windows Scheduled Tasks (Startup, Logon, Hourly & Daily)
+# 6. Ensure Windows Scheduled Tasks (Startup with 15s delay, Logon, Hourly & Daily)
 try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
-    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:30 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:15 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Hourly" /tr $taskCmd /sc HOURLY /mo 1 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 08:30 /ri 60 /du 24:00 /ru "SYSTEM" /f 2>&1 | Out-Null
+} catch {}
+
+# Also update Registry Run keys to run on logon
+try {
+    $regCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
+    Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "CSHOS_AutoSync" -Value $regCmd -Force -ErrorAction SilentlyContinue
+    Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "CSHOS_AutoSync" -Value $regCmd -Force -ErrorAction SilentlyContinue
 } catch {}
 
 # 7. Update version.txt to the new version
@@ -1480,7 +1517,7 @@ try {
     Set-Content -Path (Join-Path $sysDir "version.txt") -Value $serverVer -Force
 } catch {}
 
-# 8. Trigger immediate background sync to report updated version to server
+# 8. Trigger immediate background sync using the newly updated script
 try {
     Start-Process powershell.exe -ArgumentList "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`"" -WindowStyle Hidden
 } catch {}
@@ -1488,7 +1525,12 @@ try {
 # Refresh Desktop Icons
 try { & ie4uinit.exe -show | Out-Null } catch {}
 
+Add-Content -Path (Join-Path $sysDir "sync.log") -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - SUCCESS: Auto-update applied version $serverVer" -ErrorAction SilentlyContinue
 Write-Output "SUCCESS: Auto-update applied version $serverVer"
+
+# Self-delete temporary updater script
+Start-Sleep -Milliseconds 800
+try { Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue } catch {}
 POWERSHELL;
 
         $script = str_replace(
@@ -1631,6 +1673,9 @@ try {
 
 $sysDir = "$env:ProgramData\CSHOS"
 if (-not (Test-Path $sysDir)) { $sysDir = "$env:LOCALAPPDATA\CSHOS" }
+try {
+    & icacls.exe "$sysDir" /grant "*S-1-5-32-545:(OI)(CI)M" /grant "Users:(OI)(CI)M" /grant "Authenticated Users:(OI)(CI)M" /q /c | Out-Null
+} catch {}
 
 $devIdFile = Join-Path $sysDir "device_id.txt"
 $devId = ""
@@ -2187,41 +2232,49 @@ $reportObj = @{
 }
 $jsonPayload = $reportObj | ConvertTo-Json
 
-try {
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
-    $res = Invoke-RestMethod -Uri "{{APP_URL}}/api/track-install" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 -ErrorAction Stop
+$maxHttpRetries = 6
+$res = $null
+
+for ($attempt = 1; $attempt -le $maxHttpRetries; $attempt++) {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls11 -bor [Net.SecurityProtocolType]::Tls
+        $res = Invoke-RestMethod -Uri "{{APP_URL}}/api/track-install" -Method Post -Body $jsonPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 15 -ErrorAction Stop
+        if ($res) { break }
+    } catch {
+        if ($attempt -lt $maxHttpRetries) {
+            Start-Sleep -Seconds 5
+        } else {
+            $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - HTTP request failed after $attempt attempts: $($_.Exception.Message)"
+            Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+if ($res) {
     $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - OK: Host=$compName, IP=$clientIp, RAM=$ramInfo, DISK=$diskInfo, Ver=$localVersion"
     Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
 
     # Auto-Update: Check if server has released a newer version or commanded an update
-    $serverVer = if ($res -and $res.server_version) { "$($res.server_version)".Trim() } else { "" }
+    $serverVer = if ($res.server_version) { "$($res.server_version)".Trim() } else { "" }
     $isUpdateNeeded = $false
     if ($serverVer -and ($serverVer -ne $localVersion)) { $isUpdateNeeded = $true }
-    if ($res -and ($res.force_update -or $res.update_available)) { $isUpdateNeeded = $true }
+    if ($res.force_update -or $res.update_available) { $isUpdateNeeded = $true }
 
     if ($isUpdateNeeded) {
-        $logUpd = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Server update available: $serverVer (Current: $localVersion, Force=$($res.force_update)). Starting auto-update..."
+        $logUpd = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Server update available: $serverVer (Current: $localVersion, Force=$($res.force_update)). Starting detached auto-update..."
         Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logUpd -ErrorAction SilentlyContinue
         try {
             $updUrl = if ($res.update_script_url) { $res.update_script_url } else { "{{APP_URL}}/api/client/update-script" }
-            $updCode = (Invoke-RestMethod -Uri $updUrl -UseBasicParsing -TimeoutSec 15 -ErrorAction Stop)
+            $updCode = (Invoke-RestMethod -Uri $updUrl -UseBasicParsing -TimeoutSec 20 -ErrorAction Stop)
             if ($updCode -and $updCode.Length -gt 50) {
                 $tmpUpd = Join-Path $env:TEMP "cshos_upd_$([guid]::NewGuid().ToString('N')).ps1"
                 Set-Content -Path $tmpUpd -Value $updCode -Encoding UTF8 -Force
-                & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $tmpUpd
-                Remove-Item -Path $tmpUpd -Force -ErrorAction SilentlyContinue
-                Set-Content -Path $versionFile -Value $serverVer -Force
-                Add-Content -Path (Join-Path $sysDir "sync.log") -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Auto-Update completed successfully to version $serverVer." -ErrorAction SilentlyContinue
-
-                # Send immediate confirmation check-in to server to clear pending_update
-                try {
-                    $reportObj.client_version = $serverVer
-                    $confirmPayload = $reportObj | ConvertTo-Json
-                    Invoke-RestMethod -Uri "{{APP_URL}}/api/track-install" -Method Post -Body $confirmPayload -ContentType "application/json; charset=utf-8" -TimeoutSec 10 -ErrorAction SilentlyContinue | Out-Null
-                } catch {}
+                Start-Process powershell.exe -ArgumentList "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$tmpUpd`"" -WindowStyle Hidden
+                Add-Content -Path (Join-Path $sysDir "sync.log") -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Handed off to detached updater ($tmpUpd). Exiting sync process." -ErrorAction SilentlyContinue
+                exit 0
             }
         } catch {
-            Add-Content -Path (Join-Path $sysDir "sync.log") -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Auto-Update failed: $($_.Exception.Message)" -ErrorAction SilentlyContinue
+            Add-Content -Path (Join-Path $sysDir "sync.log") -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Auto-Update download failed: $($_.Exception.Message)" -ErrorAction SilentlyContinue
         }
     }
 
@@ -2453,6 +2506,11 @@ if (-not (Test-Path $sysDir)) {
     $sysDir = "$env:LOCALAPPDATA\CSHOS"
     if (-not (Test-Path $sysDir)) { New-Item -ItemType Directory -Path $sysDir -Force | Out-Null }
 }
+
+# Grant full modify permissions to all users so standard non-admin users can update scripts and version
+try {
+    & icacls.exe "$sysDir" /grant "*S-1-5-32-545:(OI)(CI)M" /grant "Users:(OI)(CI)M" /grant "Authenticated Users:(OI)(CI)M" /q /c | Out-Null
+} catch {}
 
 # --- Record Installed Client Version ---
 try {
@@ -2969,7 +3027,7 @@ try {
 # 1. Register Task Scheduler: Startup & Logon under SYSTEM + Hourly & Daily periodic sync
 try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
-    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:30 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:15 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Hourly" /tr $taskCmd /sc HOURLY /mo 1 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 08:30 /ri 60 /du 24:00 /ru "SYSTEM" /f 2>&1 | Out-Null
@@ -3496,6 +3554,11 @@ if (-not (Test-Path $sysDir)) {
     if (-not (Test-Path $sysDir)) { New-Item -ItemType Directory -Path $sysDir -Force | Out-Null }
 }
 
+# Grant full modify permissions to all users so standard non-admin users can update scripts and version
+try {
+    & icacls.exe "$sysDir" /grant "*S-1-5-32-545:(OI)(CI)M" /grant "Users:(OI)(CI)M" /grant "Authenticated Users:(OI)(CI)M" /q /c | Out-Null
+} catch {}
+
 # --- Record Installed Client Version ---
 try {
     Set-Content -Path (Join-Path $sysDir "version.txt") -Value "{{CLIENT_VERSION}}" -Force
@@ -3527,7 +3590,7 @@ try {
 # 1. Register Task Scheduler: Startup & Logon under SYSTEM (Never prompts for password, runs reliably)
 try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
-    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:30 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:15 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /ru "SYSTEM" /f 2>&1 | Out-Null
 } catch {}
 

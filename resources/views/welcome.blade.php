@@ -1253,8 +1253,7 @@
                 device_id: deviceId,
                 install_type: installType || 'installed',
                 os: os,
-                browser: browser,
-                client_version: '{{ \App\Http\Controllers\AppInstallationController::CLIENT_APP_VERSION }}'
+                browser: browser
             };
 
             const url = '{{ route("track.install") }}';
