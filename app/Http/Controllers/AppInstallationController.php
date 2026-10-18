@@ -11,7 +11,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AppInstallationController extends Controller
 {
-    public const CLIENT_APP_VERSION = '2.8.0';
+    public const CLIENT_APP_VERSION = '2.9.0';
 
     /**
      * Get the latest client application version.
@@ -1147,8 +1147,30 @@ if (Test-Path $commonStartup) {
     } catch {}
 }
 
-# 4. Refresh TightVNC Configuration & Registry Password
+# 4. Refresh TightVNC Configuration, Ensure Installed, Firewall & Running (Fix WSAECONNREFUSED)
 try {
+    $tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
+    if (-not $tvnSvc) {
+        # Check if tvnserver.exe exists on disk to register service
+        $tvnExe = "C:\Program Files\TightVNC\tvnserver.exe"
+        if (-not (Test-Path $tvnExe)) { $tvnExe = "C:\Program Files (x86)\TightVNC\tvnserver.exe" }
+        if (Test-Path $tvnExe) {
+            & "$tvnExe" -install -silent 2>&1 | Out-Null
+        } else {
+            # Download & install MSI package
+            $is64 = [Environment]::Is64BitOperatingSystem
+            $msiFile = if ($is64) { "tightvnc-64bit.msi" } else { "tightvnc-32bit.msi" }
+            $msiLocal = Join-Path $sysDir $msiFile
+            if (-not (Test-Path $msiLocal)) {
+                try { Invoke-WebRequest -Uri "$appUrl/downloads/$msiFile" -OutFile $msiLocal -UseBasicParsing -TimeoutSec 25 -ErrorAction SilentlyContinue } catch {}
+            }
+            if (Test-Path $msiLocal) {
+                $msiArgs = "/i `"$msiLocal`" /quiet /norestart ADDLOCAL=Server SERVER_REGISTER_AS_SERVICE=1 SERVER_ADD_FIREWALL_EXCEPTION=1 SET_USEVNCAUTHENTICATION=1 VALUE_OF_USEVNCAUTHENTICATION=1 SET_PASSWORD=1 VALUE_OF_PASSWORD=`"$vncPass`""
+                Start-Process msiexec.exe -ArgumentList $msiArgs -Wait -NoNewWindow -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
     reg add "HKLM\SOFTWARE\TightVNC\Server" /v Password /t REG_BINARY /d $vncHash /f | Out-Null
     reg add "HKLM\SOFTWARE\TightVNC\Server" /v UseVncAuthentication /t REG_DWORD /d 1 /f | Out-Null
     reg add "HKLM\SOFTWARE\TightVNC\Server" /v AcceptRfbConnections /t REG_DWORD /d 1 /f | Out-Null
@@ -1157,10 +1179,14 @@ try {
     reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v Password /t REG_BINARY /d $vncHash /f | Out-Null
     reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v UseVncAuthentication /t REG_DWORD /d 1 /f | Out-Null
     reg add "HKLM\SOFTWARE\WOW6432Node\TightVNC\Server" /v AcceptRfbConnections /t REG_DWORD /d 1 /f | Out-Null
+
+    # Ensure Windows Firewall rule allows port 5900 across all profiles (Domain, Private, Public)
+    netsh advfirewall firewall add rule name="TightVNC Server Port 5900" dir=in action=allow protocol=TCP localport=5900 profile=any | Out-Null
+
     try {
         Set-Service -Name "tvnserver" -StartupType Automatic -ErrorAction SilentlyContinue
         Stop-Service -Name "tvnserver" -Force -ErrorAction SilentlyContinue
-        Start-Sleep -Milliseconds 500
+        Start-Sleep -Milliseconds 800
         Start-Service -Name "tvnserver" -ErrorAction SilentlyContinue
     } catch {}
     $passFile = Join-Path $sysDir "vnc_password.txt"
