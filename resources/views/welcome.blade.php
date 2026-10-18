@@ -1435,14 +1435,15 @@
             
             const link = document.createElement('a');
             link.href = downloadUrl;
-            link.setAttribute('download', 'Install-CSHOS-Desktop.bat');
+            const fileName = 'Install-CSHOS_v{{ \App\Http\Controllers\AppInstallationController::CLIENT_APP_VERSION }}.bat';
+            link.setAttribute('download', fileName);
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
 
             markAppInstalled();
             sendInstallTracking('installed');
-            showInstallToast('📥 กำลังดาวน์โหลดไฟล์สร้างไอคอน... กรุณาคลิกเปิดไฟล์ Install-CSHOS-Desktop.bat ที่ดาวน์โหลดมา เพื่อสร้างไอคอนบนหน้าจอ Desktop');
+            showInstallToast(`📥 กำลังดาวน์โหลดไฟล์ติดตั้ง ${fileName}... กรุณาคลิกเปิดไฟล์เพื่ออัปเดตระบบอัตโนมัติ`);
             
             setTimeout(() => {
                 closeInstallModal();

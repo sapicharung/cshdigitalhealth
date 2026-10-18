@@ -1571,6 +1571,16 @@ while ($waited -lt $maxWait) {
         } catch {}
     }
 
+    # 4. Ultimate fallback (any IPv4 not loopback, essential for Virtual Machines & Hypervisors)
+    if (-not $detectedIps -or $detectedIps.Count -eq 0) {
+        try {
+            $detectedIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Where-Object { 
+                $_.InterfaceAlias -notmatch 'Loopback' -and 
+                $_.IPAddress -notmatch '^(169\.254\.|127\.)' 
+            } | Select-Object -ExpandProperty IPAddress)
+        } catch {}
+    }
+
     if ($detectedIps -and $detectedIps.Count -gt 0) {
         break
     }
@@ -1608,6 +1618,13 @@ try {
                  Where-Object { $_.MACAddress -and $_.NetConnectionStatus -eq 2 } | Select-Object -First 1
         if ($cimAd -and $cimAd.MACAddress) {
             $macAddress = ($cimAd.MACAddress -replace '[:\.\s]', '-').ToUpper().Trim()
+        }
+    }
+    # Method 4: Fallback for Virtual Machines (any Up adapter with MAC)
+    if (-not $macAddress) {
+        $anyAd = Get-NetAdapter -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and $_.MacAddress } | Select-Object -First 1
+        if ($anyAd -and $anyAd.MacAddress) {
+            $macAddress = ($anyAd.MacAddress -replace '[:\.\s]', '-').ToUpper().Trim()
         }
     }
 } catch {}
