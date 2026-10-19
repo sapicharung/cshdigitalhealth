@@ -11,7 +11,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AppInstallationController extends Controller
 {
-    public const CLIENT_APP_VERSION = '2.9.5';
+    public const CLIENT_APP_VERSION = '2.9.6';
 
     /**
      * Get the latest client application version.
@@ -1674,12 +1674,13 @@ try {
     $scriptReplaced = $false
 }
 
-# 6. Ensure Windows Scheduled Tasks (Startup with 15s delay, Logon for any user, Hourly, Daily & Watchdog)
+# 6. Ensure Windows Scheduled Tasks (Startup with 15s delay, Logon for any user, 5-Minute Periodic, Daily & Watchdog)
 try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:15 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /f 2>&1 | Out-Null
-    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Hourly" /tr $taskCmd /sc HOURLY /mo 1 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Periodic" /tr $taskCmd /sc MINUTE /mo 5 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /delete /tn "CSHOS-AutoSync-Hourly" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 08:30 /ri 60 /du 24:00 /ru "SYSTEM" /f 2>&1 | Out-Null
 
     # Self-Healing Watchdog (Runs every 2 hours: if cshos_sync.ps1 is missing or corrupted, auto-repairs from server)
@@ -2403,15 +2404,33 @@ try {
     $dynRes = Invoke-RestMethod -Uri $dynRulesUrl -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop
     if ($dynRes -and $dynRes.success -and ($dynRes.rules -ne $null)) {
         $serverRulesLoaded = $true
+
+        # Collect installed software from Registry (HKLM, WOW64, HKCU, and HKEY_USERS for all user profiles)
+        $unKeys = @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+            "Registry::HKEY_USERS\*\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
+        )
+        $installedApps = @(Get-ItemProperty $unKeys -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName })
+        
+        $appPathKeys = @(
+            "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\*",
+            "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\App Paths\*",
+            "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\*"
+        )
+        $appPaths = @(Get-ItemProperty $appPathKeys -ErrorAction SilentlyContinue | Where-Object { $_.PSChildName })
+
         foreach ($r in $dynRes.rules) {
             $rName = "$($r.name)".Trim()
             if (-not $rName -or $riskItems.Contains($rName)) { continue }
             $isFound = $false
 
-            # Check Processes
+            # Check Processes (strip .exe so Get-Process matches accurately)
             if ($r.processes -and $r.processes.Count -gt 0) {
                 foreach ($p in $r.processes) {
-                    if (Get-Process -Name $p -ErrorAction SilentlyContinue) {
+                    $cleanP = ($p -replace '\.exe$', '').Trim()
+                    if ($cleanP -and (Get-Process -Name $cleanP -ErrorAction SilentlyContinue)) {
                         $isFound = $true
                         break
                     }
@@ -2428,23 +2447,22 @@ try {
                 }
             }
 
-            # Check Registry
+            # Check Registry (both DisplayName and App Paths)
             if (-not $isFound -and $r.registry -and $r.registry.Count -gt 0) {
-                $unKeys = @(
-                    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
-                    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
-                    "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
-                )
-                $installedApps = @(Get-ItemProperty $unKeys -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName })
                 foreach ($regPattern in $r.registry) {
-                    if ($installedApps | Where-Object { $_.DisplayName -match [regex]::Escape($regPattern) }) {
+                    $esc = [regex]::Escape($regPattern)
+                    if ($installedApps | Where-Object { $_.DisplayName -match $esc }) {
+                        $isFound = $true
+                        break
+                    }
+                    if ($appPaths | Where-Object { $_.PSChildName -match $esc -or $_.'(Default)' -match $esc }) {
                         $isFound = $true
                         break
                     }
                 }
             }
 
-            # Check File / Folder Paths
+            # Check File / Folder Paths (supports wildcards)
             if (-not $isFound -and $r.paths -and $r.paths.Count -gt 0) {
                 foreach ($pth in $r.paths) {
                     if ($pth -and (Test-Path $pth)) {
@@ -3304,12 +3322,13 @@ try {
     Set-Content -Path $syncScriptPath -Value $syncCode -Encoding UTF8 -Force
 } catch {}
 
-# 1. Register Task Scheduler: Startup & Logon for any user + Hourly, Daily & Watchdog
+# 1. Register Task Scheduler: Startup & Logon for any user + 5-Minute Periodic, Daily & Watchdog
 try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:15 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /f 2>&1 | Out-Null
-    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Hourly" /tr $taskCmd /sc HOURLY /mo 1 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Periodic" /tr $taskCmd /sc MINUTE /mo 5 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /delete /tn "CSHOS-AutoSync-Hourly" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 08:30 /ri 60 /du 24:00 /ru "SYSTEM" /f 2>&1 | Out-Null
 
     # Self-Healing Watchdog (Checks every 2 hours; if cshos_sync.ps1 is missing or has syntax errors, auto-repairs from server)
@@ -3967,12 +3986,13 @@ try {
     Set-Content -Path $syncScriptPath -Value $syncCode -Encoding UTF8 -Force
 } catch {}
 
-# 1. Register Task Scheduler: Startup & Logon for any user + Hourly, Daily & Watchdog
+# 1. Register Task Scheduler: Startup & Logon for any user + 5-Minute Periodic, Daily & Watchdog
 try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:15 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /f 2>&1 | Out-Null
-    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Hourly" /tr $taskCmd /sc HOURLY /mo 1 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Periodic" /tr $taskCmd /sc MINUTE /mo 5 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /delete /tn "CSHOS-AutoSync-Hourly" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 08:30 /ri 60 /du 24:00 /ru "SYSTEM" /f 2>&1 | Out-Null
 
     # Self-Healing Watchdog (Checks every 2 hours; if cshos_sync.ps1 is missing or has syntax errors, auto-repairs from server)

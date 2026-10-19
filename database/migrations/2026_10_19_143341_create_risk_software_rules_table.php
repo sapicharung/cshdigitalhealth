@@ -184,6 +184,19 @@ return new class extends Migration
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
+            [
+                'name' => 'Navicat',
+                'category' => 'other',
+                'process_names' => 'navicat, navicat.exe, navicat15, navicat16, navicat_premium',
+                'service_names' => '',
+                'registry_patterns' => 'Navicat, PremiumSoft',
+                'file_paths' => "C:\\Program Files\\PremiumSoft\\Navicat*\nC:\\Program Files (x86)\\PremiumSoft\\Navicat*\nC:\\Program Files\\Navicat*\nC:\\Program Files (x86)\\Navicat*",
+                'severity' => 'high',
+                'description' => 'โปรแกรมจัดการฐานข้อมูล Navicat (Premium / MySQL / PostgreSQL / MariaDB)',
+                'is_active' => true,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ];
 
         DB::table('risk_software_rules')->insert($defaults);
