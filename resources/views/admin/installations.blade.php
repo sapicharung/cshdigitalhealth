@@ -2869,8 +2869,8 @@
     </div>
 
     <!-- Beautiful Server Git Pull / Status Modal -->
-    <div id="serverGitModal" class="confirm-modal-backdrop" style="display: none;">
-        <div class="confirm-modal-card" style="max-width: 600px; text-align: left; padding: 0; overflow: hidden; border-radius: 24px; box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.4); border: 1px solid rgba(226, 232, 240, 0.8);">
+    <div id="serverGitModal" class="modal-overlay" style="display: none; z-index: 1050;">
+        <div class="modal-card" style="max-width: 600px; width: 100%; text-align: left; padding: 0; overflow: hidden; border-radius: 24px; box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.4); border: 1px solid rgba(226, 232, 240, 0.8); animation: confirmPop 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
             <!-- Modal Header with Animated Icon -->
             <div id="serverGitHeader" style="padding: 1.8rem 1.8rem 1.2rem; text-align: center; border-bottom: 1px solid #F1F5F9; position: relative;">
                 <button type="button" onclick="closeServerGitModal()" style="position: absolute; right: 1.2rem; top: 1.2rem; background: #F1F5F9; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; cursor: pointer; color: #64748B; display: flex; align-items: center; justify-content: center; transition: all 0.15s;">&times;</button>
@@ -2956,12 +2956,18 @@
 
         function openServerGitModal() {
             const modal = document.getElementById('serverGitModal');
-            if (modal) modal.style.display = 'flex';
+            if (modal) {
+                modal.classList.add('active');
+                modal.style.display = 'flex';
+            }
         }
 
         function closeServerGitModal() {
             const modal = document.getElementById('serverGitModal');
-            if (modal) modal.style.display = 'none';
+            if (modal) {
+                modal.classList.remove('active');
+                modal.style.display = 'none';
+            }
         }
 
         function copyGitOutput() {
@@ -3511,6 +3517,15 @@
                 closeConfirmModal();
             }
         });
+
+        const serverGitModalEl = document.getElementById('serverGitModal');
+        if (serverGitModalEl) {
+            serverGitModalEl.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeServerGitModal();
+                }
+            });
+        }
 
         function confirmDeleteRow(url, hostname, ip) {
             openConfirmModal({
