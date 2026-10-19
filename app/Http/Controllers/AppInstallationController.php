@@ -1176,14 +1176,24 @@ class AppInstallationController extends Controller
     public function serverGitPull()
     {
         try {
-            $output = shell_exec('git pull origin main 2>&1') ?: 'No output';
+            $basePath = base_path();
+            @shell_exec('git config --global --add safe.directory ' . escapeshellarg($basePath) . ' 2>&1');
+            @shell_exec("git config --global --add safe.directory '*' 2>&1");
+            
+            $output = shell_exec('git -c safe.directory=' . escapeshellarg($basePath) . " -c safe.directory='*' pull origin main 2>&1") ?: 'No output';
+            
             \Illuminate\Support\Facades\Artisan::call('config:clear');
             \Illuminate\Support\Facades\Artisan::call('view:clear');
             \Illuminate\Support\Facades\Artisan::call('optimize:clear');
+            
+            $hasError = str_contains($output, 'fatal:') || str_contains($output, 'error:');
             $newVer = $this->getClientAppVersion();
+            
             return response()->json([
-                'success' => true,
-                'message' => "อัปเดตระบบเซิร์ฟเวอร์เรียบร้อยแล้ว (เวอร์ชันปัจจุบัน: v{$newVer})",
+                'success' => !$hasError,
+                'message' => !$hasError 
+                    ? "อัปเดตระบบเซิร์ฟเวอร์เรียบร้อยแล้ว (เวอร์ชันปัจจุบัน: v{$newVer})" 
+                    : "พบข้อผิดพลาดในการดึงข้อมูล Git: {$output}",
                 'output'  => $output,
                 'version' => $newVer,
             ]);
