@@ -18,7 +18,11 @@ class AppInstallationController extends Controller
      */
     public function getClientAppVersion(): string
     {
-        return env('CLIENT_APP_VERSION', self::CLIENT_APP_VERSION);
+        $envVer = env('CLIENT_APP_VERSION');
+        if ($envVer && version_compare($envVer, self::CLIENT_APP_VERSION, '>=')) {
+            return $envVer;
+        }
+        return self::CLIENT_APP_VERSION;
     }
 
     /**
@@ -1181,6 +1185,20 @@ class AppInstallationController extends Controller
             @shell_exec("git config --global --add safe.directory '*' 2>&1");
             
             $output = shell_exec('git -c safe.directory=' . escapeshellarg($basePath) . " -c safe.directory='*' pull origin main 2>&1") ?: 'No output';
+            
+            // Synchronize .env CLIENT_APP_VERSION if present
+            $envPath = base_path('.env');
+            if (file_exists($envPath) && is_writable($envPath)) {
+                $envContent = file_get_contents($envPath);
+                if (preg_match('/^CLIENT_APP_VERSION=.*$/m', $envContent)) {
+                    $envContent = preg_replace('/^CLIENT_APP_VERSION=.*$/m', 'CLIENT_APP_VERSION=' . self::CLIENT_APP_VERSION, $envContent);
+                    @file_put_contents($envPath, $envContent);
+                }
+            }
+
+            if (function_exists('opcache_reset')) {
+                @opcache_reset();
+            }
             
             \Illuminate\Support\Facades\Artisan::call('config:clear');
             \Illuminate\Support\Facades\Artisan::call('view:clear');
