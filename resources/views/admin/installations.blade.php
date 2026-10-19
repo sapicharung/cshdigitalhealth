@@ -2388,7 +2388,7 @@
                                             </span>
                                         </div>
                                     @else
-                                        <span class="badge-risk-safe" title="ไม่พบโปรแกรมเสี่ยง (TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App, Android Emulator)">
+                                        <span class="badge-risk-safe" title="ไม่พบโปรแกรมเสี่ยง (TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App, BlueStacks, Android Emulator)">
                                             <span class="material-symbols-Outlined" style="font-size: 12px;">check_circle</span>
                                             <span>ไม่พบ</span>
                                         </span>
@@ -2996,7 +2996,7 @@
                         riskBoxEl.style.background = '#F0FDF4';
                         riskBoxEl.style.borderColor = '#BBF7D0';
                     }
-                    riskStatusEl.innerHTML = '<span style="color: #16A34A; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><span class="material-symbols-outlined" style="font-size: 16px;">verified_user</span> ปลอดภัย ไม่พบโปรแกรมเสี่ยง</span> <span style="font-size: 0.78rem; color: #64748B;">(TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App, Android Emulator)</span>';
+                    riskStatusEl.innerHTML = '<span style="color: #16A34A; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><span class="material-symbols-outlined" style="font-size: 16px;">verified_user</span> ปลอดภัย ไม่พบโปรแกรมเสี่ยง</span> <span style="font-size: 0.78rem; color: #64748B;">(TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App, BlueStacks, Android Emulator)</span>';
                 }
             }
 

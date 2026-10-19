@@ -11,7 +11,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AppInstallationController extends Controller
 {
-    public const CLIENT_APP_VERSION = '2.9.3';
+    public const CLIENT_APP_VERSION = '2.9.4';
 
     /**
      * Get the latest client application version.
@@ -2308,7 +2308,30 @@ try {
     }
     if ($msRdpFound) { $riskItems.Add("Windows App (RDP)") }
 
-    # 6. Android Emulators on PC
+    # 6. BlueStacks
+    $bsFound = $false
+    try {
+        if ((Get-Process -Name "HD-Player", "BlueStacks", "BlueStacksServices", "BlueStacksX", "BlueStacksWeb", "BlueStacksHelper", "HD-Agent", "HD-Service", "BstkSVC", "BSTDeviceControl" -ErrorAction SilentlyContinue) -or
+            (Get-Service -Name "BstkSVC", "BST*", "BlueStacks*" -ErrorAction SilentlyContinue) -or
+            (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'BlueStacks' -or $_.Publisher -match 'BlueStack' }) -or
+            (Test-Path "HKLM:\SOFTWARE\BlueStacks_nxt") -or (Test-Path "HKLM:\SOFTWARE\BlueStacks") -or
+            (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks_nxt") -or (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks") -or
+            (Test-Path "HKCU:\Software\BlueStacks_nxt") -or (Test-Path "HKCU:\Software\BlueStacks") -or
+            (Test-Path "HKCU:\Software\BlueStacks X") -or
+            (Test-Path "C:\Program Files\BlueStacks_nxt") -or (Test-Path "C:\Program Files (x86)\BlueStacks_nxt") -or
+            (Test-Path "C:\Program Files\BlueStacks") -or (Test-Path "C:\Program Files (x86)\BlueStacks") -or
+            (Test-Path "C:\Program Files (x86)\BlueStacks X") -or
+            (Test-Path "C:\ProgramData\BlueStacks_nxt") -or (Test-Path "C:\ProgramData\BlueStacks") -or
+            (Test-Path "$env:LOCALAPPDATA\BlueStacks_nxt") -or (Test-Path "$env:LOCALAPPDATA\BlueStacks") -or
+            (Test-Path "$env:LOCALAPPDATA\Programs\BlueStacks*") -or
+            (Test-Path "D:\BlueStacks*") -or (Test-Path "D:\Program Files\BlueStacks*") -or
+            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*.lnk" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+            $bsFound = $true
+        }
+    } catch {}
+    if ($bsFound) { $riskItems.Add("BlueStacks") }
+
+    # 7. Other Android Emulators on PC
     $emuList = New-Object System.Collections.Generic.List[string]
 
     # LDPlayer
@@ -2316,14 +2339,6 @@ try {
         (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'LDPlayer' }) -or
         (Test-Path "C:\LDPlayer*") -or (Test-Path "C:\Program Files\LDPlayer*") -or (Test-Path "C:\Program Files (x86)\LDPlayer*") -or (Test-Path "D:\LDPlayer*")) {
         $emuList.Add("LDPlayer")
-    }
-
-    # BlueStacks
-    if ((Get-Process -Name "HD-Player", "BlueStacks", "HD-Agent" -ErrorAction SilentlyContinue) -or
-        (Get-Service -Name "BST*" -ErrorAction SilentlyContinue) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'BlueStacks' }) -or
-        (Test-Path "C:\Program Files\BlueStacks*") -or (Test-Path "C:\Program Files (x86)\BlueStacks*") -or (Test-Path "C:\ProgramData\BlueStacks*")) {
-        $emuList.Add("BlueStacks")
     }
 
     # NoxPlayer
@@ -3589,7 +3604,30 @@ try {
     }
     if ($msRdpFound) { $riskItems.Add("Windows App (RDP)") }
 
-    # 6. Android Emulators on PC
+    # 6. BlueStacks
+    $bsFound = $false
+    try {
+        if ((Get-Process -Name "HD-Player", "BlueStacks", "BlueStacksServices", "BlueStacksX", "BlueStacksWeb", "BlueStacksHelper", "HD-Agent", "HD-Service", "BstkSVC", "BSTDeviceControl" -ErrorAction SilentlyContinue) -or
+            (Get-Service -Name "BstkSVC", "BST*", "BlueStacks*" -ErrorAction SilentlyContinue) -or
+            (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'BlueStacks' -or $_.Publisher -match 'BlueStack' }) -or
+            (Test-Path "HKLM:\SOFTWARE\BlueStacks_nxt") -or (Test-Path "HKLM:\SOFTWARE\BlueStacks") -or
+            (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks_nxt") -or (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks") -or
+            (Test-Path "HKCU:\Software\BlueStacks_nxt") -or (Test-Path "HKCU:\Software\BlueStacks") -or
+            (Test-Path "HKCU:\Software\BlueStacks X") -or
+            (Test-Path "C:\Program Files\BlueStacks_nxt") -or (Test-Path "C:\Program Files (x86)\BlueStacks_nxt") -or
+            (Test-Path "C:\Program Files\BlueStacks") -or (Test-Path "C:\Program Files (x86)\BlueStacks") -or
+            (Test-Path "C:\Program Files (x86)\BlueStacks X") -or
+            (Test-Path "C:\ProgramData\BlueStacks_nxt") -or (Test-Path "C:\ProgramData\BlueStacks") -or
+            (Test-Path "$env:LOCALAPPDATA\BlueStacks_nxt") -or (Test-Path "$env:LOCALAPPDATA\BlueStacks") -or
+            (Test-Path "$env:LOCALAPPDATA\Programs\BlueStacks*") -or
+            (Test-Path "D:\BlueStacks*") -or (Test-Path "D:\Program Files\BlueStacks*") -or
+            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*.lnk" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+            $bsFound = $true
+        }
+    } catch {}
+    if ($bsFound) { $riskItems.Add("BlueStacks") }
+
+    # 7. Other Android Emulators on PC
     $emuList = New-Object System.Collections.Generic.List[string]
 
     # LDPlayer
@@ -3597,14 +3635,6 @@ try {
         (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'LDPlayer' }) -or
         (Test-Path "C:\LDPlayer*") -or (Test-Path "C:\Program Files\LDPlayer*") -or (Test-Path "C:\Program Files (x86)\LDPlayer*") -or (Test-Path "D:\LDPlayer*")) {
         $emuList.Add("LDPlayer")
-    }
-
-    # BlueStacks
-    if ((Get-Process -Name "HD-Player", "BlueStacks", "HD-Agent" -ErrorAction SilentlyContinue) -or
-        (Get-Service -Name "BST*" -ErrorAction SilentlyContinue) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'BlueStacks' }) -or
-        (Test-Path "C:\Program Files\BlueStacks*") -or (Test-Path "C:\Program Files (x86)\BlueStacks*") -or (Test-Path "C:\ProgramData\BlueStacks*")) {
-        $emuList.Add("BlueStacks")
     }
 
     # NoxPlayer
