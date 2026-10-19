@@ -2868,6 +2868,52 @@
         </div>
     </div>
 
+    <!-- Beautiful Server Git Pull / Status Modal -->
+    <div id="serverGitModal" class="confirm-modal-backdrop" style="display: none;">
+        <div class="confirm-modal-card" style="max-width: 600px; text-align: left; padding: 0; overflow: hidden; border-radius: 24px; box-shadow: 0 25px 60px -15px rgba(15, 23, 42, 0.4); border: 1px solid rgba(226, 232, 240, 0.8);">
+            <!-- Modal Header with Animated Icon -->
+            <div id="serverGitHeader" style="padding: 1.8rem 1.8rem 1.2rem; text-align: center; border-bottom: 1px solid #F1F5F9; position: relative;">
+                <button type="button" onclick="closeServerGitModal()" style="position: absolute; right: 1.2rem; top: 1.2rem; background: #F1F5F9; border: none; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; cursor: pointer; color: #64748B; display: flex; align-items: center; justify-content: center; transition: all 0.15s;">&times;</button>
+                
+                <div id="serverGitIconWrapper" style="width: 64px; height: 64px; border-radius: 20px; margin: 0 auto 0.85rem; display: flex; align-items: center; justify-content: center; transition: all 0.3s; background: #EEF2FF; color: #4F46E5;">
+                    <span class="material-symbols-Outlined" id="serverGitIcon" style="font-size: 34px;">sync</span>
+                </div>
+                
+                <h3 id="serverGitTitle" style="font-size: 1.2rem; font-weight: 700; color: #0F172A; margin-bottom: 0.3rem;">อัปเดตระบบเซิร์ฟเวอร์</h3>
+                <p id="serverGitSub" style="font-size: 0.88rem; color: #64748B; margin: 0 auto; max-width: 480px; line-height: 1.5;">กำลังเชื่อมต่อและดึงโค้ดล่าสุดจาก GitHub...</p>
+                <div id="serverGitVersionBadge" style="margin-top: 0.6rem; display: none;"></div>
+            </div>
+
+            <!-- Modal Body (Terminal & Details) -->
+            <div style="padding: 1.2rem 1.6rem; background: #F8FAFC;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem;">
+                    <span style="font-size: 0.78rem; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.35rem;">
+                        <span class="material-symbols-Outlined" style="font-size: 15px;">terminal</span>
+                        ผลลัพธ์จาก Git & เซิร์ฟเวอร์
+                    </span>
+                    <button type="button" onclick="copyGitOutput()" style="background: #FFFFFF; border: 1px solid #CBD5E1; padding: 0.25rem 0.65rem; border-radius: 8px; font-size: 0.75rem; font-weight: 500; color: #475569; cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem; font-family: inherit; transition: all 0.15s;">
+                        <span class="material-symbols-Outlined" style="font-size: 13px;">content_copy</span>
+                        <span id="copyGitBtnText">คัดลอกผลลัพธ์</span>
+                    </button>
+                </div>
+                
+                <pre id="serverGitOutput" style="background: #0F172A; color: #38BDF8; font-family: 'Consolas', 'Courier New', monospace; font-size: 0.8rem; line-height: 1.55; padding: 0.9rem 1.1rem; border-radius: 12px; max-height: 190px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin: 0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.3); border: 1px solid #1E293B;"></pre>
+
+                <!-- Helpful Guide Box if error occurs -->
+                <div id="serverGitAdviceBox" style="display: none; margin-top: 0.85rem; padding: 0.85rem 1rem; background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 12px; font-size: 0.82rem; color: #92400E; line-height: 1.5;"></div>
+            </div>
+
+            <!-- Modal Footer Buttons -->
+            <div style="padding: 1rem 1.6rem; border-top: 1px solid #E2E8F0; display: flex; justify-content: flex-end; gap: 0.6rem; background: #FFFFFF;">
+                <button type="button" class="btn-confirm-cancel" onclick="closeServerGitModal()" id="serverGitCloseBtn" style="padding: 0.5rem 1.1rem; font-size: 0.88rem; border-radius: 10px;">ปิดหน้าต่าง</button>
+                <button type="button" class="btn-confirm-proceed" onclick="location.reload()" id="serverGitReloadBtn" style="display: none; padding: 0.5rem 1.25rem; font-size: 0.88rem; border-radius: 10px; background: #10B981; border-color: #059669; color: #FFFFFF; font-weight: 600;">
+                    <span class="material-symbols-Outlined" style="font-size: 18px;">refresh</span>
+                    <span>โหลดหน้านี้ใหม่ (Reload)</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Hidden Form for Dynamic POST/DELETE Actions -->
     <form id="genericActionForm" method="POST" style="display: none;">
         @csrf
@@ -2893,12 +2939,69 @@
                 .replace(/'/g, '&#039;');
         }
 
+        // --- Beautiful Server Git Pull Modal System ---
         function triggerServerGitPull(btn) {
-            if (!confirm('ต้องการสั่งดึงโค้ดล่าสุดจาก GitHub (git pull origin main) และล้างแคชบนเซิร์ฟเวอร์หลักหรือไม่?')) return;
-            const origHtml = btn.innerHTML;
-            btn.disabled = true;
-            btn.innerHTML = '<span class="material-symbols-Outlined" style="font-size: 18px; animation: spin 1s linear infinite;">sync</span> <span>กำลังดึงโค้ด...</span>';
-            
+            openConfirmModal({
+                type: 'primary',
+                icon: 'sync',
+                title: 'อัปเดตระบบเซิร์ฟเวอร์ (Git Pull)',
+                message: 'ระบบจะทำการดึงโค้ดเวอร์ชันล่าสุดจาก GitHub (git pull origin main) รันการปรับปรุงฐานข้อมูลอัตโนมัติ และล้างแคชระบบบนเซิร์ฟเวอร์หลัก<br><br>ต้องการเริ่มดำเนินการเลยหรือไม่?',
+                proceedIcon: 'sync',
+                proceedText: 'เริ่มอัปเดตทันที',
+                onConfirm: function() {
+                    executeServerGitPull(btn);
+                }
+            });
+        }
+
+        function openServerGitModal() {
+            const modal = document.getElementById('serverGitModal');
+            if (modal) modal.style.display = 'flex';
+        }
+
+        function closeServerGitModal() {
+            const modal = document.getElementById('serverGitModal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function copyGitOutput() {
+            const text = document.getElementById('serverGitOutput').innerText;
+            if (!text) return;
+            navigator.clipboard.writeText(text).then(() => {
+                const btnText = document.getElementById('copyGitBtnText');
+                if (btnText) {
+                    btnText.innerText = 'คัดลอกแล้ว!';
+                    setTimeout(() => { btnText.innerText = 'คัดลอกผลลัพธ์'; }, 2000);
+                }
+            });
+        }
+
+        function executeServerGitPull(btn) {
+            const modal = document.getElementById('serverGitModal');
+            const iconWrapper = document.getElementById('serverGitIconWrapper');
+            const icon = document.getElementById('serverGitIcon');
+            const title = document.getElementById('serverGitTitle');
+            const sub = document.getElementById('serverGitSub');
+            const output = document.getElementById('serverGitOutput');
+            const badge = document.getElementById('serverGitVersionBadge');
+            const reloadBtn = document.getElementById('serverGitReloadBtn');
+            const adviceBox = document.getElementById('serverGitAdviceBox');
+
+            // Set loading state
+            openServerGitModal();
+            iconWrapper.style.background = '#EEF2FF';
+            iconWrapper.style.color = '#4F46E5';
+            icon.textContent = 'sync';
+            icon.style.animation = 'spin 1.2s linear infinite';
+            title.textContent = 'กำลังอัปเดตระบบเซิร์ฟเวอร์...';
+            sub.textContent = 'กำลังดึงโค้ดล่าสุดจาก GitHub และปรับปรุงฐานข้อมูล กรุณารอสักครู่ (ประมาณ 3-5 วินาที)';
+            output.textContent = '[1/3] Connecting to Git repository...\n[2/3] Pulling origin main...\n[3/3] Running migrations and clearing caches...';
+            badge.style.display = 'none';
+            reloadBtn.style.display = 'none';
+            adviceBox.style.display = 'none';
+
+            if (btn) btn.disabled = true;
+
             fetch("{{ route('admin.installations.git-pull') }}", {
                 method: 'POST',
                 headers: {
@@ -2909,19 +3012,64 @@
             })
             .then(res => res.json())
             .then(data => {
-                btn.disabled = false;
-                btn.innerHTML = origHtml;
+                if (btn) btn.disabled = false;
+                icon.style.animation = 'none';
+
                 if (data.success) {
-                    alert('✅ ' + data.message + '\n\n' + (data.output || ''));
-                    location.reload();
+                    // Success state
+                    iconWrapper.style.background = '#D1FAE5';
+                    iconWrapper.style.color = '#059669';
+                    icon.textContent = 'check_circle';
+                    title.textContent = 'อัปเดตระบบเซิร์ฟเวอร์สำเร็จ!';
+                    sub.textContent = 'ระบบเซิร์ฟเวอร์ได้รับการอัปเกรดเป็นเวอร์ชันล่าสุดและล้างแคชเรียบร้อยแล้ว';
+                    
+                    if (data.version) {
+                        badge.style.display = 'inline-block';
+                        badge.innerHTML = `<span style="background: #D1FAE5; color: #065F46; padding: 0.3rem 0.85rem; border-radius: 20px; font-weight: 700; font-size: 0.88rem; border: 1px solid #A7F3D0;">เวอร์ชันปัจจุบัน: v${data.version}</span>`;
+                    }
+
+                    output.textContent = data.output || 'Git pull succeeded. All files are up to date.';
+                    output.style.color = '#34D399';
+                    reloadBtn.style.display = 'inline-flex';
                 } else {
-                    alert('❌ ไม่สามารถอัปเดตได้: ' + (data.message || ''));
+                    // Error state
+                    iconWrapper.style.background = '#FEE2E2';
+                    iconWrapper.style.color = '#DC2626';
+                    icon.textContent = 'error';
+                    title.textContent = 'พบข้อผิดพลาดในการดึงข้อมูล Git';
+                    sub.textContent = 'Git รายงานข้อผิดพลาด ไม่สามารถดึงโค้ดลงมาได้ กรุณาตรวจสอบผลลัพธ์ด้านล่าง';
+
+                    output.textContent = data.output || data.message || 'Unknown error occurred.';
+                    output.style.color = '#F87171';
+                    reloadBtn.style.display = 'none';
+
+                    // Check if error is due to local changes conflict
+                    const outText = (data.output || '') + ' ' + (data.message || '');
+                    if (outText.includes('overwritten by merge') || outText.includes('Aborting')) {
+                        adviceBox.style.display = 'block';
+                        adviceBox.innerHTML = `
+                            <div style="font-weight: 700; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.3rem;">
+                                <span class="material-symbols-Outlined" style="font-size: 17px; color: #D97706;">lightbulb</span>
+                                วิธีแก้ไขปัญหานี้ (Local changes conflict):
+                            </div>
+                            <div>บนเซิร์ฟเวอร์มีการแก้ไขไฟล์ค้างไว้ ให้เปิด Terminal ของเซิร์ฟเวอร์ (192.168.1.15) แล้วรันคำสั่งนี้เพียงครั้งเดียว:</div>
+                            <div style="background: #FEF3C7; padding: 0.5rem 0.75rem; border-radius: 8px; font-family: monospace; font-size: 0.78rem; margin-top: 0.4rem; user-select: all; border: 1px solid #FCD34D;">
+                                cd /var/www/html/cshdigitalhealth && git checkout -- . && git pull origin main && php artisan migrate --force && php artisan optimize:clear
+                            </div>
+                        `;
+                    }
                 }
             })
             .catch(err => {
-                btn.disabled = false;
-                btn.innerHTML = origHtml;
-                alert('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + err.message);
+                if (btn) btn.disabled = false;
+                icon.style.animation = 'none';
+                iconWrapper.style.background = '#FEE2E2';
+                iconWrapper.style.color = '#DC2626';
+                icon.textContent = 'wifi_off';
+                title.textContent = 'เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์';
+                sub.textContent = 'ไม่สามารถส่งคำขอไปยังเซิร์ฟเวอร์ได้ กรุณาตรวจสอบสถานะเครือข่าย';
+                output.textContent = err.message || 'Connection failed.';
+                output.style.color = '#F87171';
             });
         }
 

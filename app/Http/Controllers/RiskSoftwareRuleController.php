@@ -165,3 +165,4 @@ class RiskSoftwareRuleController extends Controller
         ]);
     }
 }
+

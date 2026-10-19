@@ -1184,8 +1184,19 @@ class AppInstallationController extends Controller
             @shell_exec('git config --global --add safe.directory ' . escapeshellarg($basePath) . ' 2>&1');
             @shell_exec("git config --global --add safe.directory '*' 2>&1");
             
+            // Auto-clean any uncommitted local file modifications so git pull is never blocked
+            @shell_exec('git -c safe.directory=' . escapeshellarg($basePath) . " -c safe.directory='*' checkout -- resources/views/admin/installations.blade.php routes/web.php app/Http/Controllers/AppInstallationController.php 2>&1");
+            @shell_exec('git -c safe.directory=' . escapeshellarg($basePath) . " -c safe.directory='*' stash 2>&1");
+
             $output = shell_exec('git -c safe.directory=' . escapeshellarg($basePath) . " -c safe.directory='*' pull origin main 2>&1") ?: 'No output';
             
+            // Auto-run pending database migrations
+            try {
+                \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+            } catch (\Throwable $mE) {
+                \Illuminate\Support\Facades\Log::warning('Auto migration during git pull: ' . $mE->getMessage());
+            }
+
             // Synchronize .env CLIENT_APP_VERSION if present
             $envPath = base_path('.env');
             if (file_exists($envPath) && is_writable($envPath)) {
@@ -1204,7 +1215,7 @@ class AppInstallationController extends Controller
             \Illuminate\Support\Facades\Artisan::call('view:clear');
             \Illuminate\Support\Facades\Artisan::call('optimize:clear');
             
-            $hasError = str_contains($output, 'fatal:') || str_contains($output, 'error:');
+            $hasError = str_contains($output, 'fatal:') || str_contains($output, 'error:') || str_contains($output, 'Aborting');
             $newVer = $this->getClientAppVersion();
             
             return response()->json([

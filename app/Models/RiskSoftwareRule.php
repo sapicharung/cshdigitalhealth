@@ -70,3 +70,4 @@ class RiskSoftwareRule extends Model
         return array_values(array_unique($paths));
     }
 }
+
