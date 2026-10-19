@@ -2130,6 +2130,11 @@
                 <span>เปิดหน้าหลักเว็บ</span>
             </a>
 
+            <a href="{{ route('admin.risk-rules.index') }}" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; background: #FFF1F2; color: #BE123C; border: 1px solid #FECDD3; border-radius: 10px; font-size: 0.85rem; font-weight: 600; text-decoration: none; transition: all 0.2s;" title="จัดการเงื่อนไขตรวจสอบโปรแกรมเสี่ยง เพิ่ม/ลบ/แก้ไข">
+                <span class="material-symbols-Outlined" style="font-size: 18px; color: #E11D48;">shield_lock</span>
+                <span>จัดการโปรแกรมเสี่ยง</span>
+            </a>
+
             <button type="button" class="btn-sync-server" onclick="triggerServerGitPull(this)" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; background: #EEF2FF; color: #4F46E5; border: 1px solid #C7D2FE; border-radius: 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s;" title="ดึงโค้ดล่าสุดจาก GitHub และล้างแคชบนเซิร์ฟเวอร์">
                 <span class="material-symbols-Outlined" style="font-size: 18px;">sync</span>
                 <span>อัปเดตเซิร์ฟเวอร์ (Git Pull)</span>

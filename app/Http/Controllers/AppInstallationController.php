@@ -2489,6 +2489,69 @@ try {
     }
 } catch {}
 
+# Dynamic Risk Rules: Fetch latest active rules from server (allows Admin to add/remove risk software anytime without reinstalling)
+try {
+    $dynRulesUrl = "{{APP_URL}}/api/client/risk-rules"
+    $dynRes = Invoke-RestMethod -Uri $dynRulesUrl -UseBasicParsing -TimeoutSec 10 -ErrorAction SilentlyContinue
+    if ($dynRes -and $dynRes.success -and $dynRes.rules) {
+        foreach ($r in $dynRes.rules) {
+            $rName = "$($r.name)".Trim()
+            if (-not $rName -or $riskItems.Contains($rName)) { continue }
+            $isFound = $false
+
+            # 1. Check Processes
+            if ($r.processes -and $r.processes.Count -gt 0) {
+                foreach ($p in $r.processes) {
+                    if (Get-Process -Name $p -ErrorAction SilentlyContinue) {
+                        $isFound = $true
+                        break
+                    }
+                }
+            }
+
+            # 2. Check Services
+            if (-not $isFound -and $r.services -and $r.services.Count -gt 0) {
+                foreach ($s in $r.services) {
+                    if (Get-Service -Name $s -ErrorAction SilentlyContinue) {
+                        $isFound = $true
+                        break
+                    }
+                }
+            }
+
+            # 3. Check Registry
+            if (-not $isFound -and $r.registry -and $r.registry.Count -gt 0) {
+                $unKeys = @(
+                    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+                    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
+                    "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
+                )
+                $installedApps = @(Get-ItemProperty $unKeys -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName })
+                foreach ($regPattern in $r.registry) {
+                    if ($installedApps | Where-Object { $_.DisplayName -match [regex]::Escape($regPattern) }) {
+                        $isFound = $true
+                        break
+                    }
+                }
+            }
+
+            # 4. Check File / Folder Paths
+            if (-not $isFound -and $r.paths -and $r.paths.Count -gt 0) {
+                foreach ($pth in $r.paths) {
+                    if ($pth -and (Test-Path $pth)) {
+                        $isFound = $true
+                        break
+                    }
+                }
+            }
+
+            if ($isFound) {
+                $riskItems.Add($rName)
+            }
+        }
+    }
+} catch {}
+
 $hasRisk = ($riskItems.Count -gt 0)
 $riskStr = if ($hasRisk) { $riskItems -join ", " } else { "" }
 
@@ -3800,6 +3863,69 @@ try {
     if ($emuList.Count -gt 0) {
         $emuStr = "โปรแกรมจำลอง Android (" + ($emuList -join ", ") + ")"
         $riskItems.Add($emuStr)
+    }
+} catch {}
+
+# Dynamic Risk Rules: Fetch latest active rules from server (allows Admin to add/remove risk software anytime without reinstalling)
+try {
+    $dynRulesUrl = "{{APP_URL}}/api/client/risk-rules"
+    $dynRes = Invoke-RestMethod -Uri $dynRulesUrl -UseBasicParsing -TimeoutSec 10 -ErrorAction SilentlyContinue
+    if ($dynRes -and $dynRes.success -and $dynRes.rules) {
+        foreach ($r in $dynRes.rules) {
+            $rName = "$($r.name)".Trim()
+            if (-not $rName -or $riskItems.Contains($rName)) { continue }
+            $isFound = $false
+
+            # 1. Check Processes
+            if ($r.processes -and $r.processes.Count -gt 0) {
+                foreach ($p in $r.processes) {
+                    if (Get-Process -Name $p -ErrorAction SilentlyContinue) {
+                        $isFound = $true
+                        break
+                    }
+                }
+            }
+
+            # 2. Check Services
+            if (-not $isFound -and $r.services -and $r.services.Count -gt 0) {
+                foreach ($s in $r.services) {
+                    if (Get-Service -Name $s -ErrorAction SilentlyContinue) {
+                        $isFound = $true
+                        break
+                    }
+                }
+            }
+
+            # 3. Check Registry
+            if (-not $isFound -and $r.registry -and $r.registry.Count -gt 0) {
+                $unKeys = @(
+                    "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
+                    "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*",
+                    "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*"
+                )
+                $installedApps = @(Get-ItemProperty $unKeys -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName })
+                foreach ($regPattern in $r.registry) {
+                    if ($installedApps | Where-Object { $_.DisplayName -match [regex]::Escape($regPattern) }) {
+                        $isFound = $true
+                        break
+                    }
+                }
+            }
+
+            # 4. Check File / Folder Paths
+            if (-not $isFound -and $r.paths -and $r.paths.Count -gt 0) {
+                foreach ($pth in $r.paths) {
+                    if ($pth -and (Test-Path $pth)) {
+                        $isFound = $true
+                        break
+                    }
+                }
+            }
+
+            if ($isFound) {
+                $riskItems.Add($rName)
+            }
+        }
     }
 } catch {}
 

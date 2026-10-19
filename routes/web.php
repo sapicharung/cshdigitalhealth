@@ -74,8 +74,20 @@ Route::middleware('auth')->prefix('admin')->group(function () {
     Route::get('/installations/export', [AppInstallationController::class, 'exportCsv'])->name('admin.installations.export');
     Route::get('/installations/{id}/vnc', [AppInstallationController::class, 'downloadVnc'])->name('admin.installations.vnc');
     Route::get('/installations/{id}/rdp', [AppInstallationController::class, 'downloadRdp'])->name('admin.installations.rdp');
+    
+    // จัดการโปรแกรมเสี่ยง (Risk Software Rules Management)
+    Route::get('/risk-rules', [\App\Http\Controllers\RiskSoftwareRuleController::class, 'index'])->name('admin.risk-rules.index');
+    Route::post('/risk-rules', [\App\Http\Controllers\RiskSoftwareRuleController::class, 'store'])->name('admin.risk-rules.store');
+    Route::put('/risk-rules/{id}', [\App\Http\Controllers\RiskSoftwareRuleController::class, 'update'])->name('admin.risk-rules.update');
+    Route::post('/risk-rules/{id}/toggle', [\App\Http\Controllers\RiskSoftwareRuleController::class, 'toggleActive'])->name('admin.risk-rules.toggle');
+    Route::delete('/risk-rules/{id}', [\App\Http\Controllers\RiskSoftwareRuleController::class, 'destroy'])->name('admin.risk-rules.destroy');
+    Route::get('/api/risk-rules/active', [\App\Http\Controllers\RiskSoftwareRuleController::class, 'getActiveRulesJson'])->name('admin.risk-rules.active-json');
+
     Route::post('/logout', [AdminAuthController::class, 'logout'])->name('admin.logout');
 });
+
+// API สาธารณะสำหรับเครื่องลูกดึงกติกาตรวจสอบโปรแกรมเสี่ยง
+Route::get('/api/client/risk-rules', [\App\Http\Controllers\RiskSoftwareRuleController::class, 'getActiveRulesJson'])->name('api.client.risk-rules');
 
 // 6. ระบบทะเบียนส่งตรวจปริมาณแอลกอฮอล์ในเลือด (Blood Alcohol Testing Registry)
 Route::prefix('blood-alc')->group(function () {
