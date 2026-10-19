@@ -2387,8 +2387,8 @@
                                         <span class="spec-empty-compact" style="color: #94A3B8;">-</span>
                                     @endif
                                 </td>
-                                <td style="text-align: center;">
-                                    @if($item->has_risk_software)
+                                <td style="text-align: center;" id="cell-risk-{{ $item->id }}">
+                                    @if($item->has_risk_software && !empty($item->risk_software_list))
                                         <div style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"
                                              onclick="openDetailsModal({{ json_encode($item) }})" 
                                              title="ตรวจพบโปรแกรมเสี่ยง: {{ $item->risk_software_list }} (คลิกเพื่อดูรายละเอียด)">
@@ -2691,12 +2691,18 @@
                             </div>
                         </div>
                         <div class="detail-item full-width" id="dtRiskSoftwareBox" style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 8px 12px; margin-top: 4px;">
-                            <div>
-                                <label style="color: #B45309; font-weight: 700; margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
-                                    <span class="material-symbols-Outlined" style="font-size: 16px;">security</span>
-                                    <span>การตรวจสอบโปรแกรมเสี่ยง (Risk Software Check)</span>
-                                </label>
-                                <div id="dtRiskSoftwareStatus" style="font-weight: 600; color: #92400E; font-size: 0.88rem;">-</div>
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                                <div style="flex: 1;">
+                                    <label style="color: #B45309; font-weight: 700; margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+                                        <span class="material-symbols-Outlined" style="font-size: 16px;">security</span>
+                                        <span>การตรวจสอบโปรแกรมเสี่ยง (Risk Software Check)</span>
+                                    </label>
+                                    <div id="dtRiskSoftwareStatus" style="font-weight: 600; color: #92400E; font-size: 0.88rem;">-</div>
+                                </div>
+                                <button type="button" id="btnResyncRiskRealtime" onclick="resyncRiskFromDetails(this)" title="สั่งตรวจสอบโปรแกรมเสี่ยงตามกฎปัจจุบันแบบเรียลไทม์ทันที" style="display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; background: #FFFFFF; border: 1px solid #CBD5E1; color: #334155; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.2s;">
+                                    <span class="material-symbols-Outlined" style="font-size: 15px; color: #0284C7;">sync</span>
+                                    <span>ตรวจสอบเรียลไทม์</span>
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -3172,29 +3178,7 @@
             }
 
             // Risk Software Details
-            const riskBoxEl = document.getElementById('dtRiskSoftwareBox');
-            const riskStatusEl = document.getElementById('dtRiskSoftwareStatus');
-            if (riskStatusEl) {
-                if (item.has_risk_software) {
-                    if (riskBoxEl) {
-                        riskBoxEl.style.background = '#FEF2F2';
-                        riskBoxEl.style.borderColor = '#FECACA';
-                    }
-                    const rawList = item.risk_software_list || 'ตรวจพบโปรแกรมเสี่ยง';
-                    const listHtml = rawList.split(',')
-                        .map(s => s.trim())
-                        .filter(s => s.length > 0)
-                        .map(s => '<span style="display: inline-flex; align-items: center; gap: 3px; background: #FFF; border: 1px solid #FCA5A5; color: #991B1B; padding: 2px 8px; border-radius: 4px; font-weight: 700; margin: 2px; font-size: 0.82rem;"><span class="material-symbols-outlined" style="font-size: 13px; color: #DC2626;">warning</span>' + escapeHtml(s) + '</span>')
-                        .join(' ');
-                    riskStatusEl.innerHTML = '<div style="color: #DC2626; font-weight: 700; display: flex; align-items: center; gap: 4px; margin-bottom: 6px;"><span class="material-symbols-outlined" style="font-size: 16px;">gpp_maybe</span> ตรวจพบโปรแกรมเสี่ยงบนเครื่องนี้:</div><div style="display: flex; flex-wrap: wrap; gap: 4px;">' + (listHtml || escapeHtml(rawList)) + '</div>';
-                } else {
-                    if (riskBoxEl) {
-                        riskBoxEl.style.background = '#F0FDF4';
-                        riskBoxEl.style.borderColor = '#BBF7D0';
-                    }
-                    riskStatusEl.innerHTML = '<span style="color: #16A34A; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><span class="material-symbols-outlined" style="font-size: 16px;">verified_user</span> ปลอดภัย ไม่พบโปรแกรมเสี่ยง</span> <span style="font-size: 0.78rem; color: #64748B;">(TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App, BlueStacks, BlueStacks X, Android Emulator)</span>';
-                }
-            }
+            renderRiskSoftwareBox(item.has_risk_software, item.risk_software_list);
 
             // Usage & Timestamps
             document.getElementById('dtLaunchCount').textContent = (item.launch_count || 0) + ' ครั้ง';
@@ -3602,6 +3586,100 @@
             });
         }
 
+        function renderRiskSoftwareBox(hasRisk, rawList) {
+            const riskBoxEl = document.getElementById('dtRiskSoftwareBox');
+            const riskStatusEl = document.getElementById('dtRiskSoftwareStatus');
+            if (!riskStatusEl) return;
+
+            if (hasRisk && rawList && rawList.trim().length > 0) {
+                if (riskBoxEl) {
+                    riskBoxEl.style.background = '#FEF2F2';
+                    riskBoxEl.style.borderColor = '#FECACA';
+                }
+                const listHtml = rawList.split(',')
+                    .map(s => s.trim())
+                    .filter(s => s.length > 0)
+                    .map(s => '<span style="display: inline-flex; align-items: center; gap: 3px; background: #FFF; border: 1px solid #FCA5A5; color: #991B1B; padding: 2px 8px; border-radius: 4px; font-weight: 700; margin: 2px; font-size: 0.82rem;"><span class="material-symbols-outlined" style="font-size: 13px; color: #DC2626;">warning</span>' + escapeHtml(s) + '</span>')
+                    .join(' ');
+                riskStatusEl.innerHTML = '<div style="color: #DC2626; font-weight: 700; display: flex; align-items: center; gap: 4px; margin-bottom: 6px;"><span class="material-symbols-outlined" style="font-size: 16px;">gpp_maybe</span> ตรวจพบโปรแกรมเสี่ยงบนเครื่องนี้:</div><div style="display: flex; flex-wrap: wrap; gap: 4px;">' + (listHtml || escapeHtml(rawList)) + '</div>';
+            } else {
+                if (riskBoxEl) {
+                    riskBoxEl.style.background = '#F0FDF4';
+                    riskBoxEl.style.borderColor = '#BBF7D0';
+                }
+                riskStatusEl.innerHTML = '<span style="color: #16A34A; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><span class="material-symbols-outlined" style="font-size: 16px;">verified_user</span> ปลอดภัย ไม่พบโปรแกรมเสี่ยงตามกฎปัจจุบัน</span>';
+            }
+        }
+
+        function updateTableRowRisk(itemId, hasRisk, riskList) {
+            const cell = document.getElementById('cell-risk-' + itemId);
+            if (!cell) return;
+            if (hasRisk && riskList && riskList.trim().length > 0) {
+                const limitText = riskList.length > 18 ? riskList.substring(0, 18) + '...' : riskList;
+                cell.innerHTML = `
+                    <div style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"
+                         title="ตรวจพบโปรแกรมเสี่ยง: ${escapeHtml(riskList)} (คลิกเพื่อดูรายละเอียด)"
+                         onclick="if(currentDetailItem && currentDetailItem.id == ${itemId}) { openDetailsModal(currentDetailItem); } else { location.reload(); }">
+                        <span class="badge-risk-warning">
+                            <span class="material-symbols-Outlined" style="font-size: 13px;">warning</span>
+                            <span>${escapeHtml(limitText)}</span>
+                        </span>
+                    </div>
+                `;
+            } else {
+                cell.innerHTML = `
+                    <span class="badge-risk-safe" title="ไม่พบโปรแกรมเสี่ยงตามกฎปัจจุบัน">
+                        <span class="material-symbols-Outlined" style="font-size: 12px;">check_circle</span>
+                        <span>ไม่พบ</span>
+                    </span>
+                `;
+            }
+        }
+
+        function resyncRiskFromDetails(btnEl) {
+            if (!currentDetailItem) return;
+            const item = currentDetailItem;
+            const url = "{{ url('/admin/installations') }}/" + item.id + "/resync-risk";
+            
+            if (btnEl) {
+                btnEl.classList.add('spinning');
+                btnEl.disabled = true;
+            }
+            showToast('🛡️ กำลังตรวจสอบโปรแกรมเสี่ยงแบบเรียลไทม์...');
+
+            fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (btnEl) {
+                    btnEl.classList.remove('spinning');
+                    btnEl.disabled = false;
+                }
+                if (data.success) {
+                    item.has_risk_software = data.has_risk_software;
+                    item.risk_software_list = data.risk_software_list;
+                    renderRiskSoftwareBox(data.has_risk_software, data.risk_software_list);
+                    updateTableRowRisk(item.id, data.has_risk_software, data.risk_software_list);
+                    showToast('✅ ' + data.message, 'success');
+                } else {
+                    showToast('❌ ตรวจสอบไม่สำเร็จ: ' + (data.message || ''));
+                }
+            })
+            .catch(err => {
+                if (btnEl) {
+                    btnEl.classList.remove('spinning');
+                    btnEl.disabled = false;
+                }
+                showToast('❌ ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: ' + err.message);
+            });
+        }
+
         function resyncSingleDevice(url, hostname, ip, btnEl, itemId) {
             const displayName = hostname ? (hostname + (ip ? ' (' + ip + ')' : '')) : (ip || 'เครื่องลูกข่าย');
             if (btnEl) {
@@ -3630,6 +3708,14 @@
                                 badgeEl.innerHTML = '<span class="pulse-dot"></span> ออนไลน์';
                             }
                         }
+                        if (data.has_risk_software !== undefined) {
+                            updateTableRowRisk(itemId, data.has_risk_software, data.risk_software_list);
+                        }
+                    }
+                    if (currentDetailItem && currentDetailItem.id === itemId) {
+                        currentDetailItem.has_risk_software = data.has_risk_software;
+                        currentDetailItem.risk_software_list = data.risk_software_list;
+                        renderRiskSoftwareBox(data.has_risk_software, data.risk_software_list);
                     }
                     setTimeout(() => { location.reload(); }, 1200);
                 } else {

@@ -60,6 +60,7 @@ class RiskSoftwareRuleController extends Controller
         $validated['is_active'] = $request->has('is_active') ? (bool) $request->input('is_active') : true;
 
         $rule = RiskSoftwareRule::create($validated);
+        RiskSoftwareRule::resanitizeAllInstallations();
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -94,6 +95,7 @@ class RiskSoftwareRuleController extends Controller
         $validated['is_active'] = $request->has('is_active') ? (bool) $request->input('is_active') : true;
 
         $rule->update($validated);
+        RiskSoftwareRule::resanitizeAllInstallations();
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -114,6 +116,7 @@ class RiskSoftwareRuleController extends Controller
         $rule = RiskSoftwareRule::findOrFail($id);
         $rule->is_active = !$rule->is_active;
         $rule->save();
+        RiskSoftwareRule::resanitizeAllInstallations();
 
         return response()->json([
             'success' => true,
@@ -130,6 +133,7 @@ class RiskSoftwareRuleController extends Controller
         $rule = RiskSoftwareRule::findOrFail($id);
         $name = $rule->name;
         $rule->delete();
+        RiskSoftwareRule::resanitizeAllInstallations();
 
         if ($request->wantsJson()) {
             return response()->json([

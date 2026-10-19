@@ -67,6 +67,7 @@ Route::middleware('auth')->prefix('admin')->group(function () {
     Route::post('/installations/trigger-update-all', [AppInstallationController::class, 'triggerUpdateAll'])->name('admin.installations.trigger-update-all');
     Route::post('/installations/{id}/refresh', [AppInstallationController::class, 'refreshDevice'])->name('admin.installations.refresh');
     Route::post('/installations/{id}/resync-specs', [AppInstallationController::class, 'resyncSpecs'])->name('admin.installations.resync-specs');
+    Route::post('/installations/{id}/resync-risk', [AppInstallationController::class, 'resyncRisk'])->name('admin.installations.resync-risk');
     Route::post('/installations/resync-all-specs', [AppInstallationController::class, 'resyncAllSpecs'])->name('admin.installations.resync-all-specs');
     Route::post('/installations/check-status', [AppInstallationController::class, 'checkLiveStatus'])->name('admin.installations.check-status');
     Route::delete('/installations/{id}', [AppInstallationController::class, 'destroy'])->name('admin.installations.destroy');

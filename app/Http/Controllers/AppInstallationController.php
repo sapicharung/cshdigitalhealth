@@ -275,11 +275,11 @@ class AppInstallationController extends Controller
         if (!empty($data['anydesk_id'])) {
             $installation->anydesk_id = mb_substr($data['anydesk_id'], 0, 50);
         }
-        if (isset($data['has_risk_software'])) {
-            $installation->has_risk_software = (bool) $data['has_risk_software'];
-        }
-        if (isset($data['risk_software_list'])) {
-            $installation->risk_software_list = !empty($data['risk_software_list']) ? mb_substr($data['risk_software_list'], 0, 1000) : null;
+        if (isset($data['has_risk_software']) || isset($data['risk_software_list'])) {
+            $rawRisk = $data['risk_software_list'] ?? '';
+            $cleanRisk = \App\Models\RiskSoftwareRule::sanitizeRiskString($rawRisk);
+            $installation->has_risk_software = $cleanRisk['has_risk'];
+            $installation->risk_software_list = $cleanRisk['list'];
         }
 
         $serverVersion = $this->getClientAppVersion();
@@ -359,6 +359,7 @@ class AppInstallationController extends Controller
     {
         // Auto-deduplicate any potential duplicate records before querying
         $this->deduplicateRecords();
+        \App\Models\RiskSoftwareRule::resanitizeAllInstallations();
 
         $query = AppInstallation::query();
 
@@ -874,6 +875,11 @@ class AppInstallationController extends Controller
         $isOnline = false;
         $pushed = false;
 
+        // Re-sanitize risk software using current active rules immediately
+        $cleanRisk = \App\Models\RiskSoftwareRule::sanitizeRiskString($installation->risk_software_list);
+        $installation->has_risk_software = $cleanRisk['has_risk'];
+        $installation->risk_software_list = $cleanRisk['list'];
+
         $isLocal = in_array($ip, ['127.0.0.1', '::1']) || $ip === gethostbyname(gethostname()) || $ip === ($request->server('SERVER_ADDR') ?: '');
         if ($isLocal) {
             $isOnline = true;
@@ -894,22 +900,26 @@ class AppInstallationController extends Controller
                 }
             }
 
-            if (!$isOnline && strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
-                exec("ping -n 1 -w 600 " . escapeshellarg($ip), $pingOut, $pingCode);
+            if (!$isOnline) {
+                $pingCmd = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' 
+                    ? "ping -n 1 -w 600 " . escapeshellarg($ip)
+                    : "ping -c 1 -W 1 " . escapeshellarg($ip);
+                @exec($pingCmd, $pingOut, $pingCode);
                 if ($pingCode === 0) {
                     $isOnline = true;
                 }
             }
         }
 
+        // Flag pending update so client machine executes a full resync cycle upon next contact
+        if ($isOnline) {
+            $installation->pending_update = true;
+            $installation->update_requested_at = now();
+        }
+
         // Proactively trigger the AutoSync task remotely over LAN or locally
         if ($isOnline && strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
             try {
-                $serverVersion = $this->getClientAppVersion();
-                if ($installation->client_version !== $serverVersion || empty($installation->uptime_text)) {
-                    $installation->pending_update = true;
-                }
-
                 if ($isLocal) {
                     $cmd = "start /b schtasks /run /tn CSHOS-AutoSync-Startup >nul 2>&1";
                 } elseif ($ip) {
@@ -949,18 +959,88 @@ class AppInstallationController extends Controller
 
         if ($request->wantsJson()) {
             return response()->json([
-                'status'       => 'success',
-                'is_online'    => $isOnline,
-                'remote_ready' => (bool) $installation->remote_ready,
-                'pushed_lan'   => $pushed,
-                'message'      => $msg,
-                'installation' => $installation,
-                'staff_name'   => $staffInfo ? ($staffInfo->staff_name ?: $staffInfo->kskloginname) : $installation->department,
-                'last_active'  => $installation->last_active_at ? $installation->last_active_at->format('d/m/y H:i') : '-',
+                'status'             => 'success',
+                'is_online'          => $isOnline,
+                'remote_ready'       => (bool) $installation->remote_ready,
+                'has_risk_software'  => (bool) $installation->has_risk_software,
+                'risk_software_list' => $installation->risk_software_list,
+                'pushed_lan'         => $pushed,
+                'message'            => $msg,
+                'installation'       => $installation,
+                'staff_name'         => $staffInfo ? ($staffInfo->staff_name ?: $staffInfo->kskloginname) : $installation->department,
+                'last_active'        => $installation->last_active_at ? $installation->last_active_at->format('d/m/y H:i') : '-',
             ]);
         }
 
         return back()->with('success', $msg);
+    }
+
+    /**
+     * Real-time risk software check and active rules re-evaluation for a single device.
+     */
+    public function resyncRisk(Request $request, $id)
+    {
+        $installation = AppInstallation::findOrFail($id);
+        $name = $installation->hostname ?: ($installation->device_name ?: $installation->ip_address);
+        $ip = $installation->ip_address;
+
+        // 1. Re-sanitize against currently active rules immediately
+        $cleanRisk = \App\Models\RiskSoftwareRule::sanitizeRiskString($installation->risk_software_list);
+        $installation->has_risk_software = $cleanRisk['has_risk'];
+        $installation->risk_software_list = $cleanRisk['list'];
+
+        // 2. Probe connectivity
+        $isOnline = false;
+        if (in_array($ip, ['127.0.0.1', '::1']) || $ip === gethostbyname(gethostname())) {
+            $isOnline = true;
+        } elseif ($ip) {
+            $fp = @fsockopen($ip, 5900, $errno, $errstr, 0.6);
+            if ($fp) {
+                $isOnline = true;
+                $installation->remote_ready = true;
+                fclose($fp);
+            } else {
+                foreach ([445, 135] as $port) {
+                    $p = @fsockopen($ip, $port, $errno, $errstr, 0.5);
+                    if ($p) {
+                        $isOnline = true;
+                        fclose($p);
+                        break;
+                    }
+                }
+            }
+            if (!$isOnline) {
+                $pingCmd = strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' 
+                    ? "ping -n 1 -w 600 " . escapeshellarg($ip)
+                    : "ping -c 1 -W 1 " . escapeshellarg($ip);
+                @exec($pingCmd, $pingOut, $pingCode);
+                if ($pingCode === 0) {
+                    $isOnline = true;
+                }
+            }
+        }
+
+        $installation->is_online = $isOnline;
+        $installation->last_probed_at = now();
+        if ($isOnline) {
+            $installation->last_active_at = now();
+            $installation->pending_update = true;
+            $installation->update_requested_at = now();
+        }
+        $installation->save();
+
+        $statusMsg = $installation->has_risk_software 
+            ? "ตรวจพบโปรแกรมเสี่ยงตามกฎปัจจุบัน: {$installation->risk_software_list}"
+            : "ปลอดภัย ไม่พบโปรแกรมเสี่ยงตามกฎปัจจุบัน";
+
+        return response()->json([
+            'success'            => true,
+            'is_online'          => $isOnline,
+            'has_risk_software'  => (bool) $installation->has_risk_software,
+            'risk_software_list' => $installation->risk_software_list,
+            'message'            => "ตรวจสอบโปรแกรมเสี่ยงเครื่อง {$name} เรียบร้อยแล้ว: {$statusMsg}",
+            'installation'       => $installation,
+        ]);
     }
 
     /**
@@ -2313,204 +2393,22 @@ try {
     }
 } catch {}
 
-# Detect Risky Software (TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App / Microsoft Remote Desktop, Android Emulators on PC)
+# Detect Risky Software (Dynamic Server-Controlled Rules with Offline Fallback)
 $riskItems = New-Object System.Collections.Generic.List[string]
-try {
-    # 1. TeamViewer
-    $tvFound = $false
-    if (Get-Process -Name "TeamViewer", "TeamViewer_Service", "tv_w32", "tv_x64" -ErrorAction SilentlyContinue) { $tvFound = $true }
-    if (-not $tvFound -and (Get-Service -Name "TeamViewer" -ErrorAction SilentlyContinue)) { $tvFound = $true }
-    if (-not $tvFound) {
-        $tvReg = Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'TeamViewer' }
-        if ($tvReg) { $tvFound = $true }
-    }
-    if (-not $tvFound) {
-        if ((Test-Path "C:\Program Files\TeamViewer\TeamViewer.exe") -or (Test-Path "C:\Program Files (x86)\TeamViewer\TeamViewer.exe")) {
-            $tvFound = $true
-        }
-    }
-    if ($tvFound) { $riskItems.Add("TeamViewer") }
+$serverRulesLoaded = $false
 
-    # 2. Chrome Remote Desktop
-    $crdFound = $false
-    if (Get-Process -Name "remoting_host", "remoting_desktop" -ErrorAction SilentlyContinue) { $crdFound = $true }
-    if (-not $crdFound -and (Get-Service -Name "chromoting" -ErrorAction SilentlyContinue)) { $crdFound = $true }
-    if (-not $crdFound) {
-        $crdReg = Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'Chrome Remote Desktop' }
-        if ($crdReg) { $crdFound = $true }
-    }
-    if (-not $crdFound) {
-        if ((Test-Path "C:\Program Files\Google\Chrome Remote Desktop") -or (Test-Path "C:\Program Files (x86)\Google\Chrome Remote Desktop")) {
-            $crdFound = $true
-        }
-    }
-    if ($crdFound) { $riskItems.Add("Chrome Remote Desktop") }
-
-    # 3. UltraViewer
-    $uvFound = $false
-    if (Get-Process -Name "UltraViewer", "UltraViewer_Desktop", "UltraViewer_Service" -ErrorAction SilentlyContinue) { $uvFound = $true }
-    if (-not $uvFound -and (Get-Service -Name "UltraViewerService" -ErrorAction SilentlyContinue)) { $uvFound = $true }
-    if (-not $uvFound) {
-        $uvReg = Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'UltraViewer' }
-        if ($uvReg) { $uvFound = $true }
-    }
-    if (-not $uvFound) {
-        if ((Test-Path "C:\Program Files\UltraViewer\UltraViewer_Desktop.exe") -or 
-            (Test-Path "C:\Program Files (x86)\UltraViewer\UltraViewer_Desktop.exe") -or
-            (Test-Path "C:\Program Files\UltraViewer\UltraViewer.exe") -or 
-            (Test-Path "C:\Program Files (x86)\UltraViewer\UltraViewer.exe")) {
-            $uvFound = $true
-        }
-    }
-    if ($uvFound) { $riskItems.Add("UltraViewer") }
-
-    # 4. RustDesk
-    $rdFound = $false
-    if (Get-Process -Name "rustdesk" -ErrorAction SilentlyContinue) { $rdFound = $true }
-    if (-not $rdFound -and (Get-Service -Name "rustdesk" -ErrorAction SilentlyContinue)) { $rdFound = $true }
-    if (-not $rdFound) {
-        $rdReg = Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'RustDesk' }
-        if ($rdReg) { $rdFound = $true }
-    }
-    if (-not $rdFound) {
-        if ((Test-Path "C:\Program Files\RustDesk\rustdesk.exe") -or 
-            (Test-Path "C:\Program Files (x86)\RustDesk\rustdesk.exe") -or
-            (Test-Path "$env:ProgramData\RustDesk") -or
-            (Test-Path "$env:APPDATA\RustDesk")) {
-            $rdFound = $true
-        }
-    }
-    if ($rdFound) { $riskItems.Add("RustDesk") }
-
-    # 5. Windows App / Microsoft Remote Desktop Client
-    $msRdpFound = $false
-    try {
-        $appx = Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | Where-Object { 
-            $_.Name -match 'Microsoft\.RemoteDesktop' -or $_.Name -match 'Microsoft\.WindowsApp'
-        } | Select-Object -First 1
-        if ($appx) { $msRdpFound = $true }
-    } catch {}
-    if (-not $msRdpFound) {
-        if (Get-Process -Name "mstsc" -ErrorAction SilentlyContinue) { $msRdpFound = $true }
-    }
-    if (-not $msRdpFound) {
-        $rdpReg = Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'Microsoft Remote Desktop|Windows App' }
-        if ($rdpReg) { $msRdpFound = $true }
-    }
-    if ($msRdpFound) { $riskItems.Add("Windows App (RDP)") }
-
-    # 6. BlueStacks & BlueStacks X
-    $bsFound = $false
-    $bsxFound = $false
-    try {
-        # Check BlueStacks X (Cloud / Hybrid / BS10)
-        if ((Get-Process -Name "BlueStacksX", "BlueStacksWeb", "BSX" -ErrorAction SilentlyContinue) -or
-            (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'BlueStacks\s*X|BlueStacks\s*10' }) -or
-            (Test-Path "HKCU:\Software\BlueStacks X") -or (Test-Path "HKLM:\SOFTWARE\BlueStacks X") -or (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks X") -or
-            (Test-Path "C:\Program Files\BlueStacks X") -or (Test-Path "C:\Program Files (x86)\BlueStacks X") -or
-            (Test-Path "$env:ProgramFiles\BlueStacks X") -or (Test-Path "${env:ProgramFiles(x86)}\BlueStacks X") -or
-            (Test-Path "$env:LOCALAPPDATA\BlueStacks X") -or (Test-Path "$env:LOCALAPPDATA\BlueStacksX") -or
-            (Test-Path "$env:ProgramData\BlueStacks X") -or (Test-Path "$env:APPDATA\BlueStacks X") -or
-            (Test-Path "D:\BlueStacks X") -or (Test-Path "D:\Program Files\BlueStacks X") -or
-            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*X*.lnk" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1) -or
-            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*10*.lnk" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1)) {
-            $bsxFound = $true
-        }
-
-        # Check BlueStacks App Player (BS4 / BS5)
-        if ((Get-Process -Name "HD-Player", "BlueStacks", "BlueStacksServices", "BlueStacksHelper", "HD-Agent", "HD-Service", "BstkSVC", "BSTDeviceControl" -ErrorAction SilentlyContinue) -or
-            (Get-Service -Name "BstkSVC", "BST*", "BlueStacks*" -ErrorAction SilentlyContinue) -or
-            (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'BlueStacks' -and $_.DisplayName -notmatch 'BlueStacks\s*X' }) -or
-            (Test-Path "HKLM:\SOFTWARE\BlueStacks_nxt") -or (Test-Path "HKLM:\SOFTWARE\BlueStacks") -or
-            (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks_nxt") -or (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks") -or
-            (Test-Path "HKCU:\Software\BlueStacks_nxt") -or (Test-Path "HKCU:\Software\BlueStacks") -or
-            (Test-Path "C:\Program Files\BlueStacks_nxt") -or (Test-Path "C:\Program Files (x86)\BlueStacks_nxt") -or
-            (Test-Path "C:\Program Files\BlueStacks") -or (Test-Path "C:\Program Files (x86)\BlueStacks") -or
-            (Test-Path "C:\ProgramData\BlueStacks_nxt") -or (Test-Path "C:\ProgramData\BlueStacks") -or
-            (Test-Path "$env:LOCALAPPDATA\BlueStacks_nxt") -or (Test-Path "$env:LOCALAPPDATA\BlueStacks") -or
-            (Test-Path "D:\BlueStacks*") -or (Test-Path "D:\Program Files\BlueStacks*") -or
-            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*.lnk" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'BlueStacks\s*X' } | Select-Object -First 1)) {
-            $bsFound = $true
-        }
-    } catch {}
-    if ($bsFound) { $riskItems.Add("BlueStacks") }
-    if ($bsxFound) { $riskItems.Add("BlueStacks X") }
-
-    # 7. Other Android Emulators on PC
-    $emuList = New-Object System.Collections.Generic.List[string]
-
-    # LDPlayer
-    if ((Get-Process -Name "dnplayer", "LdBoxHeadless", "dnmultiplayer" -ErrorAction SilentlyContinue) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'LDPlayer' }) -or
-        (Test-Path "C:\LDPlayer*") -or (Test-Path "C:\Program Files\LDPlayer*") -or (Test-Path "C:\Program Files (x86)\LDPlayer*") -or (Test-Path "D:\LDPlayer*")) {
-        $emuList.Add("LDPlayer")
-    }
-
-    # NoxPlayer
-    if ((Get-Process -Name "Nox", "NoxVMSrv", "nox_adb" -ErrorAction SilentlyContinue) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'Nox' }) -or
-        (Test-Path "C:\Program Files\Nox*") -or (Test-Path "C:\Program Files (x86)\Nox*") -or (Test-Path "C:\Program Files\Bignox*") -or (Test-Path "D:\Nox*")) {
-        $emuList.Add("NoxPlayer")
-    }
-
-    # MEmu Play
-    if ((Get-Process -Name "MEmu", "MEmuConsole", "MEmuHeadless" -ErrorAction SilentlyContinue) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'MEmu' }) -or
-        (Test-Path "C:\Program Files\Microvirt\MEmu*") -or (Test-Path "C:\Program Files (x86)\Microvirt\MEmu*") -or (Test-Path "D:\Microvirt*")) {
-        $emuList.Add("MEmu Play")
-    }
-
-    # MuMu Player
-    if ((Get-Process -Name "MuMuPlayer", "NemuPlayer" -ErrorAction SilentlyContinue) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'MuMu' }) -or
-        (Test-Path "C:\Program Files\Netease\MuMu*") -or (Test-Path "C:\Program Files (x86)\Netease\MuMu*")) {
-        $emuList.Add("MuMu Player")
-    }
-
-    # Gameloop
-    if ((Get-Process -Name "AppMarket", "AndroidProcess" -ErrorAction SilentlyContinue) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'GameLoop|TxGameAssistant' }) -or
-        (Test-Path "C:\Program Files\TxGameAssistant*") -or (Test-Path "D:\TxGameAssistant*")) {
-        $emuList.Add("GameLoop")
-    }
-
-    # Genymotion
-    if ((Get-Process -Name "genymotion", "player" -ErrorAction SilentlyContinue | Where-Object { $_.Path -match 'Genymobile' }) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'Genymotion' }) -or
-        (Test-Path "C:\Program Files\Genymobile\Genymotion*")) {
-        $emuList.Add("Genymotion")
-    }
-
-    # SmartGaGa
-    if ((Get-Process -Name "SmartGaGa" -ErrorAction SilentlyContinue) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'SmartGaGa' }) -or
-        (Test-Path "C:\Program Files\SmartGaGa*") -or (Test-Path "C:\Program Files (x86)\SmartGaGa*")) {
-        $emuList.Add("SmartGaGa")
-    }
-
-    # Windows Subsystem for Android (WSA)
-    if ((Get-Process -Name "WsaClient" -ErrorAction SilentlyContinue) -or
-        (Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'WindowsSubsystemForAndroid' })) {
-        $emuList.Add("WSA (Android)")
-    }
-
-    if ($emuList.Count -gt 0) {
-        $emuStr = "โปรแกรมจำลอง Android (" + ($emuList -join ", ") + ")"
-        $riskItems.Add($emuStr)
-    }
-} catch {}
-
-# Dynamic Risk Rules: Fetch latest active rules from server (allows Admin to add/remove risk software anytime without reinstalling)
+# 1. Fetch Dynamic Active Rules from Server
 try {
     $dynRulesUrl = "{{APP_URL}}/api/client/risk-rules"
-    $dynRes = Invoke-RestMethod -Uri $dynRulesUrl -UseBasicParsing -TimeoutSec 10 -ErrorAction SilentlyContinue
-    if ($dynRes -and $dynRes.success -and $dynRes.rules) {
+    $dynRes = Invoke-RestMethod -Uri $dynRulesUrl -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop
+    if ($dynRes -and $dynRes.success -and ($dynRes.rules -ne $null)) {
+        $serverRulesLoaded = $true
         foreach ($r in $dynRes.rules) {
             $rName = "$($r.name)".Trim()
             if (-not $rName -or $riskItems.Contains($rName)) { continue }
             $isFound = $false
 
-            # 1. Check Processes
+            # Check Processes
             if ($r.processes -and $r.processes.Count -gt 0) {
                 foreach ($p in $r.processes) {
                     if (Get-Process -Name $p -ErrorAction SilentlyContinue) {
@@ -2520,7 +2418,7 @@ try {
                 }
             }
 
-            # 2. Check Services
+            # Check Services
             if (-not $isFound -and $r.services -and $r.services.Count -gt 0) {
                 foreach ($s in $r.services) {
                     if (Get-Service -Name $s -ErrorAction SilentlyContinue) {
@@ -2530,7 +2428,7 @@ try {
                 }
             }
 
-            # 3. Check Registry
+            # Check Registry
             if (-not $isFound -and $r.registry -and $r.registry.Count -gt 0) {
                 $unKeys = @(
                     "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
@@ -2546,7 +2444,7 @@ try {
                 }
             }
 
-            # 4. Check File / Folder Paths
+            # Check File / Folder Paths
             if (-not $isFound -and $r.paths -and $r.paths.Count -gt 0) {
                 foreach ($pth in $r.paths) {
                     if ($pth -and (Test-Path $pth)) {
@@ -2561,7 +2459,30 @@ try {
             }
         }
     }
-} catch {}
+} catch {
+    $serverRulesLoaded = $false
+}
+
+# 2. Offline Fallback ONLY (runs only when server is unreachable)
+if (-not $serverRulesLoaded) {
+    try {
+        if ((Get-Process -Name "TeamViewer", "TeamViewer_Service", "tv_w32", "tv_x64" -ErrorAction SilentlyContinue) -or (Get-Service -Name "TeamViewer" -ErrorAction SilentlyContinue)) {
+            $riskItems.Add("TeamViewer")
+        }
+        if ((Get-Process -Name "remoting_host", "remoting_desktop" -ErrorAction SilentlyContinue) -or (Get-Service -Name "chromoting" -ErrorAction SilentlyContinue)) {
+            $riskItems.Add("Chrome Remote Desktop")
+        }
+        if ((Get-Process -Name "UltraViewer", "UltraViewer_Desktop", "UltraViewer_Service" -ErrorAction SilentlyContinue) -or (Get-Service -Name "UltraViewerService" -ErrorAction SilentlyContinue)) {
+            $riskItems.Add("UltraViewer")
+        }
+        if ((Get-Process -Name "rustdesk" -ErrorAction SilentlyContinue) -or (Get-Service -Name "rustdesk" -ErrorAction SilentlyContinue)) {
+            $riskItems.Add("RustDesk")
+        }
+        if (Get-Process -Name "mstsc" -ErrorAction SilentlyContinue) {
+            $riskItems.Add("Windows App (RDP)")
+        }
+    } catch {}
+}
 
 $hasRisk = ($riskItems.Count -gt 0)
 $riskStr = if ($hasRisk) { $riskItems -join ", " } else { "" }
@@ -2655,7 +2576,7 @@ if ($res) {
                 $scStart.TargetPath = '{{APP_URL}}'
             }
             $scStart.WorkingDirectory = $sysDir
-            $scStart.Description = "{{APP_NAME}} - เปิดโปรแกรมอัตโนมัติเมื่อเปิดเครื่อง (Auto-Start)"
+            $scStart.Description = "{{APP_NAME}} - Auto-Start"
             $ico = Join-Path $sysDir "app-icon.ico"
             if (Test-Path $ico) { $scStart.IconLocation = "$ico,0" }
             $scStart.Save()
@@ -3690,204 +3611,22 @@ try {
     }
 } catch {}
 
-# Detect Risky Software (TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App / Microsoft Remote Desktop, Android Emulators on PC)
+# Detect Risky Software (Dynamic Server-Controlled Rules with Offline Fallback)
 $riskItems = New-Object System.Collections.Generic.List[string]
-try {
-    # 1. TeamViewer
-    $tvFound = $false
-    if (Get-Process -Name "TeamViewer", "TeamViewer_Service", "tv_w32", "tv_x64" -ErrorAction SilentlyContinue) { $tvFound = $true }
-    if (-not $tvFound -and (Get-Service -Name "TeamViewer" -ErrorAction SilentlyContinue)) { $tvFound = $true }
-    if (-not $tvFound) {
-        $tvReg = Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'TeamViewer' }
-        if ($tvReg) { $tvFound = $true }
-    }
-    if (-not $tvFound) {
-        if ((Test-Path "C:\Program Files\TeamViewer\TeamViewer.exe") -or (Test-Path "C:\Program Files (x86)\TeamViewer\TeamViewer.exe")) {
-            $tvFound = $true
-        }
-    }
-    if ($tvFound) { $riskItems.Add("TeamViewer") }
+$serverRulesLoaded = $false
 
-    # 2. Chrome Remote Desktop
-    $crdFound = $false
-    if (Get-Process -Name "remoting_host", "remoting_desktop" -ErrorAction SilentlyContinue) { $crdFound = $true }
-    if (-not $crdFound -and (Get-Service -Name "chromoting" -ErrorAction SilentlyContinue)) { $crdFound = $true }
-    if (-not $crdFound) {
-        $crdReg = Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'Chrome Remote Desktop' }
-        if ($crdReg) { $crdFound = $true }
-    }
-    if (-not $crdFound) {
-        if ((Test-Path "C:\Program Files\Google\Chrome Remote Desktop") -or (Test-Path "C:\Program Files (x86)\Google\Chrome Remote Desktop")) {
-            $crdFound = $true
-        }
-    }
-    if ($crdFound) { $riskItems.Add("Chrome Remote Desktop") }
-
-    # 3. UltraViewer
-    $uvFound = $false
-    if (Get-Process -Name "UltraViewer", "UltraViewer_Desktop", "UltraViewer_Service" -ErrorAction SilentlyContinue) { $uvFound = $true }
-    if (-not $uvFound -and (Get-Service -Name "UltraViewerService" -ErrorAction SilentlyContinue)) { $uvFound = $true }
-    if (-not $uvFound) {
-        $uvReg = Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'UltraViewer' }
-        if ($uvReg) { $uvFound = $true }
-    }
-    if (-not $uvFound) {
-        if ((Test-Path "C:\Program Files\UltraViewer\UltraViewer_Desktop.exe") -or 
-            (Test-Path "C:\Program Files (x86)\UltraViewer\UltraViewer_Desktop.exe") -or
-            (Test-Path "C:\Program Files\UltraViewer\UltraViewer.exe") -or 
-            (Test-Path "C:\Program Files (x86)\UltraViewer\UltraViewer.exe")) {
-            $uvFound = $true
-        }
-    }
-    if ($uvFound) { $riskItems.Add("UltraViewer") }
-
-    # 4. RustDesk
-    $rdFound = $false
-    if (Get-Process -Name "rustdesk" -ErrorAction SilentlyContinue) { $rdFound = $true }
-    if (-not $rdFound -and (Get-Service -Name "rustdesk" -ErrorAction SilentlyContinue)) { $rdFound = $true }
-    if (-not $rdFound) {
-        $rdReg = Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'RustDesk' }
-        if ($rdReg) { $rdFound = $true }
-    }
-    if (-not $rdFound) {
-        if ((Test-Path "C:\Program Files\RustDesk\rustdesk.exe") -or 
-            (Test-Path "C:\Program Files (x86)\RustDesk\rustdesk.exe") -or
-            (Test-Path "$env:ProgramData\RustDesk") -or
-            (Test-Path "$env:APPDATA\RustDesk")) {
-            $rdFound = $true
-        }
-    }
-    if ($rdFound) { $riskItems.Add("RustDesk") }
-
-    # 5. Windows App / Microsoft Remote Desktop Client
-    $msRdpFound = $false
-    try {
-        $appx = Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | Where-Object { 
-            $_.Name -match 'Microsoft\.RemoteDesktop' -or $_.Name -match 'Microsoft\.WindowsApp'
-        } | Select-Object -First 1
-        if ($appx) { $msRdpFound = $true }
-    } catch {}
-    if (-not $msRdpFound) {
-        if (Get-Process -Name "mstsc" -ErrorAction SilentlyContinue) { $msRdpFound = $true }
-    }
-    if (-not $msRdpFound) {
-        $rdpReg = Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'Microsoft Remote Desktop|Windows App' }
-        if ($rdpReg) { $msRdpFound = $true }
-    }
-    if ($msRdpFound) { $riskItems.Add("Windows App (RDP)") }
-
-    # 6. BlueStacks & BlueStacks X
-    $bsFound = $false
-    $bsxFound = $false
-    try {
-        # Check BlueStacks X (Cloud / Hybrid / BS10)
-        if ((Get-Process -Name "BlueStacksX", "BlueStacksWeb", "BSX" -ErrorAction SilentlyContinue) -or
-            (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'BlueStacks\s*X|BlueStacks\s*10' }) -or
-            (Test-Path "HKCU:\Software\BlueStacks X") -or (Test-Path "HKLM:\SOFTWARE\BlueStacks X") -or (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks X") -or
-            (Test-Path "C:\Program Files\BlueStacks X") -or (Test-Path "C:\Program Files (x86)\BlueStacks X") -or
-            (Test-Path "$env:ProgramFiles\BlueStacks X") -or (Test-Path "${env:ProgramFiles(x86)}\BlueStacks X") -or
-            (Test-Path "$env:LOCALAPPDATA\BlueStacks X") -or (Test-Path "$env:LOCALAPPDATA\BlueStacksX") -or
-            (Test-Path "$env:ProgramData\BlueStacks X") -or (Test-Path "$env:APPDATA\BlueStacks X") -or
-            (Test-Path "D:\BlueStacks X") -or (Test-Path "D:\Program Files\BlueStacks X") -or
-            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*X*.lnk" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1) -or
-            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*10*.lnk" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1)) {
-            $bsxFound = $true
-        }
-
-        # Check BlueStacks App Player (BS4 / BS5)
-        if ((Get-Process -Name "HD-Player", "BlueStacks", "BlueStacksServices", "BlueStacksHelper", "HD-Agent", "HD-Service", "BstkSVC", "BSTDeviceControl" -ErrorAction SilentlyContinue) -or
-            (Get-Service -Name "BstkSVC", "BST*", "BlueStacks*" -ErrorAction SilentlyContinue) -or
-            (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'BlueStacks' -and $_.DisplayName -notmatch 'BlueStacks\s*X' }) -or
-            (Test-Path "HKLM:\SOFTWARE\BlueStacks_nxt") -or (Test-Path "HKLM:\SOFTWARE\BlueStacks") -or
-            (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks_nxt") -or (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks") -or
-            (Test-Path "HKCU:\Software\BlueStacks_nxt") -or (Test-Path "HKCU:\Software\BlueStacks") -or
-            (Test-Path "C:\Program Files\BlueStacks_nxt") -or (Test-Path "C:\Program Files (x86)\BlueStacks_nxt") -or
-            (Test-Path "C:\Program Files\BlueStacks") -or (Test-Path "C:\Program Files (x86)\BlueStacks") -or
-            (Test-Path "C:\ProgramData\BlueStacks_nxt") -or (Test-Path "C:\ProgramData\BlueStacks") -or
-            (Test-Path "$env:LOCALAPPDATA\BlueStacks_nxt") -or (Test-Path "$env:LOCALAPPDATA\BlueStacks") -or
-            (Test-Path "D:\BlueStacks*") -or (Test-Path "D:\Program Files\BlueStacks*") -or
-            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*.lnk" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'BlueStacks\s*X' } | Select-Object -First 1)) {
-            $bsFound = $true
-        }
-    } catch {}
-    if ($bsFound) { $riskItems.Add("BlueStacks") }
-    if ($bsxFound) { $riskItems.Add("BlueStacks X") }
-
-    # 7. Other Android Emulators on PC
-    $emuList = New-Object System.Collections.Generic.List[string]
-
-    # LDPlayer
-    if ((Get-Process -Name "dnplayer", "LdBoxHeadless", "dnmultiplayer" -ErrorAction SilentlyContinue) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'LDPlayer' }) -or
-        (Test-Path "C:\LDPlayer*") -or (Test-Path "C:\Program Files\LDPlayer*") -or (Test-Path "C:\Program Files (x86)\LDPlayer*") -or (Test-Path "D:\LDPlayer*")) {
-        $emuList.Add("LDPlayer")
-    }
-
-    # NoxPlayer
-    if ((Get-Process -Name "Nox", "NoxVMSrv", "nox_adb" -ErrorAction SilentlyContinue) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'Nox' }) -or
-        (Test-Path "C:\Program Files\Nox*") -or (Test-Path "C:\Program Files (x86)\Nox*") -or (Test-Path "C:\Program Files\Bignox*") -or (Test-Path "D:\Nox*")) {
-        $emuList.Add("NoxPlayer")
-    }
-
-    # MEmu Play
-    if ((Get-Process -Name "MEmu", "MEmuConsole", "MEmuHeadless" -ErrorAction SilentlyContinue) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'MEmu' }) -or
-        (Test-Path "C:\Program Files\Microvirt\MEmu*") -or (Test-Path "C:\Program Files (x86)\Microvirt\MEmu*") -or (Test-Path "D:\Microvirt*")) {
-        $emuList.Add("MEmu Play")
-    }
-
-    # MuMu Player
-    if ((Get-Process -Name "MuMuPlayer", "NemuPlayer" -ErrorAction SilentlyContinue) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'MuMu' }) -or
-        (Test-Path "C:\Program Files\Netease\MuMu*") -or (Test-Path "C:\Program Files (x86)\Netease\MuMu*")) {
-        $emuList.Add("MuMu Player")
-    }
-
-    # Gameloop
-    if ((Get-Process -Name "AppMarket", "AndroidProcess" -ErrorAction SilentlyContinue) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'GameLoop|TxGameAssistant' }) -or
-        (Test-Path "C:\Program Files\TxGameAssistant*") -or (Test-Path "D:\TxGameAssistant*")) {
-        $emuList.Add("GameLoop")
-    }
-
-    # Genymotion
-    if ((Get-Process -Name "genymotion", "player" -ErrorAction SilentlyContinue | Where-Object { $_.Path -match 'Genymobile' }) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'Genymotion' }) -or
-        (Test-Path "C:\Program Files\Genymobile\Genymotion*")) {
-        $emuList.Add("Genymotion")
-    }
-
-    # SmartGaGa
-    if ((Get-Process -Name "SmartGaGa" -ErrorAction SilentlyContinue) -or
-        (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'SmartGaGa' }) -or
-        (Test-Path "C:\Program Files\SmartGaGa*") -or (Test-Path "C:\Program Files (x86)\SmartGaGa*")) {
-        $emuList.Add("SmartGaGa")
-    }
-
-    # Windows Subsystem for Android (WSA)
-    if ((Get-Process -Name "WsaClient" -ErrorAction SilentlyContinue) -or
-        (Get-AppxPackage -AllUsers -ErrorAction SilentlyContinue | Where-Object { $_.Name -match 'WindowsSubsystemForAndroid' })) {
-        $emuList.Add("WSA (Android)")
-    }
-
-    if ($emuList.Count -gt 0) {
-        $emuStr = "โปรแกรมจำลอง Android (" + ($emuList -join ", ") + ")"
-        $riskItems.Add($emuStr)
-    }
-} catch {}
-
-# Dynamic Risk Rules: Fetch latest active rules from server (allows Admin to add/remove risk software anytime without reinstalling)
+# 1. Fetch Dynamic Active Rules from Server
 try {
     $dynRulesUrl = "{{APP_URL}}/api/client/risk-rules"
-    $dynRes = Invoke-RestMethod -Uri $dynRulesUrl -UseBasicParsing -TimeoutSec 10 -ErrorAction SilentlyContinue
-    if ($dynRes -and $dynRes.success -and $dynRes.rules) {
+    $dynRes = Invoke-RestMethod -Uri $dynRulesUrl -UseBasicParsing -TimeoutSec 8 -ErrorAction Stop
+    if ($dynRes -and $dynRes.success -and ($dynRes.rules -ne $null)) {
+        $serverRulesLoaded = $true
         foreach ($r in $dynRes.rules) {
             $rName = "$($r.name)".Trim()
             if (-not $rName -or $riskItems.Contains($rName)) { continue }
             $isFound = $false
 
-            # 1. Check Processes
+            # Check Processes
             if ($r.processes -and $r.processes.Count -gt 0) {
                 foreach ($p in $r.processes) {
                     if (Get-Process -Name $p -ErrorAction SilentlyContinue) {
@@ -3897,7 +3636,7 @@ try {
                 }
             }
 
-            # 2. Check Services
+            # Check Services
             if (-not $isFound -and $r.services -and $r.services.Count -gt 0) {
                 foreach ($s in $r.services) {
                     if (Get-Service -Name $s -ErrorAction SilentlyContinue) {
@@ -3907,7 +3646,7 @@ try {
                 }
             }
 
-            # 3. Check Registry
+            # Check Registry
             if (-not $isFound -and $r.registry -and $r.registry.Count -gt 0) {
                 $unKeys = @(
                     "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*",
@@ -3923,7 +3662,7 @@ try {
                 }
             }
 
-            # 4. Check File / Folder Paths
+            # Check File / Folder Paths
             if (-not $isFound -and $r.paths -and $r.paths.Count -gt 0) {
                 foreach ($pth in $r.paths) {
                     if ($pth -and (Test-Path $pth)) {
@@ -3938,7 +3677,30 @@ try {
             }
         }
     }
-} catch {}
+} catch {
+    $serverRulesLoaded = $false
+}
+
+# 2. Offline Fallback ONLY (runs only when server is unreachable)
+if (-not $serverRulesLoaded) {
+    try {
+        if ((Get-Process -Name "TeamViewer", "TeamViewer_Service", "tv_w32", "tv_x64" -ErrorAction SilentlyContinue) -or (Get-Service -Name "TeamViewer" -ErrorAction SilentlyContinue)) {
+            $riskItems.Add("TeamViewer")
+        }
+        if ((Get-Process -Name "remoting_host", "remoting_desktop" -ErrorAction SilentlyContinue) -or (Get-Service -Name "chromoting" -ErrorAction SilentlyContinue)) {
+            $riskItems.Add("Chrome Remote Desktop")
+        }
+        if ((Get-Process -Name "UltraViewer", "UltraViewer_Desktop", "UltraViewer_Service" -ErrorAction SilentlyContinue) -or (Get-Service -Name "UltraViewerService" -ErrorAction SilentlyContinue)) {
+            $riskItems.Add("UltraViewer")
+        }
+        if ((Get-Process -Name "rustdesk" -ErrorAction SilentlyContinue) -or (Get-Service -Name "rustdesk" -ErrorAction SilentlyContinue)) {
+            $riskItems.Add("RustDesk")
+        }
+        if (Get-Process -Name "mstsc" -ErrorAction SilentlyContinue) {
+            $riskItems.Add("Windows App (RDP)")
+        }
+    } catch {}
+}
 
 $hasRisk = ($riskItems.Count -gt 0)
 $riskStr = if ($hasRisk) { $riskItems -join ", " } else { "" }
