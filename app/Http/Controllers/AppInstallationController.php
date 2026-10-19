@@ -2275,6 +2275,9 @@ try {
                 break
             }
         }
+    }
+} catch {}
+
 # Detect Risky Software (TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App / Microsoft Remote Desktop, Android Emulators on PC)
 $riskItems = New-Object System.Collections.Generic.List[string]
 try {
