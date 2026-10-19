@@ -26,6 +26,8 @@ class AppInstallation extends Model
         'uptime_text',
         'anydesk_installed',
         'anydesk_id',
+        'has_risk_software',
+        'risk_software_list',
         'last_probed_at',
         'user_agent',
         'install_type',
@@ -48,6 +50,7 @@ class AppInstallation extends Model
         'is_online' => 'boolean',
         'pending_update' => 'boolean',
         'anydesk_installed' => 'boolean',
+        'has_risk_software' => 'boolean',
     ];
 
     protected $appends = [

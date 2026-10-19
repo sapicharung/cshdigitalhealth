@@ -780,6 +780,46 @@
             white-space: nowrap;
         }
 
+        .badge-risk-warning {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 8px;
+            background: #FEF2F2;
+            color: #B91C1C;
+            border: 1px solid #FECACA;
+            border-radius: 6px;
+            font-size: 0.74rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .badge-risk-warning:hover {
+            background: #FEE2E2;
+            border-color: #FCA5A5;
+            color: #991B1B;
+            transform: translateY(-1px);
+        }
+
+        .badge-risk-safe {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 7px;
+            background: #F0FDF4;
+            color: #16A34A;
+            border: 1px solid #BBF7D0;
+            border-radius: 6px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
         .btn-copy-icon {
             display: inline-flex;
             align-items: center;
@@ -2158,6 +2198,18 @@
                     <span class="material-symbols-Outlined">hub</span>
                 </div>
             </div>
+
+            @if(!empty($stats['risk_count']) && $stats['risk_count'] > 0)
+                <div class="stat-card" style="border: 1px solid #FECACA; background: linear-gradient(135deg, #FEF2F2, #FFFFFF); cursor: pointer;" onclick="location.href='{{ route('admin.installations', ['status' => 'risk_only']) }}'" title="คลิกเพื่อกรองเฉพาะเครื่องที่พบโปรแกรมเสี่ยง">
+                    <div class="stat-info">
+                        <p style="color: #991B1B; font-weight: 700;">พบโปรแกรมเสี่ยง</p>
+                        <h2 style="color: #DC2626;">{{ number_format($stats['risk_count']) }} <span style="font-size: 0.85rem; font-weight: 500;">เครื่อง</span></h2>
+                    </div>
+                    <div class="stat-icon red" style="background: #FEE2E2; color: #DC2626;">
+                        <span class="material-symbols-Outlined">warning</span>
+                    </div>
+                </div>
+            @endif
         </section>
 
         <!-- Search & Action Filters -->
@@ -2183,6 +2235,7 @@
                         <option value="">-- ทุกสถานะ / ช่วงเวลา --</option>
                         <option value="online" {{ request('status') == 'online' ? 'selected' : '' }}>🟢 เฉพาะเครื่องออนไลน์</option>
                         <option value="offline" {{ request('status') == 'offline' ? 'selected' : '' }}>⚪ เฉพาะเครื่องออฟไลน์</option>
+                        <option value="risk_only" {{ request('status') == 'risk_only' ? 'selected' : '' }}>⚠️ ตรวจพบโปรแกรมเสี่ยง ({{ $stats['risk_count'] ?? 0 }})</option>
                         <option value="today" {{ request('status') == 'today' ? 'selected' : '' }}>เปิดใช้งานวันนี้</option>
                         <option value="week" {{ request('status') == 'week' ? 'selected' : '' }}>7 วันล่าสุด</option>
                         <option value="installed_only" {{ request('status') == 'installed_only' ? 'selected' : '' }}>ติดตั้งไอคอนแล้ว</option>
@@ -2240,6 +2293,7 @@
                             <th style="width: 130px;">IP Address</th>
                             <th style="width: 85px; text-align: center;">รีโมท (VNC)</th>
                             <th style="width: 135px; text-align: center;">AnyDesk</th>
+                            <th style="width: 140px; text-align: center;">โปรแกรมเสี่ยง</th>
                             <th style="width: 135px; text-align: center;">System Uptime</th>
                             <th style="width: 160px;">ชื่อเจ้าหน้าที่</th>
                             <th style="width: 95px; text-align: center;">เวอร์ชัน</th>
@@ -2321,6 +2375,23 @@
                                         </div>
                                     @else
                                         <span class="spec-empty-compact" style="color: #94A3B8;">-</span>
+                                    @endif
+                                </td>
+                                <td style="text-align: center;">
+                                    @if($item->has_risk_software)
+                                        <div style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"
+                                             onclick="openDetailsModal({{ json_encode($item) }})" 
+                                             title="ตรวจพบโปรแกรมเสี่ยง: {{ $item->risk_software_list }} (คลิกเพื่อดูรายละเอียด)">
+                                            <span class="badge-risk-warning">
+                                                <span class="material-symbols-Outlined" style="font-size: 13px;">warning</span>
+                                                <span>{{ Str::limit($item->risk_software_list, 18) }}</span>
+                                            </span>
+                                        </div>
+                                    @else
+                                        <span class="badge-risk-safe" title="ไม่พบโปรแกรมเสี่ยง (TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App, Android Emulator)">
+                                            <span class="material-symbols-Outlined" style="font-size: 12px;">check_circle</span>
+                                            <span>ไม่พบ</span>
+                                        </span>
                                     @endif
                                 </td>
                                 <td style="text-align: center;">
@@ -2609,6 +2680,15 @@
                                 </a>
                             </div>
                         </div>
+                        <div class="detail-item full-width" id="dtRiskSoftwareBox" style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 8px 12px; margin-top: 4px;">
+                            <div>
+                                <label style="color: #B45309; font-weight: 700; margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+                                    <span class="material-symbols-Outlined" style="font-size: 16px;">security</span>
+                                    <span>การตรวจสอบโปรแกรมเสี่ยง (Risk Software Check)</span>
+                                </label>
+                                <div id="dtRiskSoftwareStatus" style="font-weight: 600; color: #92400E; font-size: 0.88rem;">-</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -2793,6 +2873,16 @@
     <script>
         let currentDetailItem = null;
 
+        function escapeHtml(text) {
+            if (!text) return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
         function openDetailsModal(item) {
             currentDetailItem = item;
             const modal = document.getElementById('detailsModal');
@@ -2882,6 +2972,31 @@
                 } else {
                     anydeskStatusEl.innerHTML = '<span style="color: #64748B;">เครื่องนี้ไม่ได้ติดตั้งโปรแกรม AnyDesk</span>';
                     if (anydeskActionsEl) anydeskActionsEl.style.display = 'none';
+                }
+            }
+
+            // Risk Software Details
+            const riskBoxEl = document.getElementById('dtRiskSoftwareBox');
+            const riskStatusEl = document.getElementById('dtRiskSoftwareStatus');
+            if (riskStatusEl) {
+                if (item.has_risk_software) {
+                    if (riskBoxEl) {
+                        riskBoxEl.style.background = '#FEF2F2';
+                        riskBoxEl.style.borderColor = '#FECACA';
+                    }
+                    const rawList = item.risk_software_list || 'ตรวจพบโปรแกรมเสี่ยง';
+                    const listHtml = rawList.split(',')
+                        .map(s => s.trim())
+                        .filter(s => s.length > 0)
+                        .map(s => '<span style="display: inline-flex; align-items: center; gap: 3px; background: #FFF; border: 1px solid #FCA5A5; color: #991B1B; padding: 2px 8px; border-radius: 4px; font-weight: 700; margin: 2px; font-size: 0.82rem;"><span class="material-symbols-outlined" style="font-size: 13px; color: #DC2626;">warning</span>' + escapeHtml(s) + '</span>')
+                        .join(' ');
+                    riskStatusEl.innerHTML = '<div style="color: #DC2626; font-weight: 700; display: flex; align-items: center; gap: 4px; margin-bottom: 6px;"><span class="material-symbols-outlined" style="font-size: 16px;">gpp_maybe</span> ตรวจพบโปรแกรมเสี่ยงบนเครื่องนี้:</div><div style="display: flex; flex-wrap: wrap; gap: 4px;">' + (listHtml || escapeHtml(rawList)) + '</div>';
+                } else {
+                    if (riskBoxEl) {
+                        riskBoxEl.style.background = '#F0FDF4';
+                        riskBoxEl.style.borderColor = '#BBF7D0';
+                    }
+                    riskStatusEl.innerHTML = '<span style="color: #16A34A; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><span class="material-symbols-outlined" style="font-size: 16px;">verified_user</span> ปลอดภัย ไม่พบโปรแกรมเสี่ยง</span> <span style="font-size: 0.78rem; color: #64748B;">(TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App, Android Emulator)</span>';
                 }
             }
 
