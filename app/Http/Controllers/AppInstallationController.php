@@ -11,7 +11,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AppInstallationController extends Controller
 {
-    public const CLIENT_APP_VERSION = '2.9.4';
+    public const CLIENT_APP_VERSION = '2.9.5';
 
     /**
      * Get the latest client application version.
@@ -1560,18 +1560,40 @@ try {
     $syncCode = @'
 {{SYNC_CODE}}
 '@
-    Set-Content -Path $syncScriptPath -Value $syncCode -Encoding UTF8 -Force
+    # Write to temporary file and test parse syntax before replacing working script
+    $newSyncPath = Join-Path $sysDir "cshos_sync_new.ps1"
+    Set-Content -Path $newSyncPath -Value $syncCode -Encoding UTF8 -Force
+
+    $parseErr = $null
+    [System.Management.Automation.Language.Parser]::ParseFile($newSyncPath, [ref]$null, [ref]$parseErr) | Out-Null
+    if (-not $parseErr -or $parseErr.Count -eq 0) {
+        if (Test-Path $syncScriptPath) {
+            Copy-Item -Path $syncScriptPath -Destination "$syncScriptPath.bak" -Force -ErrorAction SilentlyContinue
+        }
+        Move-Item -Path $newSyncPath -Destination $syncScriptPath -Force
+        Add-Content -Path (Join-Path $sysDir "sync.log") -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - New sync script verified (0 syntax errors). Replaced successfully." -ErrorAction SilentlyContinue
+        $scriptReplaced = $true
+    } else {
+        Add-Content -Path (Join-Path $sysDir "sync.log") -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - CRITICAL: New sync script has $($parseErr.Count) syntax error(s). Aborted replacement to prevent breakages." -ErrorAction SilentlyContinue
+        Remove-Item -Path $newSyncPath -Force -ErrorAction SilentlyContinue
+        $scriptReplaced = $false
+    }
 } catch {
     Add-Content -Path (Join-Path $sysDir "sync.log") -Value "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Failed to overwrite sync script: $($_.Exception.Message)" -ErrorAction SilentlyContinue
+    $scriptReplaced = $false
 }
 
-# 6. Ensure Windows Scheduled Tasks (Startup with 15s delay, Logon, Hourly & Daily)
+# 6. Ensure Windows Scheduled Tasks (Startup with 15s delay, Logon for any user, Hourly, Daily & Watchdog)
 try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:15 /ru "SYSTEM" /f 2>&1 | Out-Null
-    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Hourly" /tr $taskCmd /sc HOURLY /mo 1 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 08:30 /ri 60 /du 24:00 /ru "SYSTEM" /f 2>&1 | Out-Null
+
+    # Self-Healing Watchdog (Runs every 2 hours: if cshos_sync.ps1 is missing or corrupted, auto-repairs from server)
+    $watchdogCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command `"try { `$f = '$syncScriptPath'; `$needFix = `$false; if (-not (Test-Path `$f) -or ((Get-Item `$f).Length -lt 500)) { `$needFix = `$true } else { `$e = `$null; [System.Management.Automation.Language.Parser]::ParseFile(`$f, [ref]`$null, [ref]`$e) | Out-Null; if (`$e -and `$e.Count -gt 0) { `$needFix = `$true } }; if (`$needFix) { (Invoke-RestMethod -Uri '$appUrl/api/client/update-script' -UseBasicParsing -TimeoutSec 20) | Invoke-Expression } } catch {}`""
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Watchdog" /tr $watchdogCmd /sc HOURLY /mo 2 /ru "SYSTEM" /f 2>&1 | Out-Null
 } catch {}
 
 # Also update Registry Run keys to run on logon
@@ -1581,10 +1603,12 @@ try {
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "CSHOS_AutoSync" -Value $regCmd -Force -ErrorAction SilentlyContinue
 } catch {}
 
-# 7. Update version.txt to the new version
-try {
-    Set-Content -Path (Join-Path $sysDir "version.txt") -Value $serverVer -Force
-} catch {}
+# 7. Update version.txt to the new version if script was replaced
+if ($scriptReplaced -ne $false) {
+    try {
+        Set-Content -Path (Join-Path $sysDir "version.txt") -Value $serverVer -Force
+    } catch {}
+}
 
 # 8. Trigger immediate background sync using the newly updated script
 try {
@@ -3285,13 +3309,17 @@ try {
     Set-Content -Path $syncScriptPath -Value $syncCode -Encoding UTF8 -Force
 } catch {}
 
-# 1. Register Task Scheduler: Startup & Logon under SYSTEM + Hourly & Daily periodic sync
+# 1. Register Task Scheduler: Startup & Logon for any user + Hourly, Daily & Watchdog
 try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:15 /ru "SYSTEM" /f 2>&1 | Out-Null
-    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Hourly" /tr $taskCmd /sc HOURLY /mo 1 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 08:30 /ri 60 /du 24:00 /ru "SYSTEM" /f 2>&1 | Out-Null
+
+    # Self-Healing Watchdog (Checks every 2 hours; if cshos_sync.ps1 is missing or has syntax errors, auto-repairs from server)
+    $watchdogCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command `"try { `$f = '$syncScriptPath'; `$needFix = `$false; if (-not (Test-Path `$f) -or ((Get-Item `$f).Length -lt 500)) { `$needFix = `$true } else { `$e = `$null; [System.Management.Automation.Language.Parser]::ParseFile(`$f, [ref]`$null, [ref]`$e) | Out-Null; if (`$e -and `$e.Count -gt 0) { `$needFix = `$true } }; if (`$needFix) { (Invoke-RestMethod -Uri '$appUrl/api/client/update-script' -UseBasicParsing -TimeoutSec 20) | Invoke-Expression } } catch {}`""
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Watchdog" /tr $watchdogCmd /sc HOURLY /mo 2 /ru "SYSTEM" /f 2>&1 | Out-Null
 } catch {}
 
 # Write initial version.txt
@@ -4040,11 +4068,17 @@ try {
     Set-Content -Path $syncScriptPath -Value $syncCode -Encoding UTF8 -Force
 } catch {}
 
-# 1. Register Task Scheduler: Startup & Logon under SYSTEM (Never prompts for password, runs reliably)
+# 1. Register Task Scheduler: Startup & Logon for any user + Hourly, Daily & Watchdog
 try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:15 /ru "SYSTEM" /f 2>&1 | Out-Null
-    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Hourly" /tr $taskCmd /sc HOURLY /mo 1 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 08:30 /ri 60 /du 24:00 /ru "SYSTEM" /f 2>&1 | Out-Null
+
+    # Self-Healing Watchdog (Checks every 2 hours; if cshos_sync.ps1 is missing or has syntax errors, auto-repairs from server)
+    $watchdogCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command `"try { `$f = '$syncScriptPath'; `$needFix = `$false; if (-not (Test-Path `$f) -or ((Get-Item `$f).Length -lt 500)) { `$needFix = `$true } else { `$e = `$null; [System.Management.Automation.Language.Parser]::ParseFile(`$f, [ref]`$null, [ref]`$e) | Out-Null; if (`$e -and `$e.Count -gt 0) { `$needFix = `$true } }; if (`$needFix) { (Invoke-RestMethod -Uri '$appUrl/api/client/update-script' -UseBasicParsing -TimeoutSec 20) | Invoke-Expression } } catch {}`""
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Watchdog" /tr $watchdogCmd /sc HOURLY /mo 2 /ru "SYSTEM" /f 2>&1 | Out-Null
 } catch {}
 
 # 2. Register Windows Registry Run Key
