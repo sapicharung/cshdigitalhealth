@@ -1171,6 +1171,31 @@ class AppInstallationController extends Controller
     }
 
     /**
+     * Pull latest git updates and clear caches on the server host.
+     */
+    public function serverGitPull()
+    {
+        try {
+            $output = shell_exec('git pull origin main 2>&1') ?: 'No output';
+            \Illuminate\Support\Facades\Artisan::call('config:clear');
+            \Illuminate\Support\Facades\Artisan::call('view:clear');
+            \Illuminate\Support\Facades\Artisan::call('optimize:clear');
+            $newVer = $this->getClientAppVersion();
+            return response()->json([
+                'success' => true,
+                'message' => "อัปเดตระบบเซิร์ฟเวอร์เรียบร้อยแล้ว (เวอร์ชันปัจจุบัน: v{$newVer})",
+                'output'  => $output,
+                'version' => $newVer,
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'เกิดข้อผิดพลาดในการอัปเดตเซิร์ฟเวอร์: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
      * Automatically install desktop shortcut on the host computer.
      */
     public function installDesktopShortcut(Request $request)
@@ -2308,28 +2333,42 @@ try {
     }
     if ($msRdpFound) { $riskItems.Add("Windows App (RDP)") }
 
-    # 6. BlueStacks
+    # 6. BlueStacks & BlueStacks X
     $bsFound = $false
+    $bsxFound = $false
     try {
-        if ((Get-Process -Name "HD-Player", "BlueStacks", "BlueStacksServices", "BlueStacksX", "BlueStacksWeb", "BlueStacksHelper", "HD-Agent", "HD-Service", "BstkSVC", "BSTDeviceControl" -ErrorAction SilentlyContinue) -or
+        # Check BlueStacks X (Cloud / Hybrid / BS10)
+        if ((Get-Process -Name "BlueStacksX", "BlueStacksWeb", "BSX" -ErrorAction SilentlyContinue) -or
+            (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'BlueStacks\s*X|BlueStacks\s*10' }) -or
+            (Test-Path "HKCU:\Software\BlueStacks X") -or (Test-Path "HKLM:\SOFTWARE\BlueStacks X") -or (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks X") -or
+            (Test-Path "C:\Program Files\BlueStacks X") -or (Test-Path "C:\Program Files (x86)\BlueStacks X") -or
+            (Test-Path "$env:ProgramFiles\BlueStacks X") -or (Test-Path "${env:ProgramFiles(x86)}\BlueStacks X") -or
+            (Test-Path "$env:LOCALAPPDATA\BlueStacks X") -or (Test-Path "$env:LOCALAPPDATA\BlueStacksX") -or
+            (Test-Path "$env:ProgramData\BlueStacks X") -or (Test-Path "$env:APPDATA\BlueStacks X") -or
+            (Test-Path "D:\BlueStacks X") -or (Test-Path "D:\Program Files\BlueStacks X") -or
+            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*X*.lnk" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1) -or
+            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*10*.lnk" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+            $bsxFound = $true
+        }
+
+        # Check BlueStacks App Player (BS4 / BS5)
+        if ((Get-Process -Name "HD-Player", "BlueStacks", "BlueStacksServices", "BlueStacksHelper", "HD-Agent", "HD-Service", "BstkSVC", "BSTDeviceControl" -ErrorAction SilentlyContinue) -or
             (Get-Service -Name "BstkSVC", "BST*", "BlueStacks*" -ErrorAction SilentlyContinue) -or
-            (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'BlueStacks' -or $_.Publisher -match 'BlueStack' }) -or
+            (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'BlueStacks' -and $_.DisplayName -notmatch 'BlueStacks\s*X' }) -or
             (Test-Path "HKLM:\SOFTWARE\BlueStacks_nxt") -or (Test-Path "HKLM:\SOFTWARE\BlueStacks") -or
             (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks_nxt") -or (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks") -or
             (Test-Path "HKCU:\Software\BlueStacks_nxt") -or (Test-Path "HKCU:\Software\BlueStacks") -or
-            (Test-Path "HKCU:\Software\BlueStacks X") -or
             (Test-Path "C:\Program Files\BlueStacks_nxt") -or (Test-Path "C:\Program Files (x86)\BlueStacks_nxt") -or
             (Test-Path "C:\Program Files\BlueStacks") -or (Test-Path "C:\Program Files (x86)\BlueStacks") -or
-            (Test-Path "C:\Program Files (x86)\BlueStacks X") -or
             (Test-Path "C:\ProgramData\BlueStacks_nxt") -or (Test-Path "C:\ProgramData\BlueStacks") -or
             (Test-Path "$env:LOCALAPPDATA\BlueStacks_nxt") -or (Test-Path "$env:LOCALAPPDATA\BlueStacks") -or
-            (Test-Path "$env:LOCALAPPDATA\Programs\BlueStacks*") -or
             (Test-Path "D:\BlueStacks*") -or (Test-Path "D:\Program Files\BlueStacks*") -or
-            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*.lnk" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*.lnk" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'BlueStacks\s*X' } | Select-Object -First 1)) {
             $bsFound = $true
         }
     } catch {}
     if ($bsFound) { $riskItems.Add("BlueStacks") }
+    if ($bsxFound) { $riskItems.Add("BlueStacks X") }
 
     # 7. Other Android Emulators on PC
     $emuList = New-Object System.Collections.Generic.List[string]
@@ -3604,28 +3643,42 @@ try {
     }
     if ($msRdpFound) { $riskItems.Add("Windows App (RDP)") }
 
-    # 6. BlueStacks
+    # 6. BlueStacks & BlueStacks X
     $bsFound = $false
+    $bsxFound = $false
     try {
-        if ((Get-Process -Name "HD-Player", "BlueStacks", "BlueStacksServices", "BlueStacksX", "BlueStacksWeb", "BlueStacksHelper", "HD-Agent", "HD-Service", "BstkSVC", "BSTDeviceControl" -ErrorAction SilentlyContinue) -or
+        # Check BlueStacks X (Cloud / Hybrid / BS10)
+        if ((Get-Process -Name "BlueStacksX", "BlueStacksWeb", "BSX" -ErrorAction SilentlyContinue) -or
+            (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'BlueStacks\s*X|BlueStacks\s*10' }) -or
+            (Test-Path "HKCU:\Software\BlueStacks X") -or (Test-Path "HKLM:\SOFTWARE\BlueStacks X") -or (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks X") -or
+            (Test-Path "C:\Program Files\BlueStacks X") -or (Test-Path "C:\Program Files (x86)\BlueStacks X") -or
+            (Test-Path "$env:ProgramFiles\BlueStacks X") -or (Test-Path "${env:ProgramFiles(x86)}\BlueStacks X") -or
+            (Test-Path "$env:LOCALAPPDATA\BlueStacks X") -or (Test-Path "$env:LOCALAPPDATA\BlueStacksX") -or
+            (Test-Path "$env:ProgramData\BlueStacks X") -or (Test-Path "$env:APPDATA\BlueStacks X") -or
+            (Test-Path "D:\BlueStacks X") -or (Test-Path "D:\Program Files\BlueStacks X") -or
+            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*X*.lnk" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1) -or
+            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs", "$env:APPDATA\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*10*.lnk" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+            $bsxFound = $true
+        }
+
+        # Check BlueStacks App Player (BS4 / BS5)
+        if ((Get-Process -Name "HD-Player", "BlueStacks", "BlueStacksServices", "BlueStacksHelper", "HD-Agent", "HD-Service", "BstkSVC", "BSTDeviceControl" -ErrorAction SilentlyContinue) -or
             (Get-Service -Name "BstkSVC", "BST*", "BlueStacks*" -ErrorAction SilentlyContinue) -or
-            (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'BlueStacks' -or $_.Publisher -match 'BlueStack' }) -or
+            (Get-ItemProperty @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*") -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -match 'BlueStacks' -and $_.DisplayName -notmatch 'BlueStacks\s*X' }) -or
             (Test-Path "HKLM:\SOFTWARE\BlueStacks_nxt") -or (Test-Path "HKLM:\SOFTWARE\BlueStacks") -or
             (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks_nxt") -or (Test-Path "HKLM:\SOFTWARE\WOW6432Node\BlueStacks") -or
             (Test-Path "HKCU:\Software\BlueStacks_nxt") -or (Test-Path "HKCU:\Software\BlueStacks") -or
-            (Test-Path "HKCU:\Software\BlueStacks X") -or
             (Test-Path "C:\Program Files\BlueStacks_nxt") -or (Test-Path "C:\Program Files (x86)\BlueStacks_nxt") -or
             (Test-Path "C:\Program Files\BlueStacks") -or (Test-Path "C:\Program Files (x86)\BlueStacks") -or
-            (Test-Path "C:\Program Files (x86)\BlueStacks X") -or
             (Test-Path "C:\ProgramData\BlueStacks_nxt") -or (Test-Path "C:\ProgramData\BlueStacks") -or
             (Test-Path "$env:LOCALAPPDATA\BlueStacks_nxt") -or (Test-Path "$env:LOCALAPPDATA\BlueStacks") -or
-            (Test-Path "$env:LOCALAPPDATA\Programs\BlueStacks*") -or
             (Test-Path "D:\BlueStacks*") -or (Test-Path "D:\Program Files\BlueStacks*") -or
-            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*.lnk" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1)) {
+            (Get-ChildItem -Path "C:\Users\Public\Desktop", "$env:USERPROFILE\Desktop", "C:\ProgramData\Microsoft\Windows\Start Menu\Programs" -Filter "*BlueStacks*.lnk" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch 'BlueStacks\s*X' } | Select-Object -First 1)) {
             $bsFound = $true
         }
     } catch {}
     if ($bsFound) { $riskItems.Add("BlueStacks") }
+    if ($bsxFound) { $riskItems.Add("BlueStacks X") }
 
     # 7. Other Android Emulators on PC
     $emuList = New-Object System.Collections.Generic.List[string]

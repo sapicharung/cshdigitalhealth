@@ -2130,6 +2130,11 @@
                 <span>เปิดหน้าหลักเว็บ</span>
             </a>
 
+            <button type="button" class="btn-sync-server" onclick="triggerServerGitPull(this)" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; background: #EEF2FF; color: #4F46E5; border: 1px solid #C7D2FE; border-radius: 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s;" title="ดึงโค้ดล่าสุดจาก GitHub และล้างแคชบนเซิร์ฟเวอร์">
+                <span class="material-symbols-Outlined" style="font-size: 18px;">sync</span>
+                <span>อัปเดตเซิร์ฟเวอร์ (Git Pull)</span>
+            </button>
+
             <div class="user-menu">
                 <div class="user-badge">
                     <span class="material-symbols-Outlined" style="font-size: 20px; color: var(--primary);">account_circle</span>
@@ -2388,7 +2393,7 @@
                                             </span>
                                         </div>
                                     @else
-                                        <span class="badge-risk-safe" title="ไม่พบโปรแกรมเสี่ยง (TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App, BlueStacks, Android Emulator)">
+                                        <span class="badge-risk-safe" title="ไม่พบโปรแกรมเสี่ยง (TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App, BlueStacks, BlueStacks X, Android Emulator)">
                                             <span class="material-symbols-Outlined" style="font-size: 12px;">check_circle</span>
                                             <span>ไม่พบ</span>
                                         </span>
@@ -2883,6 +2888,38 @@
                 .replace(/'/g, '&#039;');
         }
 
+        function triggerServerGitPull(btn) {
+            if (!confirm('ต้องการสั่งดึงโค้ดล่าสุดจาก GitHub (git pull origin main) และล้างแคชบนเซิร์ฟเวอร์หลักหรือไม่?')) return;
+            const origHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="material-symbols-Outlined" style="font-size: 18px; animation: spin 1s linear infinite;">sync</span> <span>กำลังดึงโค้ด...</span>';
+            
+            fetch("{{ route('admin.installations.git-pull') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                }
+            })
+            .then(res => res.json())
+            .then(data => {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                if (data.success) {
+                    alert('✅ ' + data.message + '\n\n' + (data.output || ''));
+                    location.reload();
+                } else {
+                    alert('❌ ไม่สามารถอัปเดตได้: ' + (data.message || ''));
+                }
+            })
+            .catch(err => {
+                btn.disabled = false;
+                btn.innerHTML = origHtml;
+                alert('❌ เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + err.message);
+            });
+        }
+
         function openDetailsModal(item) {
             currentDetailItem = item;
             const modal = document.getElementById('detailsModal');
@@ -2996,7 +3033,7 @@
                         riskBoxEl.style.background = '#F0FDF4';
                         riskBoxEl.style.borderColor = '#BBF7D0';
                     }
-                    riskStatusEl.innerHTML = '<span style="color: #16A34A; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><span class="material-symbols-outlined" style="font-size: 16px;">verified_user</span> ปลอดภัย ไม่พบโปรแกรมเสี่ยง</span> <span style="font-size: 0.78rem; color: #64748B;">(TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App, BlueStacks, Android Emulator)</span>';
+                    riskStatusEl.innerHTML = '<span style="color: #16A34A; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;"><span class="material-symbols-outlined" style="font-size: 16px;">verified_user</span> ปลอดภัย ไม่พบโปรแกรมเสี่ยง</span> <span style="font-size: 0.78rem; color: #64748B;">(TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App, BlueStacks, BlueStacks X, Android Emulator)</span>';
                 }
             }
 

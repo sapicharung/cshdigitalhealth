@@ -70,6 +70,7 @@ Route::middleware('auth')->prefix('admin')->group(function () {
     Route::post('/installations/resync-all-specs', [AppInstallationController::class, 'resyncAllSpecs'])->name('admin.installations.resync-all-specs');
     Route::post('/installations/check-status', [AppInstallationController::class, 'checkLiveStatus'])->name('admin.installations.check-status');
     Route::delete('/installations/{id}', [AppInstallationController::class, 'destroy'])->name('admin.installations.destroy');
+    Route::post('/installations/server-git-pull', [AppInstallationController::class, 'serverGitPull'])->name('admin.installations.git-pull');
     Route::get('/installations/export', [AppInstallationController::class, 'exportCsv'])->name('admin.installations.export');
     Route::get('/installations/{id}/vnc', [AppInstallationController::class, 'downloadVnc'])->name('admin.installations.vnc');
     Route::get('/installations/{id}/rdp', [AppInstallationController::class, 'downloadRdp'])->name('admin.installations.rdp');
