@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>ระบบตรวจสอบการติดตั้ง CSHOS STAFF INFO - โรงพยาบาลเชียงแสน</title>
+    <title>ระบบตรวจสอบการติดตั้ง CSHOS STAFF - โรงพยาบาลเชียงแสน</title>
     <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -106,6 +106,18 @@
             justify-content: center;
             color: white;
             box-shadow: 0 3px 8px rgba(77, 157, 224, 0.28);
+            flex-shrink: 0;
+        }
+
+        .brand-logo-img {
+            width: 42px;
+            height: 42px;
+            border-radius: 11px;
+            object-fit: contain;
+            box-shadow: 0 3px 8px rgba(77, 157, 224, 0.28);
+            background: #ffffff;
+            padding: 2px;
+            border: 1px solid rgba(77, 157, 224, 0.2);
             flex-shrink: 0;
         }
 
@@ -2208,11 +2220,12 @@
     <!-- Top Navigation Bar -->
     <header class="navbar">
         <div class="brand-area">
-            <div class="brand-icon">
+            <img src="{{ asset('csh-logo.jpg') }}" alt="CSH Logo" class="brand-logo-img" onerror="this.style.display='none'; document.getElementById('fallbackBrandIcon').style.display='flex';">
+            <div id="fallbackBrandIcon" class="brand-icon" style="display: none;">
                 <span class="material-symbols-Outlined">desktop_windows</span>
             </div>
             <div class="brand-text">
-                <h1>CSHOS STAFF INFO</h1>
+                <h1>CSHOS STAFF</h1>
                 <p>ระบบติดตามและตรวจสอบการติดตั้งคอมพิวเตอร์ลูกข่าย</p>
             </div>
         </div>
@@ -2263,7 +2276,7 @@
 
                 <form action="{{ route('admin.logout') }}" method="POST" style="margin: 0;">
                     @csrf
-                    <button type="submit" class="btn-logout" title="ออกจากระบบ CSHOS STAFF INFO">
+                    <button type="submit" class="btn-logout" title="ออกจากระบบ CSHOS STAFF">
                         <span class="material-symbols-Outlined" style="font-size: 16px;">logout</span>
                         <span>ออกจากระบบ</span>
                     </button>
@@ -2685,7 +2698,7 @@
                                     <div class="empty-state">
                                         <span class="material-symbols-Outlined">devices_off</span>
                                         <h3>ยังไม่มีข้อมูลการติดตั้งในระบบ</h3>
-                                        <p>เมื่อเจ้าหน้าที่เปิดใช้งานหรือกดติดตั้งไอคอน CSHOS STAFF INFO ระบบจะตรวจจับและบันทึกอัตโนมัติ</p>
+                                        <p>เมื่อเจ้าหน้าที่เปิดใช้งานหรือกดติดตั้งไอคอน CSHOS STAFF ระบบจะตรวจจับและบันทึกอัตโนมัติ</p>
                                     </div>
                                 </td>
                             </tr>
@@ -3010,7 +3023,7 @@
                 • เครื่องลูกข่ายจะเริ่มดาวน์โหลดและติดตั้งเวอร์ชันใหม่ <strong>v{{ $serverVersion }}</strong> อัตโนมัติเมื่อ:
                 <div style="margin: 4px 0 0 12px; color: #475569;">
                     1. <strong>มีการเปิดเครื่องใหม่หรือรีสตาร์ท (Reboot)</strong><br>
-                    2. <strong>เจ้าหน้าที่เปิดใช้งานหน้าเว็บ CSHOS STAFF INFO บนเบราว์เซอร์</strong><br>
+                    2. <strong>เจ้าหน้าที่เปิดใช้งานหน้าเว็บ CSHOS STAFF บนเบราว์เซอร์</strong><br>
                     3. <strong>ตามรอบการซิงค์อัตโนมัติประจำชั่วโมง</strong>
                 </div>
                 <div style="font-size: 0.75rem; color: #94A3B8; margin-top: 6px;">
@@ -4160,7 +4173,7 @@
                 type: 'primary',
                 icon: 'system_update_alt',
                 title: 'สั่งอัพเดทเครื่องลูกข่าย (Update Client)',
-                message: 'คุณต้องการส่งคำสั่งอัพเดทโปรแกรม <strong>CSHOS STAFF INFO</strong> เป็นเวอร์ชัน <strong>v' + targetServerVer + '</strong> สำหรับเครื่องนี้ ใช่หรือไม่?',
+                message: 'คุณต้องการส่งคำสั่งอัพเดทโปรแกรม <strong>CSHOS STAFF</strong> เป็นเวอร์ชัน <strong>v' + targetServerVer + '</strong> สำหรับเครื่องนี้ ใช่หรือไม่?',
                 targetName: hostname ? (hostname + (ip ? ' (' + ip + ')' : '')) : (ip || 'เครื่องลูกข่าย'),
                 targetSub: 'เวอร์ชันปัจจุบัน: ' + (currentVer ? 'v' + currentVer : '1.0.0') + ' ➜ เวอร์ชันเป้าหมาย: v' + targetServerVer,
                 hint: '🚀 <strong>ระบบการอัพเดท:</strong><br>• เครื่องจะเริ่มดาวน์โหลดและปรับปรุงโปรแกรมอัตโนมัติทันทีหากเชื่อมต่อ LAN ได้<br>• หากเครื่องปิดอยู่ จะอัพเดทอัตโนมัติทันทีเมื่อเปิดเครื่อง/รีสตาร์ท หรือตามรอบเวลาประจำชั่วโมง',
@@ -4197,7 +4210,7 @@
                 type: 'primary',
                 icon: 'system_update_alt',
                 title: 'สั่งอัพเดทเครื่องลูกข่ายทั้งหมด (Broadcast Update)',
-                message: 'คุณต้องการส่งคำสั่งอัพเดทโปรแกรม <strong>CSHOS STAFF INFO</strong> เป็นเวอร์ชัน <strong>v' + serverVer + '</strong> ให้กับเครื่องลูกข่ายทุกเครื่องในระบบ ใช่หรือไม่?',
+                message: 'คุณต้องการส่งคำสั่งอัพเดทโปรแกรม <strong>CSHOS STAFF</strong> เป็นเวอร์ชัน <strong>v' + serverVer + '</strong> ให้กับเครื่องลูกข่ายทุกเครื่องในระบบ ใช่หรือไม่?',
                 targetName: 'เครื่องลูกข่ายทั้งหมดในระบบ (' + (outdatedCount > 0 ? outdatedCount + ' เครื่องที่ยังไม่เป็นเวอร์ชันล่าสุด' : 'ทุกเครื่อง') + ')',
                 targetSub: 'เวอร์ชันเป้าหมายของเซิร์ฟเวอร์: v' + serverVer,
                 hint: '📢 <strong>การทำงานของระบบ:</strong><br>1. เครื่องที่เปิดและเชื่อมต่อ LAN อยู่จะเริ่มรับคำสั่งอัพเดททันที<br>2. เครื่องที่ปิดอยู่ จะอัพเดทอัตโนมัติทันทีที่มีการเปิดเครื่อง/รีสตาร์ท หรือตามรอบเวลาที่กำหนด',

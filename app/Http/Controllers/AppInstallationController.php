@@ -11,18 +11,14 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AppInstallationController extends Controller
 {
-    public const CLIENT_APP_VERSION = '2.9.6';
+    public const CLIENT_APP_VERSION = '2.3.0';
 
     /**
      * Get the latest client application version.
      */
     public function getClientAppVersion(): string
     {
-        $envVer = env('CLIENT_APP_VERSION');
-        if ($envVer && version_compare($envVer, self::CLIENT_APP_VERSION, '>=')) {
-            return $envVer;
-        }
-        return self::CLIENT_APP_VERSION;
+        return env('CLIENT_APP_VERSION', self::CLIENT_APP_VERSION) ?: self::CLIENT_APP_VERSION;
     }
 
     /**
@@ -346,7 +342,7 @@ class AppInstallationController extends Controller
             'pending_update' => (bool) $installation->pending_update,
             'update_script_url' => $this->getEffectiveUrl('/api/client/update-script', $request),
             'app_url' => $this->getEffectiveAppUrl($request),
-            'app_name' => "CSHOS STAFF INFO",
+            'app_name' => "CSHOS STAFF",
             'icon_url' => $this->getEffectiveUrl('/app-icon.ico', $request),
             'last_active' => $installation->last_active_at->toDateTimeString(),
         ]);
@@ -670,7 +666,7 @@ class AppInstallationController extends Controller
             } catch (\Throwable $e) {}
         }
 
-        $msg = "ส่งคำสั่งสั่งอัพเดท CSHOS STAFF INFO (v{$serverVersion}) ไปยังเครื่อง {$name} เรียบร้อยแล้ว ระบบจะทำการอัพเดทอัตโนมัติทันที หรือเมื่อเปิดเครื่อง/ตามรอบเวลา";
+        $msg = "ส่งคำสั่งสั่งอัพเดท CSHOS STAFF (v{$serverVersion}) ไปยังเครื่อง {$name} เรียบร้อยแล้ว ระบบจะทำการอัพเดทอัตโนมัติทันที หรือเมื่อเปิดเครื่อง/ตามรอบเวลา";
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -792,7 +788,7 @@ class AppInstallationController extends Controller
         }
 
         $count = AppInstallation::count();
-        $msg = "ส่งคำสั่งสั่งอัพเดท CSHOS STAFF INFO (v{$serverVersion}) ไปยังเครื่องลูกข่ายทั้งหมด ({$count} เครื่อง) เรียบร้อยแล้ว เครื่องที่เปิดอยู่จะทำการอัพเดท และเครื่องที่ปิดอยู่จะอัพเดททันทีเมื่อเปิดเครื่องหรือตามรอบเวลา";
+        $msg = "ส่งคำสั่งสั่งอัพเดท CSHOS STAFF (v{$serverVersion}) ไปยังเครื่องลูกข่ายทั้งหมด ({$count} เครื่อง) เรียบร้อยแล้ว เครื่องที่เปิดอยู่จะทำการอัพเดท และเครื่องที่ปิดอยู่จะอัพเดททันทีเมื่อเปิดเครื่องหรือตามรอบเวลา";
 
         if ($request->wantsJson()) {
             return response()->json([
@@ -1434,7 +1430,7 @@ class AppInstallationController extends Controller
             'is_local'         => $isLocal,
             'shortcut_created' => $shortcutCreated,
             'message'          => $shortcutCreated 
-                ? 'ติดตั้งไอคอน CSHOS STAFF INFO บนหน้าจอ Desktop เรียบร้อยแล้ว!' 
+                ? 'ติดตั้งไอคอน CSHOS STAFF บนหน้าจอ Desktop เรียบร้อยแล้ว!' 
                 : 'บันทึกสถานะเรียบร้อยแล้ว',
             'output'           => $output
         ]);
@@ -1448,7 +1444,7 @@ class AppInstallationController extends Controller
         return response()->json([
             'status'            => 'success',
             'server_version'    => $this->getClientAppVersion(),
-            'app_name'          => "CSHOS STAFF INFO",
+            'app_name'          => "CSHOS STAFF",
             'app_url'           => url('/'),
             'icon_url'          => asset('app-icon.ico'),
             'update_script_url' => url('/api/client/update-script'),
@@ -1499,7 +1495,7 @@ class AppInstallationController extends Controller
     public function clientUpdateScript(Request $request)
     {
         $appUrl = $this->getEffectiveAppUrl($request);
-        $appName = "CSHOS STAFF INFO";
+        $appName = "CSHOS STAFF";
         $iconUrl = $this->getEffectiveUrl('/app-icon.ico', $request);
         $serverVersion = $this->getClientAppVersion();
         $vncPassword = $this->getVncPassword();
@@ -1557,9 +1553,19 @@ foreach ($cand in $browserCandidates) {
 
 $ws = New-Object -ComObject WScript.Shell
 
-# 2. Update Desktop Shortcut on Public Desktop
+# Remove old/legacy shortcut names so they don't remain as duplicates
 $commonDesktop = [Environment]::GetFolderPath('CommonDesktopDirectory')
 if (-not $commonDesktop -or -not (Test-Path $commonDesktop)) { $commonDesktop = "C:\Users\Public\Desktop" }
+$commonStartup = [Environment]::GetFolderPath('CommonStartup')
+if (-not $commonStartup -or -not (Test-Path $commonStartup)) { $commonStartup = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\Startup" }
+
+$legacyShortcuts = @("CSHOS STAFF INFO.lnk", "CSHOS_STAFF_INFO.lnk", "CSHOS.lnk", "CSHOS DATACENTER.lnk")
+foreach ($oldSc in $legacyShortcuts) {
+    if (Test-Path (Join-Path $commonDesktop $oldSc)) { try { Remove-Item -Path (Join-Path $commonDesktop $oldSc) -Force -ErrorAction SilentlyContinue } catch {} }
+    if (Test-Path (Join-Path $commonStartup $oldSc)) { try { Remove-Item -Path (Join-Path $commonStartup $oldSc) -Force -ErrorAction SilentlyContinue } catch {} }
+}
+
+# 2. Update Desktop Shortcut on Public Desktop
 if (Test-Path $commonDesktop) {
     try {
         $scDesk = $ws.CreateShortcut((Join-Path $commonDesktop "$appName.lnk"))
@@ -1762,7 +1768,7 @@ POWERSHELL;
     /**
      * Get PowerShell code template for cshos_sync.ps1 (used in installer and auto-update).
      */
-    public function getClientSyncScriptTemplate(string $appUrl = '', string $appName = 'CSHOS STAFF INFO'): string
+    public function getClientSyncScriptTemplate(string $appUrl = '', string $appName = 'CSHOS STAFF'): string
     {
         $template = <<<'SYNC_SCRIPT'
 
@@ -2652,7 +2658,7 @@ SYNC_SCRIPT;
     public function downloadShortcutInstaller(Request $request)
     {
         $appUrl = $this->getEffectiveAppUrl($request);
-        $appName = "CSHOS STAFF INFO";
+        $appName = "CSHOS STAFF";
         $iconUrl = $this->getEffectiveUrl('/app-icon.ico', $request);
         
         $serverVersion = $this->getClientAppVersion();
@@ -2771,7 +2777,7 @@ if ($previousFound) {
 
     # 4. Remove all previous desktop and startup shortcuts from all user profiles
     try {
-        $legacyNames = @("$shortcutName.lnk", "CSH DIGITAL HEALTH.lnk", "CSHOS.lnk", "CSHOS DATACENTER.lnk", "CSHOS.url")
+        $legacyNames = @("$shortcutName.lnk", "CSHOS STAFF INFO.lnk", "CSH DIGITAL HEALTH.lnk", "CSHOS.lnk", "CSHOS DATACENTER.lnk", "CSHOS.url")
         foreach ($name in $legacyNames) {
             Remove-Item -Path "$commonDesktop\$name" -Force -ErrorAction SilentlyContinue
             if ($userDesktop) { Remove-Item -Path "$userDesktop\$name" -Force -ErrorAction SilentlyContinue }
@@ -3856,7 +3862,7 @@ $popupText = "ติดตั้งไอคอนแอปและอัปเ
     "• โปรแกรม Microsoft Office  : $officeFinal`n`n" +
     "================ เปิดโปรแกรมอัตโนมัติ (Auto-Start) ===============`n" +
     "• สถานะ : เปิดใช้งานแล้ว (Windows Startup)`n" +
-    "• ทำงาน : เปิดโปรแกรม CSHOS STAFF INFO ทันทีทุกครั้งที่เปิดเครื่องคอมพิวเตอร์`n`n" +
+    "• ทำงาน : เปิดโปรแกรม CSHOS STAFF ทันทีทุกครั้งที่เปิดเครื่องคอมพิวเตอร์`n`n" +
     "================ ระบบ Auto-Update อัปเดตอัตโนมัติ ===============`n" +
     "• สถานะ : เปิดใช้งานแล้ว (เวอร์ชัน {{CLIENT_VERSION}})`n" +
     "• ทำงาน : ตรวจสอบและอัปเดตโปรแกรมเป็นเวอร์ชันล่าสุดจาก Server อัตโนมัติ`n`n" +
@@ -3955,7 +3961,7 @@ POWERSHELL;
      */
     public function downloadAutoSyncInstaller(Request $request)
     {
-        $appName = "CSHOS STAFF INFO";
+        $appName = "CSHOS STAFF";
         $appUrl = $this->getEffectiveAppUrl($request);
 
         $psTemplate = <<<'POWERSHELL'
@@ -4556,7 +4562,7 @@ POWERSHELL;
     public function downloadUrlShortcut(Request $request)
     {
         $appUrl = url('/');
-        $appName = "CSHOS STAFF INFO";
+        $appName = "CSHOS STAFF";
         $faviconUrl = asset('favicon.ico');
         
         $urlContent = "[InternetShortcut]\r\n"
@@ -4577,7 +4583,7 @@ POWERSHELL;
     public function downloadUninstaller(Request $request)
     {
         $appUrl = url('/');
-        $appName = "CSHOS STAFF INFO";
+        $appName = "CSHOS STAFF";
         $fileName = "Uninstall-CSHOS.bat";
 
         $psTemplate = <<<'POWERSHELL'
@@ -4594,7 +4600,7 @@ $appUrl = '{{APP_URL}}'
 
 Write-Host ""
 Write-Host "========================================================================" -ForegroundColor Red
-Write-Host "      CSHOS STAFF INFO - COMPLETE UNINSTALLER & SYSTEM CLEANUP" -ForegroundColor White
+Write-Host "      CSHOS STAFF - COMPLETE UNINSTALLER & SYSTEM CLEANUP" -ForegroundColor White
 Write-Host "========================================================================" -ForegroundColor Red
 Write-Host ""
 
@@ -4679,7 +4685,7 @@ $runKeys = @(
     "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run",
     "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"
 )
-$valNames = @("CSHOS_AutoSync", "CSHOS", "CSHOS_Sync", "CSHOS STAFF INFO")
+$valNames = @("CSHOS_AutoSync", "CSHOS", "CSHOS_Sync", "CSHOS STAFF INFO", "CSHOS STAFF")
 foreach ($k in $runKeys) {
     foreach ($v in $valNames) {
         try { Remove-ItemProperty -Path $k -Name $v -Force -ErrorAction SilentlyContinue } catch {}
@@ -4792,7 +4798,7 @@ Write-Host "====================================================================
 Write-Host ""
 
 $statusServerText = if ($serverUnregistered) { "✓ ลบข้อมูลเครื่องออกจากระบบ Server เรียบร้อยแล้ว" } else { "- ไม่สามารถเชื่อมต่อ Server เพื่อลบข้อมูลเครื่องอัตโนมัติได้" }
-$popupMsg = "ถอนการติดตั้งและลบข้อมูลระบบ CSHOS STAFF INFO ทั้งหมดเรียบร้อยแล้ว!`n`n" +
+$popupMsg = "ถอนการติดตั้งและลบข้อมูลระบบ CSHOS STAFF ทั้งหมดเรียบร้อยแล้ว!`n`n" +
     "• ไอคอนทางลัดทั้งหมด : ลบออกจากหน้าจอ Desktop และ Startup แล้ว`n" +
     "• เซอร์วิส Auto-Sync : ลบงานตั้งเวลาใน Task Scheduler ทั้งหมดแล้ว`n" +
     "• ระบบ Remote VNC    : ปิดและถอนการติดตั้งเซอร์วิสแล้ว`n" +

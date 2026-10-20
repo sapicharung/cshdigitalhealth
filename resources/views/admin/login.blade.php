@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>เข้าสู่ระบบผู้ดูแล - CSHOS STAFF INFO</title>
+    <title>เข้าสู่ระบบผู้ดูแล - CSHOS STAFF</title>
     <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -307,10 +307,11 @@
 
     <div class="login-card">
         <div class="brand-header">
-            <div class="logo-circle">
+            <img src="{{ asset('csh-logo.jpg') }}" alt="CSH Logo" style="width: 72px; height: 72px; border-radius: 20px; object-fit: contain; box-shadow: 0 10px 20px rgba(77, 157, 224, 0.25); background: #ffffff; padding: 4px; border: 1.5px solid rgba(77, 157, 224, 0.2); margin-bottom: 1.1rem;" onerror="this.style.display='none'; document.getElementById('fallbackLogoCircle').style.display='flex';">
+            <div id="fallbackLogoCircle" class="logo-circle" style="display: none;">
                 <span class="material-symbols-outlined">query_stats</span>
             </div>
-            <h1>CSHOS STAFF INFO</h1>
+            <h1>CSHOS STAFF</h1>
             <p>ระบบตรวจสอบการติดตั้งสำหรับผู้ดูแลระบบ</p>
         </div>
 
