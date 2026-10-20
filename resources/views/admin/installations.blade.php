@@ -2568,7 +2568,7 @@
                 </div>
 
                 <div class="modal-form-group">
-                    <label>สเปกเครื่อง & สถานะ Remote Desktop</label>
+                    <label>สเปกเครื่องคอมพิวเตอร์</label>
                     <div id="modalSpecsDisplay" style="font-size: 0.82rem; color: #334155; background: #F8FAFC; border: 1.5px solid var(--border); border-radius: 10px; padding: 0.65rem 0.85rem; line-height: 1.6;">
                     </div>
                 </div>
@@ -3397,12 +3397,6 @@
             if (item.cpu) specs.push('<strong>CPU:</strong> ' + item.cpu);
             if (item.ram) specs.push('<strong>RAM:</strong> ' + item.ram);
             if (item.disk) specs.push('<strong>DISK:</strong> ' + item.disk);
-            if (item.remote_ready) {
-                specs.push('<span style="color:#059669; font-weight:600;">✓ เปิดระบบ Remote VNC (พอร์ต 5900 / รหัส: {{ $vnc_password ?? "4Sh0sp@remote" }} - หน้าจอไม่ดับ)</span>');
-                specs.push('<span style="color:#64748B; font-size:0.75rem;">(และเปิด Windows Remote Desktop RDP สำรองแล้ว)</span>');
-            } else {
-                specs.push('<span style="color:#D97706; font-weight:600;">⚠ บริการ Remote VNC (พอร์ต 5900) ยังไม่พร้อม / Service tvnserver ปิดอยู่</span>');
-            }
             if (specs.length === 0) {
                 specs.push('<span style="color:#94A3B8; font-style:italic;">ยังไม่มีข้อมูลสเปก (ระบบจะตรวจจับอัตโนมัติเมื่อรันตัวติดตั้งบนเครื่องนี้)</span>');
             }

@@ -3228,7 +3228,7 @@ try {
 Write-Host "       -> Host: $compName ($clientIp) | $ramInfo | $officeFinal" -ForegroundColor Green
 
 # --- Install & Configure VNC Server (TightVNC - Screen Share, No Logout) ---
-Write-Host " [Step 4/6] Configuring Remote Desktop & TightVNC service..." -ForegroundColor Yellow
+Write-Host " [Step 4/6] Configuring TightVNC Remote service..." -ForegroundColor Yellow
 $vncInstalled = $false
 try {
     $tvnSvc = Get-Service -Name "tvnserver" -ErrorAction SilentlyContinue
@@ -3293,15 +3293,6 @@ try {
     netsh advfirewall firewall add rule name="TightVNC Server Port 5900" dir=in action=allow protocol=TCP localport=5900 | Out-Null
 } catch {}
 
-# --- Also Enable Internal Windows Remote Desktop & Remote Assistance as backup ---
-try {
-    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0 -ErrorAction SilentlyContinue
-    Enable-NetFirewallRule -DisplayGroup "Remote Desktop" -ErrorAction SilentlyContinue
-    Set-Service -Name TermService -StartupType Automatic -ErrorAction SilentlyContinue
-    Start-Service -Name TermService -ErrorAction SilentlyContinue
-    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Remote Assistance' -Name "fAllowToGetHelp" -Value 1 -ErrorAction SilentlyContinue
-    Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Remote Assistance' -Name "fAllowFullControl" -Value 1 -ErrorAction SilentlyContinue
-} catch {}
 Write-Host "       -> Remote VNC service configured and ready." -ForegroundColor Green
 
 # --- Persistent Device UUID ---
