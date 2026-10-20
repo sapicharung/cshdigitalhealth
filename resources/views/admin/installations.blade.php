@@ -77,7 +77,7 @@
         .navbar {
             background: #FFFFFF;
             border-bottom: 1px solid var(--border);
-            padding: 0.85rem 1.8%;
+            padding: 0.65rem 1.4%;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -85,141 +85,202 @@
             top: 0;
             z-index: 100;
             box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+            flex-wrap: wrap;
+            gap: 0.65rem;
         }
 
         .brand-area {
             display: flex;
             align-items: center;
-            gap: 0.85rem;
+            gap: 0.75rem;
+            flex-shrink: 0;
         }
 
         .brand-icon {
-            width: 44px;
-            height: 44px;
-            border-radius: 12px;
+            width: 42px;
+            height: 42px;
+            border-radius: 11px;
             background: linear-gradient(135deg, #7EC8F8, #4D9DE0);
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
-            box-shadow: 0 4px 10px rgba(77, 157, 224, 0.3);
+            box-shadow: 0 3px 8px rgba(77, 157, 224, 0.28);
+            flex-shrink: 0;
+        }
+
+        .brand-text {
+            white-space: nowrap;
         }
 
         .brand-text h1 {
-            font-size: 1.15rem;
+            font-size: 1.05rem;
             font-weight: 700;
             color: var(--text-dark);
             line-height: 1.2;
+            margin: 0;
+            letter-spacing: -0.01em;
         }
 
         .brand-text p {
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             color: var(--text-muted);
+            margin: 0;
         }
 
         .nav-actions {
             display: flex;
             align-items: center;
-            gap: 1rem;
+            gap: 0.45rem;
+            flex-wrap: wrap;
+            justify-content: flex-end;
         }
 
-        .btn-download-app {
+        .btn-nav {
             display: inline-flex;
             align-items: center;
-            gap: 0.4rem;
-            padding: 0.5rem 1rem;
-            background: linear-gradient(135deg, #10B981, #059669);
-            color: white;
-            text-decoration: none;
-            border-radius: 10px;
-            font-size: 0.88rem;
+            gap: 0.35rem;
+            padding: 0.42rem 0.72rem;
+            border-radius: 8px;
+            font-size: 0.81rem;
             font-weight: 600;
-            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
-            transition: all 0.2s;
+            white-space: nowrap;
+            height: 35px;
+            box-sizing: border-box;
+            text-decoration: none;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            line-height: 1;
         }
 
-        .btn-download-app:hover {
+        .btn-nav-download {
+            background: linear-gradient(135deg, #10B981, #059669);
+            color: white !important;
+            box-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+            border: none;
+        }
+        .btn-nav-download:hover {
             background: linear-gradient(135deg, #059669, #047857);
             transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+            box-shadow: 0 4px 10px rgba(16, 185, 129, 0.35);
         }
 
-        .btn-download-uninstaller {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            padding: 0.5rem 0.9rem;
+        .btn-nav-uninstall {
             background: #FFF1F2;
-            color: #E11D48;
+            color: #E11D48 !important;
             border: 1px solid #FECDD3;
-            text-decoration: none;
-            border-radius: 10px;
-            font-size: 0.86rem;
-            font-weight: 600;
-            box-shadow: 0 1px 3px rgba(225, 29, 72, 0.1);
-            transition: all 0.2s;
         }
-
-        .btn-download-uninstaller:hover {
+        .btn-nav-uninstall:hover {
             background: #FFE4E6;
-            color: #BE123C;
+            color: #BE123C !important;
             border-color: #FDA4AF;
             transform: translateY(-1px);
-            box-shadow: 0 3px 8px rgba(225, 29, 72, 0.2);
         }
 
-        .btn-view-site {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            padding: 0.5rem 1rem;
-            background: var(--primary-light);
-            color: var(--primary-dark);
-            text-decoration: none;
-            border-radius: 10px;
-            font-size: 0.88rem;
-            font-weight: 500;
-            transition: all 0.2s;
+        .btn-nav-site {
+            background: #EFF6FF;
+            color: #1D4ED8 !important;
+            border: 1px solid #DBEAFE;
+        }
+        .btn-nav-site:hover {
+            background: #DBEAFE;
+            color: #1E40AF !important;
+            transform: translateY(-1px);
         }
 
-        .btn-view-site:hover {
-            background: #dbeafe;
+        .btn-nav-users {
+            background: #EEF2FF;
+            color: #4338CA !important;
+            border: 1px solid #C7D2FE;
+        }
+        .btn-nav-users:hover {
+            background: #E0E7FF;
+            color: #3730A3 !important;
+            transform: translateY(-1px);
+        }
+
+        .btn-nav-risk {
+            background: #FFF1F2;
+            color: #BE123C !important;
+            border: 1px solid #FECDD3;
+        }
+        .btn-nav-risk:hover {
+            background: #FFE4E6;
+            color: #9F1239 !important;
+            transform: translateY(-1px);
+        }
+
+        .btn-nav-sync {
+            background: #F5F3FF;
+            color: #6D28D9 !important;
+            border: 1px solid #DDD6FE;
+        }
+        .btn-nav-sync:hover {
+            background: #EDE9FE;
+            color: #5B21B6 !important;
+            transform: translateY(-1px);
         }
 
         .user-menu {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
-            padding-left: 1rem;
+            gap: 0.5rem;
+            padding-left: 0.65rem;
             border-left: 1px solid var(--border);
+            flex-shrink: 0;
         }
 
         .user-badge {
             display: flex;
             align-items: center;
-            gap: 0.4rem;
-            font-size: 0.88rem;
-            color: #475569;
-            font-weight: 500;
+            gap: 0.35rem;
+            font-size: 0.82rem;
+            color: #334155;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .role-pill {
+            font-size: 0.68rem;
+            padding: 1px 6px;
+            border-radius: 9999px;
+            font-weight: 700;
+            line-height: 1.3;
+        }
+        .role-admin {
+            background: #FEE2E2;
+            color: #DC2626;
+            border: 1px solid #FECACA;
+        }
+        .role-it {
+            background: #E0E7FF;
+            color: #4338CA;
+            border: 1px solid #C7D2FE;
         }
 
         .btn-logout {
             display: inline-flex;
             align-items: center;
             gap: 0.3rem;
-            padding: 0.45rem 0.85rem;
+            padding: 0.42rem 0.68rem;
             background: #FFF1F2;
             color: #E11D48;
-            border: 1px solid #FFE4E6;
+            border: 1px solid #FECDD3;
             border-radius: 8px;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            white-space: nowrap;
+            height: 35px;
+            box-sizing: border-box;
             font-family: inherit;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.2s ease;
         }
-
         .btn-logout:hover {
             background: #FFE4E6;
+            color: #BE123C;
+            transform: translateY(-1px);
         }
 
         /* --- Container --- */
@@ -2115,53 +2176,53 @@
         </div>
 
         <div class="nav-actions">
-            <a href="{{ route('download.shortcut.installer') }}" class="btn-download-app" title="ดาวน์โหลดตัวติดตั้ง Install-CSHOS_v{{ $serverVersion }}.bat">
-                <span class="material-symbols-Outlined" style="font-size: 18px;">download</span>
-                <span>downloadตัวติดตั้งApp (v{{ $serverVersion }})</span>
+            <a href="{{ route('download.shortcut.installer') }}" class="btn-nav btn-nav-download" title="ดาวน์โหลดตัวติดตั้ง Install-CSHOS_v{{ $serverVersion }}.bat">
+                <span class="material-symbols-Outlined" style="font-size: 17px;">download</span>
+                <span>ดาวน์โหลดตัวติดตั้ง (v{{ $serverVersion }})</span>
             </a>
 
-            <a href="{{ route('download.uninstaller') }}" class="btn-download-uninstaller" title="ดาวน์โหลดตัวถอนการติดตั้งและลบข้อมูลระบบทั้งหมด">
-                <span class="material-symbols-Outlined" style="font-size: 18px;">delete_sweep</span>
-                <span>downloadตัวถอนการติดตั้ง</span>
+            <a href="{{ route('download.uninstaller') }}" class="btn-nav btn-nav-uninstall" title="ดาวน์โหลดตัวถอนการติดตั้งและลบข้อมูลระบบทั้งหมด">
+                <span class="material-symbols-Outlined" style="font-size: 17px;">delete_sweep</span>
+                <span>ตัวถอนการติดตั้ง</span>
             </a>
 
-            <a href="{{ url('/') }}" target="_blank" class="btn-view-site">
-                <span class="material-symbols-Outlined" style="font-size: 18px;">open_in_new</span>
-                <span>เปิดหน้าหลักเว็บ</span>
+            <a href="{{ url('/') }}" target="_blank" class="btn-nav btn-nav-site" title="เปิดหน้าหลัก CSH Digital Health (แท็บใหม่)">
+                <span class="material-symbols-Outlined" style="font-size: 17px;">open_in_new</span>
+                <span>หน้าหลักเว็บ</span>
             </a>
 
             @if(Auth::user()->isAdmin())
-                <a href="{{ route('admin.users.index') }}" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; border-radius: 10px; font-size: 0.85rem; font-weight: 600; text-decoration: none; transition: all 0.2s;" title="จัดการผู้ใช้งานระบบ เพิ่ม/ลบ/แก้ไข (Admin & IT)">
-                    <span class="material-symbols-Outlined" style="font-size: 18px; color: #4F46E5;">manage_accounts</span>
-                    <span>จัดการผู้ใช้งาน</span>
+                <a href="{{ route('admin.users.index') }}" class="btn-nav btn-nav-users" title="จัดการผู้ใช้งานระบบ เพิ่ม/ลบ/แก้ไข (Admin & IT)">
+                    <span class="material-symbols-Outlined" style="font-size: 17px;">manage_accounts</span>
+                    <span>จัดการผู้ใช้</span>
                 </a>
 
-                <a href="{{ route('admin.risk-rules.index') }}" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; background: #FFF1F2; color: #BE123C; border: 1px solid #FECDD3; border-radius: 10px; font-size: 0.85rem; font-weight: 600; text-decoration: none; transition: all 0.2s;" title="จัดการเงื่อนไขตรวจสอบโปรแกรมเสี่ยง เพิ่ม/ลบ/แก้ไข">
-                    <span class="material-symbols-Outlined" style="font-size: 18px; color: #E11D48;">shield_lock</span>
-                    <span>จัดการโปรแกรมเสี่ยง</span>
+                <a href="{{ route('admin.risk-rules.index') }}" class="btn-nav btn-nav-risk" title="จัดการเงื่อนไขตรวจสอบโปรแกรมเสี่ยง เพิ่ม/ลบ/แก้ไข">
+                    <span class="material-symbols-Outlined" style="font-size: 17px;">shield_lock</span>
+                    <span>โปรแกรมเสี่ยง</span>
                 </a>
 
-                <button type="button" class="btn-sync-server" onclick="triggerServerGitPull(this)" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; background: #EEF2FF; color: #4F46E5; border: 1px solid #C7D2FE; border-radius: 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s;" title="ดึงโค้ดล่าสุดจาก GitHub และล้างแคชบนเซิร์ฟเวอร์">
-                    <span class="material-symbols-Outlined" style="font-size: 18px;">sync</span>
-                    <span>อัปเดตเซิร์ฟเวอร์ (Git Pull)</span>
+                <button type="button" class="btn-nav btn-nav-sync btn-sync-server" onclick="triggerServerGitPull(this)" title="ดึงโค้ดล่าสุดจาก GitHub และล้างแคชบนเซิร์ฟเวอร์">
+                    <span class="material-symbols-Outlined" style="font-size: 17px;">sync</span>
+                    <span>อัปเดตเซิร์ฟเวอร์</span>
                 </button>
             @endif
 
             <div class="user-menu">
-                <div class="user-badge">
-                    <span class="material-symbols-Outlined" style="font-size: 20px; color: var(--primary);">account_circle</span>
+                <div class="user-badge" title="ผู้ใช้งานปัจจุบัน">
+                    <span class="material-symbols-Outlined" style="font-size: 19px; color: var(--primary);">account_circle</span>
                     <span>{{ Auth::user()->fullname ?: (Auth::user()->name ?? 'ผู้ใช้งาน') }}</span>
                     @if(Auth::user()->isAdmin())
-                        <span style="font-size: 0.7rem; padding: 2px 7px; background: #FEE2E2; color: #DC2626; border-radius: 9999px; font-weight: 700;">ADMIN</span>
+                        <span class="role-pill role-admin">ADMIN</span>
                     @else
-                        <span style="font-size: 0.7rem; padding: 2px 7px; background: #E0E7FF; color: #4338CA; border-radius: 9999px; font-weight: 700;">IT</span>
+                        <span class="role-pill role-it">IT</span>
                     @endif
                 </div>
 
                 <form action="{{ route('admin.logout') }}" method="POST" style="margin: 0;">
                     @csrf
-                    <button type="submit" class="btn-logout">
-                        <span class="material-symbols-Outlined" style="font-size: 17px;">logout</span>
+                    <button type="submit" class="btn-logout" title="ออกจากระบบ CSHOS STAFF INFO">
+                        <span class="material-symbols-Outlined" style="font-size: 16px;">logout</span>
                         <span>ออกจากระบบ</span>
                     </button>
                 </form>
@@ -2240,7 +2301,7 @@
                 <div class="filter-inputs">
                     <div class="search-box">
                         <span class="material-symbols-Outlined">search</span>
-                        <input type="text" name="search" placeholder="ค้นหา IP, รหัสครุภัณฑ์, แผนก, ชื่อเครื่อง..." 
+                        <input type="text" name="search" placeholder="ค้นหา IP, รหัสครุภัณฑ์ (เช่น COM-001), แผนก, ชื่อเครื่อง..." 
                                value="{{ request('search') }}">
                     </div>
 
@@ -2314,7 +2375,7 @@
                             <th style="width: 45px; text-align: center;">ลำดับ</th>
                             <th style="width: 75px; text-align: center;">สถานะ</th>
                             <th style="width: 150px;">ชื่อเครื่องคอมพิวเตอร์</th>
-                            <th style="width: 140px; text-align: center;">รหัสครุภัณฑ์(COM)</th>
+                            <th style="width: 145px; text-align: center;">รหัสครุภัณฑ์ (COM)</th>
                             <th style="width: 130px;">IP Address</th>
                             <th style="width: 85px; text-align: center;">รีโมท (VNC)</th>
                             <th style="width: 135px; text-align: center;">AnyDesk</th>
@@ -2354,11 +2415,11 @@
                                 </td>
                                 <td style="text-align: center;">
                                     @if($item->asset_code)
-                                        <span class="font-mono" style="display: inline-block; font-size: 0.8rem; font-weight: 600; color: #4338CA; background: #EEF2FF; padding: 2px 8px; border-radius: 6px; border: 1px solid #C7D2FE; cursor: pointer;" onclick="openEditModal({{ json_encode($item) }})" title="คลิกเพื่อแก้ไขรหัสครุภัณฑ์">
+                                        <span class="font-mono" style="display: inline-block; font-size: 0.8rem; font-weight: 700; color: #4338CA; background: #EEF2FF; padding: 2px 8px; border-radius: 6px; border: 1px solid #C7D2FE; cursor: pointer;" onclick="openEditModal({{ json_encode($item) }})" title="คลิกเพื่อแก้ไขรหัสครุภัณฑ์ (เช่น COM-001)">
                                             {{ $item->asset_code }}
                                         </span>
                                     @else
-                                        <span style="color: #94A3B8; font-size: 0.85rem; cursor: pointer;" onclick="openEditModal({{ json_encode($item) }})" title="คลิกเพื่อระบุรหัสครุภัณฑ์">-</span>
+                                        <span style="color: #94A3B8; font-size: 0.85rem; cursor: pointer;" onclick="openEditModal({{ json_encode($item) }})" title="คลิกเพื่อระบุรหัสครุภัณฑ์ (เช่น COM-001)">-</span>
                                     @endif
                                 </td>
                                 <td>
@@ -2594,7 +2655,8 @@
 
                 <div class="modal-form-group">
                     <label for="modalAssetCode">รหัสครุภัณฑ์ (COM)</label>
-                    <input type="text" id="modalAssetCode" name="asset_code" class="modal-input font-mono" placeholder="เช่น COM-67-0012, 7440-001-0001/65">
+                    <input type="text" id="modalAssetCode" name="asset_code" class="modal-input font-mono" placeholder="เช่น COM-001">
+                    <span style="font-size: 0.74rem; color: #64748B; margin-top: 3px; display: block;">ตัวอย่าง: เช่น COM-001, COM-002</span>
                 </div>
 
                 <div class="modal-form-group">
@@ -3177,7 +3239,14 @@
             document.getElementById('dtCompName').textContent = item.hostname || '-';
             const assetEl = document.getElementById('dtAssetCode');
             if (assetEl) {
-                assetEl.textContent = item.asset_code || '-';
+                assetEl.textContent = item.asset_code || 'ยังไม่ระบุ (เช่น COM-001)';
+                if (!item.asset_code) {
+                    assetEl.style.color = '#94A3B8';
+                    assetEl.style.fontWeight = 'normal';
+                } else {
+                    assetEl.style.color = '#4338CA';
+                    assetEl.style.fontWeight = '700';
+                }
             }
             const staffEl = document.getElementById('dtStaff');
             if (staffEl) {

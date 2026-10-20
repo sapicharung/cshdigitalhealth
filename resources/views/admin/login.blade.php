@@ -355,7 +355,7 @@
 
             <div class="form-options">
                 <label class="remember-checkbox">
-                    <input type="checkbox" name="remember" value="1" checked>
+                    <input type="checkbox" name="remember" value="1">
                     <span>จดจำการเข้าสู่ระบบ</span>
                 </label>
             </div>
