@@ -894,7 +894,7 @@ class AppInstallationController extends Controller
                 'remote_ready' => (bool) $installation->remote_ready,
                 'message'      => "รีเฟรชข้อมูลเครื่อง {$name} เรียบร้อยแล้ว ({$statusMsg})",
                 'installation' => $installation,
-                'staff_name'   => $staffInfo ? ($staffInfo->staff_name ?: $staffInfo->kskloginname) : $installation->department,
+                'staff_name'   => $staffInfo ? ($staffInfo->staff_name ?: $staffInfo->kskloginname) : null,
                 'last_active'  => $installation->last_active_at ? $installation->last_active_at->format('d/m/y H:i') : '-',
             ]);
         }
@@ -1005,7 +1005,7 @@ class AppInstallationController extends Controller
                 'pushed_lan'         => $pushed,
                 'message'            => $msg,
                 'installation'       => $installation,
-                'staff_name'         => $staffInfo ? ($staffInfo->staff_name ?: $staffInfo->kskloginname) : $installation->department,
+                'staff_name'         => $staffInfo ? ($staffInfo->staff_name ?: $staffInfo->kskloginname) : null,
                 'last_active'        => $installation->last_active_at ? $installation->last_active_at->format('d/m/y H:i') : '-',
             ]);
         }
@@ -1224,7 +1224,7 @@ class AppInstallationController extends Controller
                 'Hostname (ชื่อคอมพิวเตอร์)',
                 'รหัสครุภัณฑ์ (COM)',
                 'ชื่อเจ้าหน้าที่ (CSHOS / Staff Name)',
-                'แผนก/ฝ่าย (HOSxP)',
+                'แผนก/หน่วยงาน',
                 'ชื่อเครื่อง/เจ้าของ',
                 'ระบบปฏิบัติการ (OS)',
                 'เวอร์ชั่นระบบปฏิบัติการ (OS Version)',
@@ -1254,8 +1254,8 @@ class AppInstallationController extends Controller
             AppInstallation::orderBy('last_active_at', 'desc')->chunk(200, function ($records) use ($handle, $staffMap) {
                 foreach ($records as $item) {
                     $staffInfo = $staffMap[$item->ip_address] ?? null;
-                    $staffName = $staffInfo ? ($staffInfo->staff_name ?: $staffInfo->kskloginname) : ($item->department ?: '-');
-                    $hosDept = $staffInfo ? ($staffInfo->hos_dept ?: ($item->department ?: '-')) : ($item->department ?: '-');
+                    $staffName = $staffInfo ? ($staffInfo->staff_name ?: $staffInfo->kskloginname) : '-';
+                    $department = $item->department ?: '-';
 
                     fputcsv($handle, [
                         $item->id,
@@ -1264,7 +1264,7 @@ class AppInstallationController extends Controller
                         $item->hostname ?? '-',
                         $item->asset_code ?: '-',
                         $staffName,
-                        $hosDept,
+                        $department,
                         $item->device_name ?? '-',
                         $item->os ?? '-',
                         $item->os_version ?? ($item->os ?? '-'),

@@ -2078,6 +2078,17 @@
             to { opacity: 1; transform: scale(1); }
         }
 
+        @keyframes modalBounceStatic {
+            0% { transform: scale(1); }
+            35% { transform: scale(1.02); }
+            70% { transform: scale(0.99); }
+            100% { transform: scale(1); }
+        }
+
+        .modal-card.modal-static-shake {
+            animation: modalBounceStatic 0.22s ease-in-out;
+        }
+
         .modal-header {
             display: flex;
             align-items: center;
@@ -2491,6 +2502,12 @@
                                     <span class="material-symbols-Outlined sort-icon">unfold_more</span>
                                 </div>
                             </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'text')" style="min-width: 105px;" title="คลิกเพื่อเรียงตามแผนก">
+                                <div class="th-content">
+                                    <span class="th-label">แผนก</span>
+                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
                             <th class="th-sortable" onclick="sortTable(this, 'version')" style="width: 80px; text-align: center;" title="คลิกเพื่อเรียงตามเวอร์ชัน">
                                 <div class="th-content" style="justify-content: center;">
                                     <span class="th-label">เวอร์ชัน</span>
@@ -2625,18 +2642,23 @@
                                         <span class="spec-empty-compact" style="color: #94A3B8;">-</span>
                                     @endif
                                 </td>
-                                <td data-sort-value="{{ strtolower($item->staff_name ?: ($item->department ?: '')) }}">
+                                <td data-sort-value="{{ strtolower($item->staff_name ?: '') }}">
                                     @if($item->staff_name)
-                                        <div class="staff-compact-cell" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;">
+                                        <div class="staff-compact-cell" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;" title="เจ้าหน้าที่: {{ $item->staff_name }}{{ $item->staff_position ? ' (' . $item->staff_position . ')' : '' }}">
                                             <span class="material-symbols-Outlined staff-badge-icon">badge</span>
                                             <span class="staff-name-text">{{ $item->staff_name }}</span>
                                         </div>
-                                    @elseif($item->department)
-                                        <span class="dept-compact-tag" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;">
+                                    @else
+                                        <span style="color: #94A3B8; font-size: 0.85rem;">-</span>
+                                    @endif
+                                </td>
+                                <td data-sort-value="{{ strtolower($item->department ?: '') }}">
+                                    @if($item->department)
+                                        <span class="dept-compact-tag" onclick="openEditModal({{ json_encode($item) }})" style="cursor: pointer;" title="แผนก: {{ $item->department }} (คลิกเพื่อแก้ไข)">
                                             {{ $item->department }}
                                         </span>
                                     @else
-                                        <span class="dept-empty" onclick="openEditModal({{ json_encode($item) }})" style="cursor: pointer;">ยังไม่ระบุ</span>
+                                        <span class="dept-empty" onclick="openEditModal({{ json_encode($item) }})" style="cursor: pointer;" title="คลิกเพื่อระบุแผนก">-</span>
                                     @endif
                                 </td>
                                 <td style="text-align: center;" data-sort-value="{{ $item->client_version ?: '0.0.0' }}">
@@ -2696,7 +2718,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ Auth::user()->isAdmin() ? '13' : '11' }}">
+                                <td colspan="{{ Auth::user()->isAdmin() ? '14' : '12' }}">
                                     <div class="empty-state">
                                         <span class="material-symbols-Outlined">devices_off</span>
                                         <h3>ยังไม่มีข้อมูลการติดตั้งในระบบ</h3>
@@ -2757,16 +2779,16 @@
                     
                     <div class="quick-depts">
                         <span style="font-size: 0.75rem; color: #94A3B8; margin-right: 0.2rem;">เลือกด่วน:</span>
-                        <button type="button" class="quick-dept-btn" onclick="setQuickDept('ผู้ป่วยนอก (OPD)')">OPD</button>
-                        <button type="button" class="quick-dept-btn" onclick="setQuickDept('ผู้ป่วยใน (IPD)')">IPD</button>
-                        <button type="button" class="quick-dept-btn" onclick="setQuickDept('อุบัติเหตุ-ฉุกเฉิน (ER)')">ER</button>
+                        <button type="button" class="quick-dept-btn" onclick="setQuickDept('OPD')">OPD</button>
+                        <button type="button" class="quick-dept-btn" onclick="setQuickDept('IPD')">IPD</button>
+                        <button type="button" class="quick-dept-btn" onclick="setQuickDept('ER')">ER</button>
                         <button type="button" class="quick-dept-btn" onclick="setQuickDept('ห้องยา')">ห้องยา</button>
-                        <button type="button" class="quick-dept-btn" onclick="setQuickDept('ห้องชันสูตร (Lab)')">Lab</button>
-                        <button type="button" class="quick-dept-btn" onclick="setQuickDept('รังสีวิทยา (X-Ray)')">X-Ray</button>
+                        <button type="button" class="quick-dept-btn" onclick="setQuickDept('Lab')">Lab</button>
+                        <button type="button" class="quick-dept-btn" onclick="setQuickDept('X-Ray')">X-Ray</button>
                         <button type="button" class="quick-dept-btn" onclick="setQuickDept('ทันตกรรม')">ทันตกรรม</button>
                         <button type="button" class="quick-dept-btn" onclick="setQuickDept('เวชระเบียน')">เวชระเบียน</button>
-                        <button type="button" class="quick-dept-btn" onclick="setQuickDept('ศูนย์คอมพิวเตอร์/IT')">IT</button>
-                        <button type="button" class="quick-dept-btn" onclick="setQuickDept('บริหารทั่วไป/การเงิน')">การเงิน</button>
+                        <button type="button" class="quick-dept-btn" onclick="setQuickDept('IT')">IT</button>
+                        <button type="button" class="quick-dept-btn" onclick="setQuickDept('การเงิน')">การเงิน</button>
                     </div>
                 </div>
 
@@ -2882,6 +2904,10 @@
                         <div class="detail-item">
                             <label>ชื่อเจ้าหน้าที่ (ผู้ใช้งาน CSHOS)</label>
                             <div id="dtStaff" class="detail-value text-highlight" style="font-size: 0.92rem;">-</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>แผนก / หน่วยงาน</label>
+                            <div id="dtDept" class="detail-value text-highlight" style="font-size: 0.92rem; color: #6B21A8; background: #FAF5FF; border-color: #E9D5FF;">-</div>
                         </div>
                         <div class="detail-item">
                             <label>ผู้ใช้งานประจำเครื่อง / อุปกรณ์</label>
@@ -3465,13 +3491,15 @@
             if (staffEl) {
                 if (item.staff_name) {
                     staffEl.innerHTML = '<span style="color: #1D4ED8; font-weight: 700;">' + item.staff_name + '</span>' +
-                        (item.staff_login ? ' <span style="font-size: 0.78rem; color: #64748B;">(' + item.staff_login + ')</span>' : '') +
-                        (item.hos_dept ? '<div style="font-size: 0.78rem; color: #059669; margin-top: 2px;">' + item.hos_dept + '</div>' : '');
-                } else if (item.department) {
-                    staffEl.textContent = item.department;
+                        (item.staff_login ? ' <span style="font-size: 0.78rem; color: #64748B;">(' + item.staff_login + ')</span>' : '');
                 } else {
                     staffEl.textContent = 'ยังไม่ระบุ / ไม่อยู่ในระบบออนไลน์';
                 }
+            }
+            const deptEl = document.getElementById('dtDept');
+            if (deptEl) {
+                const deptVal = item.department || '';
+                deptEl.textContent = deptVal || 'ยังไม่ระบุ';
             }
             document.getElementById('dtDeviceName').textContent = item.device_name || '-';
             document.getElementById('dtUuid').textContent = item.device_id || '-';
@@ -3692,13 +3720,23 @@
         }
 
         function setQuickDept(dept) {
-            document.getElementById('modalDept').value = dept;
+            const input = document.getElementById('modalDept');
+            if (input) {
+                input.value = dept;
+                input.focus();
+            }
         }
 
-        // Close on background click
+        // เมื่อคลิกพื้นที่ว่างรอบนอก (Backdrop) ให้คงหน้า Popup ไว้ ไม่ปิดอัตโนมัติ
         document.getElementById('editModal').addEventListener('click', function(e) {
             if (e.target === this) {
-                closeEditModal();
+                // คงหน้าแสดง popup ให้คงอยู่ ไม่ปิดอัตโนมัติ
+                const card = this.querySelector('.modal-card');
+                if (card) {
+                    card.classList.remove('modal-static-shake');
+                    void card.offsetWidth; // trigger reflow
+                    card.classList.add('modal-static-shake');
+                }
             }
         });
 
