@@ -285,11 +285,12 @@
 
         /* --- Container --- */
         .container {
-            max-width: 1760px;
-            width: 98%;
+            max-width: 100%;
+            width: 100%;
             margin: 0 auto;
-            padding: 1.5rem 1.25rem;
+            padding: 0.85rem 1rem;
             flex: 1;
+            box-sizing: border-box;
         }
 
         /* --- Stats Row --- */
@@ -579,7 +580,7 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.84rem;
+            font-size: 0.81rem;
             text-align: left;
         }
 
@@ -589,19 +590,19 @@
         }
 
         th {
-            padding: 0.7rem 0.65rem;
+            padding: 0.6rem 0.42rem;
             font-weight: 600;
             color: #475569;
-            font-size: 0.78rem;
+            font-size: 0.76rem;
             text-transform: uppercase;
-            letter-spacing: 0.3px;
+            letter-spacing: 0.2px;
             white-space: nowrap;
         }
 
         tbody tr {
             border-bottom: 1px solid #F1F5F9;
             transition: background 0.15s;
-            height: 48px;
+            height: 44px;
         }
 
         tbody tr:hover {
@@ -609,7 +610,7 @@
         }
 
         td {
-            padding: 0.55rem 0.65rem;
+            padding: 0.45rem 0.42rem;
             vertical-align: middle;
             color: #334155;
             white-space: nowrap;
@@ -2372,22 +2373,22 @@
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 45px; text-align: center;">ลำดับ</th>
-                            <th style="width: 75px; text-align: center;">สถานะ</th>
-                            <th style="width: 150px;">ชื่อเครื่องคอมพิวเตอร์</th>
-                            <th style="width: 145px; text-align: center;">รหัสครุภัณฑ์ (COM)</th>
-                            <th style="width: 130px;">IP Address</th>
-                            <th style="width: 85px; text-align: center;">รีโมท (VNC)</th>
-                            <th style="width: 135px; text-align: center;">AnyDesk</th>
+                            <th style="width: 36px; text-align: center;">ลำดับ</th>
+                            <th style="width: 70px; text-align: center;">สถานะ</th>
+                            <th style="min-width: 125px;">ชื่อเครื่องคอมพิวเตอร์</th>
+                            <th style="width: 115px; text-align: center;">รหัสครุภัณฑ์ (COM)</th>
+                            <th style="width: 115px;">IP Address</th>
+                            <th style="width: 80px; text-align: center;">รีโมท (VNC)</th>
+                            <th style="width: 105px; text-align: center;">AnyDesk</th>
                             @if(Auth::user()->isAdmin())
-                                <th style="width: 140px; text-align: center;">โปรแกรมเสี่ยง</th>
+                                <th style="width: 95px; text-align: center;">โปรแกรมเสี่ยง</th>
                             @endif
-                            <th style="width: 135px; text-align: center;">System Uptime</th>
-                            <th style="width: 160px;">ชื่อเจ้าหน้าที่</th>
-                            <th style="width: 95px; text-align: center;">เวอร์ชัน</th>
-                            <th style="width: 130px;">หมายเหตุ</th>
+                            <th style="width: 95px; text-align: center;">System Uptime</th>
+                            <th style="min-width: 125px;">ชื่อเจ้าหน้าที่</th>
+                            <th style="width: 72px; text-align: center;">เวอร์ชัน</th>
+                            <th style="min-width: 85px;">หมายเหตุ</th>
                             @if(Auth::user()->isAdmin())
-                                <th style="width: 145px; text-align: center;">จัดการ</th>
+                                <th style="width: 135px; text-align: center;">จัดการ</th>
                             @endif
                         </tr>
                     </thead>
