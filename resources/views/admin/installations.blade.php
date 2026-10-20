@@ -599,6 +599,47 @@
             white-space: nowrap;
         }
 
+        th.th-sortable {
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+
+        th.th-sortable:hover {
+            background: #EFF6FF;
+            color: #1D4ED8;
+        }
+
+        th.th-sortable .th-content {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            white-space: nowrap;
+        }
+
+        th.th-sortable .sort-icon {
+            font-size: 14px;
+            color: #94A3B8;
+            transition: color 0.15s ease;
+            vertical-align: middle;
+            user-select: none;
+        }
+
+        th.th-sortable:hover .sort-icon {
+            color: #2563EB;
+        }
+
+        th.th-sortable.sorted-desc,
+        th.th-sortable.sorted-asc {
+            background: #EEF2FF;
+            color: #3730A3;
+        }
+
+        th.th-sortable.sorted-desc .sort-icon,
+        th.th-sortable.sorted-asc .sort-icon {
+            color: #4F46E5;
+        }
+
         tbody tr {
             border-bottom: 1px solid #F1F5F9;
             transition: background 0.15s;
@@ -2373,20 +2414,80 @@
                 <table>
                     <thead>
                         <tr>
-                            <th style="width: 36px; text-align: center;">ลำดับ</th>
-                            <th style="width: 70px; text-align: center;">สถานะ</th>
-                            <th style="min-width: 125px;">ชื่อเครื่องคอมพิวเตอร์</th>
-                            <th style="width: 115px; text-align: center;">รหัสครุภัณฑ์ (COM)</th>
-                            <th style="width: 115px;">IP Address</th>
-                            <th style="width: 80px; text-align: center;">รีโมท (VNC)</th>
-                            <th style="width: 105px; text-align: center;">AnyDesk</th>
+                            <th class="th-sortable" onclick="sortTable(this, 'number')" style="width: 40px; text-align: center;" title="คลิกเพื่อเรียงลำดับ (มากไปน้อย / น้อยไปมาก)">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">ลำดับ</span>
+                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'status')" style="width: 75px; text-align: center;" title="คลิกเพื่อเรียงตามสถานะ (ออนไลน์ / ออฟไลน์)">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">สถานะ</span>
+                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'text')" style="min-width: 125px;" title="คลิกเพื่อเรียงตามชื่อเครื่องคอมพิวเตอร์">
+                                <div class="th-content">
+                                    <span class="th-label">ชื่อเครื่องคอมพิวเตอร์</span>
+                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'text')" style="width: 125px; text-align: center;" title="คลิกเพื่อเรียงตามรหัสครุภัณฑ์">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">รหัสครุภัณฑ์ (COM)</span>
+                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'ip')" style="width: 120px;" title="คลิกเพื่อเรียงตาม IP Address">
+                                <div class="th-content">
+                                    <span class="th-label">IP Address</span>
+                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'vnc')" style="width: 85px; text-align: center;" title="คลิกเพื่อเรียงตามสถานะรีโมท VNC">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">รีโมท (VNC)</span>
+                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'anydesk')" style="width: 110px; text-align: center;" title="คลิกเพื่อเรียงตาม AnyDesk">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">AnyDesk</span>
+                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
                             @if(Auth::user()->isAdmin())
-                                <th style="width: 95px; text-align: center;">โปรแกรมเสี่ยง</th>
+                                <th class="th-sortable" onclick="sortTable(this, 'risk')" style="width: 105px; text-align: center;" title="คลิกเพื่อเรียงตามโปรแกรมเสี่ยง">
+                                    <div class="th-content" style="justify-content: center;">
+                                        <span class="th-label">โปรแกรมเสี่ยง</span>
+                                        <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                    </div>
+                                </th>
                             @endif
-                            <th style="width: 95px; text-align: center;">System Uptime</th>
-                            <th style="min-width: 125px;">ชื่อเจ้าหน้าที่</th>
-                            <th style="width: 72px; text-align: center;">เวอร์ชัน</th>
-                            <th style="min-width: 85px;">หมายเหตุ</th>
+                            <th class="th-sortable" onclick="sortTable(this, 'uptime')" style="width: 105px; text-align: center;" title="คลิกเพื่อเรียงตาม System Uptime">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">System Uptime</span>
+                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'text')" style="min-width: 125px;" title="คลิกเพื่อเรียงตามชื่อเจ้าหน้าที่">
+                                <div class="th-content">
+                                    <span class="th-label">ชื่อเจ้าหน้าที่</span>
+                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'version')" style="width: 80px; text-align: center;" title="คลิกเพื่อเรียงตามเวอร์ชัน">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">เวอร์ชัน</span>
+                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'text')" style="min-width: 85px;" title="คลิกเพื่อเรียงตามหมายเหตุ">
+                                <div class="th-content">
+                                    <span class="th-label">หมายเหตุ</span>
+                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
                             @if(Auth::user()->isAdmin())
                                 <th style="width: 135px; text-align: center;">จัดการ</th>
                             @endif
@@ -2398,8 +2499,8 @@
                                 $isOnline = $item->computed_online ?? ($item->is_online && $item->last_active_at && $item->last_active_at->diffInMinutes(now()) <= 15);
                             @endphp
                             <tr>
-                                <td style="text-align: center; color: #64748B;">{{ $installations->firstItem() + $index }}</td>
-                                <td style="text-align: center;">
+                                <td class="col-row-index" style="text-align: center; color: #64748B;" data-sort-value="{{ $installations->firstItem() + $index }}">{{ $installations->firstItem() + $index }}</td>
+                                <td style="text-align: center;" data-sort-value="{{ $isOnline ? 1 : 0 }}">
                                     @if($isOnline)
                                         <span class="badge badge-online" id="status-badge-{{ $item->id }}">
                                             <span class="pulse-dot"></span> ออนไลน์
@@ -2408,13 +2509,13 @@
                                         <span class="badge badge-offline" id="status-badge-{{ $item->id }}">ออฟไลน์</span>
                                     @endif
                                 </td>
-                                <td>
+                                <td data-sort-value="{{ strtolower($item->hostname ?: '') }}">
                                     <div class="host-name-cell" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;">
                                         <span class="material-symbols-Outlined host-icon">computer</span>
                                         <span class="host-name-text">{{ $item->hostname ?: '-' }}</span>
                                     </div>
                                 </td>
-                                <td style="text-align: center;">
+                                <td style="text-align: center;" data-sort-value="{{ strtolower($item->asset_code ?: '') }}">
                                     @if($item->asset_code)
                                         <span class="font-mono" style="display: inline-block; font-size: 0.8rem; font-weight: 700; color: #4338CA; background: #EEF2FF; padding: 2px 8px; border-radius: 6px; border: 1px solid #C7D2FE; cursor: pointer;" onclick="openEditModal({{ json_encode($item) }})" title="คลิกเพื่อแก้ไขรหัสครุภัณฑ์ (เช่น COM-001)">
                                             {{ $item->asset_code }}
@@ -2423,7 +2524,7 @@
                                         <span style="color: #94A3B8; font-size: 0.85rem; cursor: pointer;" onclick="openEditModal({{ json_encode($item) }})" title="คลิกเพื่อระบุรหัสครุภัณฑ์ (เช่น COM-001)">-</span>
                                     @endif
                                 </td>
-                                <td>
+                                <td data-sort-value="{{ $item->ip_address ? sprintf('%u', ip2long($item->ip_address)) : 0 }}">
                                     @if($item->ip_address)
                                         <div class="ip-cell-wrapper">
                                             <span class="ip-badge-cell font-mono">{{ $item->ip_address }}</span>
@@ -2435,7 +2536,7 @@
                                         <span class="spec-empty-compact">ไม่พบ IP</span>
                                     @endif
                                 </td>
-                                <td style="text-align: center;">
+                                <td style="text-align: center;" data-sort-value="{{ $item->remote_ready ? 1 : 0 }}">
                                     @if($item->ip_address)
                                         <div class="remote-compact-cell" style="justify-content: center;">
                                             <button type="button" 
@@ -2454,7 +2555,7 @@
                                         <span class="spec-empty-compact">ไม่พบ IP</span>
                                     @endif
                                 </td>
-                                <td style="text-align: center;">
+                                <td style="text-align: center;" data-sort-value="{{ $item->anydesk_installed ? ($item->anydesk_id ? 2 : 1) : 0 }}">
                                     @if($item->anydesk_installed)
                                         <div style="display: inline-flex; align-items: center; justify-content: center; gap: 3px;">
                                             <button type="button" class="btn-anydesk-pill" 
@@ -2478,7 +2579,7 @@
                                     @endif
                                 </td>
                                 @if(Auth::user()->isAdmin())
-                                    <td style="text-align: center;" id="cell-risk-{{ $item->id }}">
+                                    <td style="text-align: center;" id="cell-risk-{{ $item->id }}" data-sort-value="{{ ($item->has_risk_software && !empty($item->risk_software_list)) ? 1 : 0 }}">
                                         @if($item->has_risk_software && !empty($item->risk_software_list))
                                             <div style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"
                                                  onclick="openDetailsModal({{ json_encode($item) }})" 
@@ -2496,7 +2597,7 @@
                                         @endif
                                     </td>
                                 @endif
-                                <td style="text-align: center;">
+                                <td style="text-align: center;" data-sort-value="{{ $item->last_boot_time ? now()->diffInSeconds($item->last_boot_time) : -1 }}">
                                     @php
                                         $uptime = $item->dynamic_uptime ?: $item->uptime_text;
                                     @endphp
@@ -2509,7 +2610,7 @@
                                         <span class="spec-empty-compact" style="color: #94A3B8;">-</span>
                                     @endif
                                 </td>
-                                <td>
+                                <td data-sort-value="{{ strtolower($item->staff_name ?: ($item->department ?: '')) }}">
                                     @if($item->staff_name)
                                         <div class="staff-compact-cell" onclick="openDetailsModal({{ json_encode($item) }})" style="cursor: pointer;">
                                             <span class="material-symbols-Outlined staff-badge-icon">badge</span>
@@ -2523,7 +2624,7 @@
                                         <span class="dept-empty" onclick="openEditModal({{ json_encode($item) }})" style="cursor: pointer;">ยังไม่ระบุ</span>
                                     @endif
                                 </td>
-                                <td style="text-align: center;">
+                                <td style="text-align: center;" data-sort-value="{{ $item->client_version ?: '0.0.0' }}">
                                     @if($item->pending_update)
                                         <span class="ver-tag-pending" onclick="openPendingUpdateModal({{ json_encode($item) }})" title="คลิกเพื่อจัดการสถานะรออัพเดท (ตรวจสอบ / ยืนยัน / ยกเลิก)">
                                             <span class="material-symbols-Outlined spin-mini" style="font-size: 12px;">sync</span>
@@ -2540,7 +2641,7 @@
                                         </span>
                                     @endif
                                 </td>
-                                <td>
+                                <td data-sort-value="{{ strtolower($item->notes ?: '') }}">
                                     <div class="note-compact-cell" onclick="openEditModal({{ json_encode($item) }})" style="cursor: pointer;" title="{{ $item->notes ? $item->notes . ' (คลิกเพื่อแก้ไข)' : 'คลิกเพื่อระบุหมายเหตุ' }}">
                                         @if($item->notes)
                                             <span class="note-text">{{ $item->notes }}</span>
@@ -3040,6 +3141,102 @@
 
     <script>
         let currentDetailItem = null;
+
+        // --- Table Column Sorting (DESC first, then ASC toggle) ---
+        let currentSortTh = null;
+        let currentSortDir = ''; // 'desc' or 'asc'
+        const pageStartIndex = {{ $installations->firstItem() ?? 1 }};
+
+        function sortTable(th, type) {
+            if (!th) return;
+            const table = th.closest('table');
+            if (!table) return;
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            if (rows.length <= 1) return;
+            if (rows[0].querySelector('.empty-state')) return;
+
+            const colIndex = Array.from(th.parentNode.children).indexOf(th);
+            if (colIndex < 0) return;
+
+            // First click on a column: DESC (มากไปน้อย)
+            // Second click on the same column: ASC (น้อยไปมาก)
+            let dir = 'desc';
+            if (currentSortTh === th) {
+                dir = (currentSortDir === 'desc') ? 'asc' : 'desc';
+            }
+            currentSortTh = th;
+            currentSortDir = dir;
+
+            // Update all headers' icons & classes
+            const allThs = th.parentNode.querySelectorAll('th');
+            allThs.forEach(item => {
+                item.classList.remove('sorted-asc', 'sorted-desc');
+                const icon = item.querySelector('.sort-icon');
+                if (icon) {
+                    if (item === th) {
+                        item.classList.add(dir === 'desc' ? 'sorted-desc' : 'sorted-asc');
+                        icon.textContent = dir === 'desc' ? 'arrow_downward' : 'arrow_upward';
+                    } else {
+                        icon.textContent = 'unfold_more';
+                    }
+                }
+            });
+
+            // Perform sorting
+            rows.sort((rowA, rowB) => {
+                const cellA = rowA.children[colIndex];
+                const cellB = rowB.children[colIndex];
+                if (!cellA || !cellB) return 0;
+
+                let valA = cellA.getAttribute('data-sort-value');
+                let valB = cellB.getAttribute('data-sort-value');
+
+                if (valA === null) valA = cellA.innerText.trim();
+                if (valB === null) valB = cellB.innerText.trim();
+
+                if (type === 'number' || type === 'ip' || type === 'uptime' || type === 'status' || type === 'vnc' || type === 'anydesk' || type === 'risk') {
+                    const numA = parseFloat(valA) || 0;
+                    const numB = parseFloat(valB) || 0;
+                    return dir === 'desc' ? (numB - numA) : (numA - numB);
+                } else if (type === 'version') {
+                    const res = compareVersions(valA, valB);
+                    return dir === 'desc' ? -res : res;
+                } else {
+                    const strA = (valA || '').toString();
+                    const strB = (valB || '').toString();
+                    if (!strA && strB) return 1;
+                    if (strA && !strB) return -1;
+                    const res = strA.localeCompare(strB, 'th', { numeric: true, sensitivity: 'base' });
+                    return dir === 'desc' ? -res : res;
+                }
+            });
+
+            // Re-render rows and update row numbers (ลำดับ)
+            rows.forEach((row, idx) => {
+                tbody.appendChild(row);
+                const seqCell = row.children[0];
+                if (seqCell && seqCell.classList.contains('col-row-index')) {
+                    seqCell.textContent = pageStartIndex + idx;
+                }
+            });
+
+            const thTitle = th.querySelector('.th-label')?.textContent?.trim() || 'คอลัมน์';
+            const dirLabel = dir === 'desc' ? 'มากไปน้อย ↓' : 'น้อยไปมาก ↑';
+            showToast(`เรียงตาม "${thTitle}" (${dirLabel})`);
+        }
+
+        function compareVersions(v1, v2) {
+            const p1 = (v1 || '').replace(/[^0-9.]/g, '').split('.').map(Number);
+            const p2 = (v2 || '').replace(/[^0-9.]/g, '').split('.').map(Number);
+            for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+                const num1 = p1[i] || 0;
+                const num2 = p2[i] || 0;
+                if (num1 !== num2) return num1 > num2 ? 1 : -1;
+            }
+            return 0;
+        }
 
         function escapeHtml(text) {
             if (!text) return '';

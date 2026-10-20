@@ -460,8 +460,33 @@ class AppInstallationController extends Controller
             ->distinct()
             ->pluck('department');
 
-        // Paginated results sorted by last_active_at desc
-        $installations = $query->orderBy('last_active_at', 'desc')->paginate(25)->withQueryString();
+        // Dynamic sorting
+        $sortCol = $request->input('sort');
+        $sortDir = strtolower($request->input('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
+
+        $sortMap = [
+            'id'         => 'id',
+            'status'     => 'is_online',
+            'hostname'   => 'hostname',
+            'asset_code' => 'asset_code',
+            'ip'         => 'ip_address',
+            'vnc'        => 'remote_ready',
+            'anydesk'    => 'anydesk_installed',
+            'risk'       => 'has_risk_software',
+            'uptime'     => 'last_boot_time',
+            'department' => 'department',
+            'version'    => 'client_version',
+            'notes'      => 'notes',
+            'active'     => 'last_active_at',
+        ];
+
+        if ($sortCol && isset($sortMap[$sortCol])) {
+            $query->orderBy($sortMap[$sortCol], $sortDir);
+        } else {
+            $query->orderBy('last_active_at', 'desc');
+        }
+
+        $installations = $query->paginate(25)->withQueryString();
         $vnc_password = $this->getVncPassword();
 
         // Query CSHOS_DB (onlineuser + opduser) for current page IPs to display Staff Name
