@@ -896,7 +896,7 @@
 
             <div class="user-badge">
                 <span class="material-symbols-Outlined" style="font-size: 18px; color: var(--primary);">account_circle</span>
-                <span>{{ Auth::user()->name }}</span>
+                <span>{{ Auth::user()->fullname ?: Auth::user()->name }}</span>
                 <span class="role-pill role-pill-{{ Auth::user()->role }}">{{ strtoupper(Auth::user()->role) }}</span>
             </div>
 
@@ -979,7 +979,7 @@
             <form action="{{ route('admin.users.index') }}" method="GET" class="filter-form">
                 <div class="search-box">
                     <span class="material-symbols-Outlined">search</span>
-                    <input type="text" name="search" placeholder="ค้นหาชื่อผู้ใช้งาน หรือ อีเมล..." value="{{ request('search') }}">
+                    <input type="text" name="search" placeholder="ค้นหาชื่อผู้ใช้งาน หรือ ชื่อ-สกุล..." value="{{ request('search') }}">
                 </div>
 
                 <select name="role" class="select-filter">
@@ -1009,8 +1009,8 @@
                     <thead>
                         <tr>
                             <th style="width: 50px; text-align: center;">#</th>
-                            <th style="min-width: 200px;">ชื่อผู้ใช้งาน (Username)</th>
-                            <th style="min-width: 220px;">อีเมล (Email)</th>
+                            <th style="min-width: 180px;">ชื่อผู้ใช้งาน (Username)</th>
+                            <th style="min-width: 200px;">ชื่อ-สกุล</th>
                             <th style="width: 140px; text-align: center;">ระดับสิทธิ์ (Role)</th>
                             <th style="width: 220px;">สิทธิ์การใช้งาน (Permissions)</th>
                             <th style="width: 160px;">วันที่ลงทะเบียน</th>
@@ -1040,7 +1040,7 @@
                                     </div>
                                 </td>
                                 <td>
-                                    <span class="user-email-text">{{ $user->email }}</span>
+                                    <span style="font-weight: 600; color: #1E293B;">{{ $user->fullname ?: '-' }}</span>
                                 </td>
                                 <td style="text-align: center;">
                                     @if($user->role === 'admin')
@@ -1146,10 +1146,11 @@
                         <small style="font-size: 0.74rem; color: var(--text-muted);">ใช้สำหรับเข้าสู่ระบบระบบ CSHOS</small>
                     </div>
 
-                    <!-- Email -->
+                    <!-- Fullname -->
                     <div class="form-group">
-                        <label for="userEmail">อีเมล (Email) <span class="required">*</span></label>
-                        <input type="email" id="userEmail" name="email" class="form-control" required placeholder="เช่น it@csh.local หรือ user@chiangsaenhospital.go.th">
+                        <label for="userFullname">ชื่อ-สกุล <span class="required">*</span></label>
+                        <input type="text" id="userFullname" name="fullname" class="form-control" required placeholder="เช่น นายสมชาย ใจดี หรือ ผู้ดูแลระบบไอที">
+                        <small style="font-size: 0.74rem; color: var(--text-muted);">ชื่อจริง-นามสกุล หรือชื่อเรียกของผู้ใช้งาน</small>
                     </div>
 
                     <!-- Role Selection -->
@@ -1251,7 +1252,7 @@
             document.getElementById('userId').value = '';
 
             document.getElementById('userName').value = '';
-            document.getElementById('userEmail').value = '';
+            document.getElementById('userFullname').value = '';
             document.getElementById('userPassword').value = '';
             document.getElementById('userPassword').required = true;
             document.getElementById('passwordRequiredStar').style.display = 'inline';
@@ -1266,7 +1267,7 @@
         }
 
         function openEditUserModal(user) {
-            document.getElementById('modalTitleText').innerText = 'แก้ไขข้อมูลผู้ใช้งาน: ' + user.name;
+            document.getElementById('modalTitleText').innerText = 'แก้ไขข้อมูลผู้ใช้งาน: ' + (user.fullname || user.name);
             document.getElementById('modalIcon').innerText = 'edit';
             document.getElementById('modalIcon').style.color = '#2563EB';
 
@@ -1276,7 +1277,7 @@
             document.getElementById('userId').value = user.id;
 
             document.getElementById('userName').value = user.name || '';
-            document.getElementById('userEmail').value = user.email || '';
+            document.getElementById('userFullname').value = user.fullname || '';
             document.getElementById('userPassword').value = '';
             document.getElementById('userPassword').required = false;
             document.getElementById('passwordRequiredStar').style.display = 'none';

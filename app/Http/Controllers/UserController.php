@@ -21,6 +21,7 @@ class UserController extends Controller
             $search = trim($request->search);
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
+                  ->orWhere('fullname', 'like', "%{$search}%")
                   ->orWhere('email', 'like', "%{$search}%");
             });
         }
@@ -47,24 +48,26 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'name'     => ['required', 'string', 'max:100', 'unique:users,name'],
-            'email'    => ['required', 'string', 'email', 'max:150', 'unique:users,email'],
+            'fullname' => ['required', 'string', 'max:150'],
             'password' => ['required', 'string', 'min:4'],
             'role'     => ['required', 'string', Rule::in(['admin', 'it'])],
         ], [
             'name.required'     => 'กรุณากรอกชื่อผู้ใช้งาน',
             'name.unique'       => 'ชื่อผู้ใช้งานนี้มีอยู่ในระบบแล้ว',
-            'email.required'    => 'กรุณากรอกอีเมล',
-            'email.email'       => 'รูปแบบอีเมลไม่ถูกต้อง',
-            'email.unique'      => 'อีเมลนี้ถูกใช้งานแล้ว',
+            'fullname.required' => 'กรุณากรอกชื่อ-สกุล',
             'password.required' => 'กรุณากรอกรหัสผ่าน',
             'password.min'      => 'รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร',
             'role.required'     => 'กรุณาเลือกระดับสิทธิ์ (Role)',
             'role.in'           => 'ระดับสิทธิ์ต้องเป็น admin หรือ it เท่านั้น',
         ]);
 
+        $username = trim($validated['name']);
+        $email = !empty($request->email) ? strtolower(trim($request->email)) : (strtolower($username) . '@csh.local');
+
         $user = User::create([
-            'name'     => trim($validated['name']),
-            'email'    => strtolower(trim($validated['email'])),
+            'name'     => $username,
+            'fullname' => trim($validated['fullname']),
+            'email'    => $email,
             'password' => Hash::make($validated['password']),
             'role'     => $validated['role'],
         ]);
@@ -72,13 +75,13 @@ class UserController extends Controller
         if ($request->wantsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => "เพิ่มผู้ใช้งาน '{$user->name}' สำเร็จ",
+                'message' => "เพิ่มผู้ใช้งาน '{$user->fullname}' สำเร็จ",
                 'user'    => $user,
             ]);
         }
 
         return redirect()->route('admin.users.index')
-            ->with('success', "เพิ่มผู้ใช้งาน '{$user->name}' เรียบร้อยแล้ว");
+            ->with('success', "เพิ่มผู้ใช้งาน '{$user->fullname}' เรียบร้อยแล้ว");
     }
 
     /**
@@ -90,18 +93,16 @@ class UserController extends Controller
 
         $validated = $request->validate([
             'name'     => ['required', 'string', 'max:100', Rule::unique('users', 'name')->ignore($user->id)],
-            'email'    => ['required', 'string', 'email', 'max:150', Rule::unique('users', 'email')->ignore($user->id)],
+            'fullname' => ['required', 'string', 'max:150'],
             'password' => ['nullable', 'string', 'min:4'],
             'role'     => ['required', 'string', Rule::in(['admin', 'it'])],
         ], [
-            'name.required' => 'กรุณากรอกชื่อผู้ใช้งาน',
-            'name.unique'   => 'ชื่อผู้ใช้งานนี้มีอยู่ในระบบแล้ว',
-            'email.required'=> 'กรุณากรอกอีเมล',
-            'email.email'   => 'รูปแบบอีเมลไม่ถูกต้อง',
-            'email.unique'  => 'อีเมลนี้ถูกใช้งานแล้ว',
-            'password.min'  => 'รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร',
-            'role.required' => 'กรุณาเลือกระดับสิทธิ์ (Role)',
-            'role.in'       => 'ระดับสิทธิ์ต้องเป็น admin หรือ it เท่านั้น',
+            'name.required'     => 'กรุณากรอกชื่อผู้ใช้งาน',
+            'name.unique'       => 'ชื่อผู้ใช้งานนี้มีอยู่ในระบบแล้ว',
+            'fullname.required' => 'กรุณากรอกชื่อ-สกุล',
+            'password.min'      => 'รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร',
+            'role.required'     => 'กรุณาเลือกระดับสิทธิ์ (Role)',
+            'role.in'           => 'ระดับสิทธิ์ต้องเป็น admin หรือ it เท่านั้น',
         ]);
 
         // ป้องกันไม่ให้ปลด role ตัวเอง หากเหลือ admin เพียงคนเดียว
@@ -118,10 +119,14 @@ class UserController extends Controller
             }
         }
 
+        $username = trim($validated['name']);
+        $email = !empty($request->email) ? strtolower(trim($request->email)) : ($user->email ?: (strtolower($username) . '@csh.local'));
+
         $data = [
-            'name'  => trim($validated['name']),
-            'email' => strtolower(trim($validated['email'])),
-            'role'  => $validated['role'],
+            'name'     => $username,
+            'fullname' => trim($validated['fullname']),
+            'email'    => $email,
+            'role'     => $validated['role'],
         ];
 
         if (!empty($validated['password'])) {
@@ -133,7 +138,7 @@ class UserController extends Controller
         if ($request->wantsJson()) {
             return response()->json([
                 'success' => true,
-                'message' => "อัปเดตข้อมูลผู้ใช้งาน '{$user->name}' สำเร็จ",
+                'message' => "อัปเดตข้อมูลผู้ใช้งาน '{$user->fullname}' สำเร็จ",
                 'user'    => $user,
             ]);
         }
@@ -188,3 +193,4 @@ class UserController extends Controller
             ->with('success', "ลบผู้ใช้งาน '{$name}' สำเร็จ");
     }
 }
+

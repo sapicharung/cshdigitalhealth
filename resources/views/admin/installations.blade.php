@@ -2150,7 +2150,7 @@
             <div class="user-menu">
                 <div class="user-badge">
                     <span class="material-symbols-Outlined" style="font-size: 20px; color: var(--primary);">account_circle</span>
-                    <span>{{ Auth::user()->name ?? 'ผู้ใช้งาน' }}</span>
+                    <span>{{ Auth::user()->fullname ?: (Auth::user()->name ?? 'ผู้ใช้งาน') }}</span>
                     @if(Auth::user()->isAdmin())
                         <span style="font-size: 0.7rem; padding: 2px 7px; background: #FEE2E2; color: #DC2626; border-radius: 9999px; font-weight: 700;">ADMIN</span>
                     @else
