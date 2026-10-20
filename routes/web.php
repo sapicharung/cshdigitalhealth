@@ -49,42 +49,56 @@ Route::get('/download-autosync-installer', [AppInstallationController::class, 'd
 Route::get('/download-uninstaller', [AppInstallationController::class, 'downloadUninstaller'])->name('download.uninstaller');
 Route::get('/download-url-shortcut', [AppInstallationController::class, 'downloadUrlShortcut'])->name('download.url.shortcut');
 
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\RiskSoftwareRuleController;
+
 // 4. เข้าสู่ระบบผู้ดูแลระบบ (Admin Authentication)
 Route::get('/admin/login', [AdminAuthController::class, 'showLogin'])->name('login');
 Route::post('/admin/login', [AdminAuthController::class, 'login'])->name('login.post');
 
 // 5. ระบบตรวจสอบการติดตั้งสำหรับผู้ดูแล (Admin Tracking Dashboard - Protected)
 Route::middleware('auth')->prefix('admin')->group(function () {
+    // เส้นทางที่ทั้ง Admin และ IT เข้าถึงได้ (Common)
     Route::get('/installations', [AppInstallationController::class, 'index'])->name('admin.installations');
-    Route::put('/installations/{id}', [AppInstallationController::class, 'update'])->name('admin.installations.update');
-    Route::post('/installations/{id}/reset', [AppInstallationController::class, 'reset'])->name('admin.installations.reset');
-    Route::post('/installations/reset-all', [AppInstallationController::class, 'resetAll'])->name('admin.installations.reset-all');
-    Route::post('/installations/clear-offline', [AppInstallationController::class, 'clearOffline'])->name('admin.installations.clear-offline');
-    Route::post('/installations/{id}/trigger-update', [AppInstallationController::class, 'triggerUpdate'])->name('admin.installations.trigger-update');
-    Route::post('/installations/{id}/cancel-update', [AppInstallationController::class, 'cancelUpdate'])->name('admin.installations.cancel-update');
-    Route::post('/installations/{id}/complete-update', [AppInstallationController::class, 'completeUpdate'])->name('admin.installations.complete-update');
-    Route::post('/installations/clear-pending', [AppInstallationController::class, 'clearAllPending'])->name('admin.installations.clear-pending');
-    Route::post('/installations/trigger-update-all', [AppInstallationController::class, 'triggerUpdateAll'])->name('admin.installations.trigger-update-all');
-    Route::post('/installations/{id}/refresh', [AppInstallationController::class, 'refreshDevice'])->name('admin.installations.refresh');
-    Route::post('/installations/{id}/resync-specs', [AppInstallationController::class, 'resyncSpecs'])->name('admin.installations.resync-specs');
-    Route::post('/installations/{id}/resync-risk', [AppInstallationController::class, 'resyncRisk'])->name('admin.installations.resync-risk');
-    Route::post('/installations/resync-all-specs', [AppInstallationController::class, 'resyncAllSpecs'])->name('admin.installations.resync-all-specs');
-    Route::post('/installations/check-status', [AppInstallationController::class, 'checkLiveStatus'])->name('admin.installations.check-status');
-    Route::delete('/installations/{id}', [AppInstallationController::class, 'destroy'])->name('admin.installations.destroy');
-    Route::post('/installations/server-git-pull', [AppInstallationController::class, 'serverGitPull'])->name('admin.installations.git-pull');
     Route::get('/installations/export', [AppInstallationController::class, 'exportCsv'])->name('admin.installations.export');
     Route::get('/installations/{id}/vnc', [AppInstallationController::class, 'downloadVnc'])->name('admin.installations.vnc');
     Route::get('/installations/{id}/rdp', [AppInstallationController::class, 'downloadRdp'])->name('admin.installations.rdp');
-    
-    // จัดการโปรแกรมเสี่ยง (Risk Software Rules Management)
-    Route::get('/risk-rules', [\App\Http\Controllers\RiskSoftwareRuleController::class, 'index'])->name('admin.risk-rules.index');
-    Route::post('/risk-rules', [\App\Http\Controllers\RiskSoftwareRuleController::class, 'store'])->name('admin.risk-rules.store');
-    Route::put('/risk-rules/{id}', [\App\Http\Controllers\RiskSoftwareRuleController::class, 'update'])->name('admin.risk-rules.update');
-    Route::post('/risk-rules/{id}/toggle', [\App\Http\Controllers\RiskSoftwareRuleController::class, 'toggleActive'])->name('admin.risk-rules.toggle');
-    Route::delete('/risk-rules/{id}', [\App\Http\Controllers\RiskSoftwareRuleController::class, 'destroy'])->name('admin.risk-rules.destroy');
-    Route::get('/api/risk-rules/active', [\App\Http\Controllers\RiskSoftwareRuleController::class, 'getActiveRulesJson'])->name('admin.risk-rules.active-json');
-
+    Route::post('/installations/check-status', [AppInstallationController::class, 'checkLiveStatus'])->name('admin.installations.check-status');
     Route::post('/logout', [AdminAuthController::class, 'logout'])->name('admin.logout');
+
+    // เส้นทางเฉพาะผู้ดูแลระบบระดับ Admin เท่านั้น (Admin Only)
+    Route::middleware('admin')->group(function () {
+        // จัดการผู้ใช้งาน (User Management CRUD)
+        Route::get('/users', [UserController::class, 'index'])->name('admin.users.index');
+        Route::post('/users', [UserController::class, 'store'])->name('admin.users.store');
+        Route::put('/users/{id}', [UserController::class, 'update'])->name('admin.users.update');
+        Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('admin.users.destroy');
+
+        // จัดการโปรแกรมเสี่ยง (Risk Software Rules Management)
+        Route::get('/risk-rules', [RiskSoftwareRuleController::class, 'index'])->name('admin.risk-rules.index');
+        Route::post('/risk-rules', [RiskSoftwareRuleController::class, 'store'])->name('admin.risk-rules.store');
+        Route::put('/risk-rules/{id}', [RiskSoftwareRuleController::class, 'update'])->name('admin.risk-rules.update');
+        Route::post('/risk-rules/{id}/toggle', [RiskSoftwareRuleController::class, 'toggleActive'])->name('admin.risk-rules.toggle');
+        Route::delete('/risk-rules/{id}', [RiskSoftwareRuleController::class, 'destroy'])->name('admin.risk-rules.destroy');
+        Route::get('/api/risk-rules/active', [RiskSoftwareRuleController::class, 'getActiveRulesJson'])->name('admin.risk-rules.active-json');
+
+        // ฟังก์ชันจัดการเครื่องลูกข่ายและการบำรุงรักษา
+        Route::put('/installations/{id}', [AppInstallationController::class, 'update'])->name('admin.installations.update');
+        Route::post('/installations/{id}/reset', [AppInstallationController::class, 'reset'])->name('admin.installations.reset');
+        Route::post('/installations/reset-all', [AppInstallationController::class, 'resetAll'])->name('admin.installations.reset-all');
+        Route::post('/installations/clear-offline', [AppInstallationController::class, 'clearOffline'])->name('admin.installations.clear-offline');
+        Route::post('/installations/{id}/trigger-update', [AppInstallationController::class, 'triggerUpdate'])->name('admin.installations.trigger-update');
+        Route::post('/installations/{id}/cancel-update', [AppInstallationController::class, 'cancelUpdate'])->name('admin.installations.cancel-update');
+        Route::post('/installations/{id}/complete-update', [AppInstallationController::class, 'completeUpdate'])->name('admin.installations.complete-update');
+        Route::post('/installations/clear-pending', [AppInstallationController::class, 'clearAllPending'])->name('admin.installations.clear-pending');
+        Route::post('/installations/trigger-update-all', [AppInstallationController::class, 'triggerUpdateAll'])->name('admin.installations.trigger-update-all');
+        Route::post('/installations/{id}/refresh', [AppInstallationController::class, 'refreshDevice'])->name('admin.installations.refresh');
+        Route::post('/installations/{id}/resync-specs', [AppInstallationController::class, 'resyncSpecs'])->name('admin.installations.resync-specs');
+        Route::post('/installations/{id}/resync-risk', [AppInstallationController::class, 'resyncRisk'])->name('admin.installations.resync-risk');
+        Route::post('/installations/resync-all-specs', [AppInstallationController::class, 'resyncAllSpecs'])->name('admin.installations.resync-all-specs');
+        Route::delete('/installations/{id}', [AppInstallationController::class, 'destroy'])->name('admin.installations.destroy');
+        Route::post('/installations/server-git-pull', [AppInstallationController::class, 'serverGitPull'])->name('admin.installations.git-pull');
+    });
 });
 
 // API สาธารณะสำหรับเครื่องลูกดึงกติกาตรวจสอบโปรแกรมเสี่ยง

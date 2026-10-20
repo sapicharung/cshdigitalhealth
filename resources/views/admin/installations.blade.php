@@ -2130,20 +2130,32 @@
                 <span>เปิดหน้าหลักเว็บ</span>
             </a>
 
-            <a href="{{ route('admin.risk-rules.index') }}" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; background: #FFF1F2; color: #BE123C; border: 1px solid #FECDD3; border-radius: 10px; font-size: 0.85rem; font-weight: 600; text-decoration: none; transition: all 0.2s;" title="จัดการเงื่อนไขตรวจสอบโปรแกรมเสี่ยง เพิ่ม/ลบ/แก้ไข">
-                <span class="material-symbols-Outlined" style="font-size: 18px; color: #E11D48;">shield_lock</span>
-                <span>จัดการโปรแกรมเสี่ยง</span>
-            </a>
+            @if(Auth::user()->isAdmin())
+                <a href="{{ route('admin.users.index') }}" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; border-radius: 10px; font-size: 0.85rem; font-weight: 600; text-decoration: none; transition: all 0.2s;" title="จัดการผู้ใช้งานระบบ เพิ่ม/ลบ/แก้ไข (Admin & IT)">
+                    <span class="material-symbols-Outlined" style="font-size: 18px; color: #4F46E5;">manage_accounts</span>
+                    <span>จัดการผู้ใช้งาน</span>
+                </a>
 
-            <button type="button" class="btn-sync-server" onclick="triggerServerGitPull(this)" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; background: #EEF2FF; color: #4F46E5; border: 1px solid #C7D2FE; border-radius: 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s;" title="ดึงโค้ดล่าสุดจาก GitHub และล้างแคชบนเซิร์ฟเวอร์">
-                <span class="material-symbols-Outlined" style="font-size: 18px;">sync</span>
-                <span>อัปเดตเซิร์ฟเวอร์ (Git Pull)</span>
-            </button>
+                <a href="{{ route('admin.risk-rules.index') }}" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; background: #FFF1F2; color: #BE123C; border: 1px solid #FECDD3; border-radius: 10px; font-size: 0.85rem; font-weight: 600; text-decoration: none; transition: all 0.2s;" title="จัดการเงื่อนไขตรวจสอบโปรแกรมเสี่ยง เพิ่ม/ลบ/แก้ไข">
+                    <span class="material-symbols-Outlined" style="font-size: 18px; color: #E11D48;">shield_lock</span>
+                    <span>จัดการโปรแกรมเสี่ยง</span>
+                </a>
+
+                <button type="button" class="btn-sync-server" onclick="triggerServerGitPull(this)" style="display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.5rem 0.85rem; background: #EEF2FF; color: #4F46E5; border: 1px solid #C7D2FE; border-radius: 10px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: all 0.2s;" title="ดึงโค้ดล่าสุดจาก GitHub และล้างแคชบนเซิร์ฟเวอร์">
+                    <span class="material-symbols-Outlined" style="font-size: 18px;">sync</span>
+                    <span>อัปเดตเซิร์ฟเวอร์ (Git Pull)</span>
+                </button>
+            @endif
 
             <div class="user-menu">
                 <div class="user-badge">
                     <span class="material-symbols-Outlined" style="font-size: 20px; color: var(--primary);">account_circle</span>
-                    <span>{{ Auth::user()->name ?? 'ผู้ดูแลระบบ' }}</span>
+                    <span>{{ Auth::user()->name ?? 'ผู้ใช้งาน' }}</span>
+                    @if(Auth::user()->isAdmin())
+                        <span style="font-size: 0.7rem; padding: 2px 7px; background: #FEE2E2; color: #DC2626; border-radius: 9999px; font-weight: 700;">ADMIN</span>
+                    @else
+                        <span style="font-size: 0.7rem; padding: 2px 7px; background: #E0E7FF; color: #4338CA; border-radius: 9999px; font-weight: 700;">IT</span>
+                    @endif
                 </div>
 
                 <form action="{{ route('admin.logout') }}" method="POST" style="margin: 0;">
@@ -2209,7 +2221,7 @@
                 </div>
             </div>
 
-            @if(!empty($stats['risk_count']) && $stats['risk_count'] > 0)
+            @if(Auth::user()->isAdmin() && !empty($stats['risk_count']) && $stats['risk_count'] > 0)
                 <div class="stat-card" style="border: 1px solid #FECACA; background: linear-gradient(135deg, #FEF2F2, #FFFFFF); cursor: pointer;" onclick="location.href='{{ route('admin.installations', ['status' => 'risk_only']) }}'" title="คลิกเพื่อกรองเฉพาะเครื่องที่พบโปรแกรมเสี่ยง">
                     <div class="stat-info">
                         <p style="color: #991B1B; font-weight: 700;">พบโปรแกรมเสี่ยง</p>
@@ -2245,7 +2257,9 @@
                         <option value="">-- ทุกสถานะ / ช่วงเวลา --</option>
                         <option value="online" {{ request('status') == 'online' ? 'selected' : '' }}>🟢 เฉพาะเครื่องออนไลน์</option>
                         <option value="offline" {{ request('status') == 'offline' ? 'selected' : '' }}>⚪ เฉพาะเครื่องออฟไลน์</option>
-                        <option value="risk_only" {{ request('status') == 'risk_only' ? 'selected' : '' }}>⚠️ ตรวจพบโปรแกรมเสี่ยง ({{ $stats['risk_count'] ?? 0 }})</option>
+                        @if(Auth::user()->isAdmin())
+                            <option value="risk_only" {{ request('status') == 'risk_only' ? 'selected' : '' }}>⚠️ ตรวจพบโปรแกรมเสี่ยง ({{ $stats['risk_count'] ?? 0 }})</option>
+                        @endif
                         <option value="today" {{ request('status') == 'today' ? 'selected' : '' }}>เปิดใช้งานวันนี้</option>
                         <option value="week" {{ request('status') == 'week' ? 'selected' : '' }}>7 วันล่าสุด</option>
                         <option value="installed_only" {{ request('status') == 'installed_only' ? 'selected' : '' }}>ติดตั้งไอคอนแล้ว</option>
@@ -2303,12 +2317,16 @@
                             <th style="width: 130px;">IP Address</th>
                             <th style="width: 85px; text-align: center;">รีโมท (VNC)</th>
                             <th style="width: 135px; text-align: center;">AnyDesk</th>
-                            <th style="width: 140px; text-align: center;">โปรแกรมเสี่ยง</th>
+                            @if(Auth::user()->isAdmin())
+                                <th style="width: 140px; text-align: center;">โปรแกรมเสี่ยง</th>
+                            @endif
                             <th style="width: 135px; text-align: center;">System Uptime</th>
                             <th style="width: 160px;">ชื่อเจ้าหน้าที่</th>
                             <th style="width: 95px; text-align: center;">เวอร์ชัน</th>
                             <th style="width: 130px;">หมายเหตุ</th>
-                            <th style="width: 145px; text-align: center;">จัดการ</th>
+                            @if(Auth::user()->isAdmin())
+                                <th style="width: 145px; text-align: center;">จัดการ</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody>
@@ -2387,23 +2405,25 @@
                                         <span class="spec-empty-compact" style="color: #94A3B8;">-</span>
                                     @endif
                                 </td>
-                                <td style="text-align: center;" id="cell-risk-{{ $item->id }}">
-                                    @if($item->has_risk_software && !empty($item->risk_software_list))
-                                        <div style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"
-                                             onclick="openDetailsModal({{ json_encode($item) }})" 
-                                             title="ตรวจพบโปรแกรมเสี่ยง: {{ $item->risk_software_list }} (คลิกเพื่อดูรายละเอียด)">
-                                            <span class="badge-risk-warning">
-                                                <span class="material-symbols-Outlined" style="font-size: 13px;">warning</span>
-                                                <span>{{ Str::limit($item->risk_software_list, 18) }}</span>
+                                @if(Auth::user()->isAdmin())
+                                    <td style="text-align: center;" id="cell-risk-{{ $item->id }}">
+                                        @if($item->has_risk_software && !empty($item->risk_software_list))
+                                            <div style="display: inline-flex; align-items: center; justify-content: center; cursor: pointer;"
+                                                 onclick="openDetailsModal({{ json_encode($item) }})" 
+                                                 title="ตรวจพบโปรแกรมเสี่ยง: {{ $item->risk_software_list }} (คลิกเพื่อดูรายละเอียด)">
+                                                <span class="badge-risk-warning">
+                                                    <span class="material-symbols-Outlined" style="font-size: 13px;">warning</span>
+                                                    <span>{{ Str::limit($item->risk_software_list, 18) }}</span>
+                                                </span>
+                                            </div>
+                                        @else
+                                            <span class="badge-risk-safe" title="ไม่พบโปรแกรมเสี่ยง (TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App, BlueStacks, BlueStacks X, Android Emulator)">
+                                                <span class="material-symbols-Outlined" style="font-size: 12px;">check_circle</span>
+                                                <span>ไม่พบ</span>
                                             </span>
-                                        </div>
-                                    @else
-                                        <span class="badge-risk-safe" title="ไม่พบโปรแกรมเสี่ยง (TeamViewer, Chrome Remote Desktop, UltraViewer, RustDesk, Windows App, BlueStacks, BlueStacks X, Android Emulator)">
-                                            <span class="material-symbols-Outlined" style="font-size: 12px;">check_circle</span>
-                                            <span>ไม่พบ</span>
-                                        </span>
-                                    @endif
-                                </td>
+                                        @endif
+                                    </td>
+                                @endif
                                 <td style="text-align: center;">
                                     @php
                                         $uptime = $item->dynamic_uptime ?: $item->uptime_text;
@@ -2457,36 +2477,38 @@
                                         @endif
                                     </div>
                                 </td>
-                                <td style="text-align: center;">
-                                    <div class="table-actions-cell">
-                                        <button type="button" class="btn-action-icon btn-action-refresh" 
-                                                onclick="refreshSingleDevice('{{ route('admin.installations.refresh', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}', this, {{ $item->id }})" 
-                                                title="รีเฟรชสถานะ / ตรวจสอบการเชื่อมต่อเครื่องนี้">
-                                            <span class="material-symbols-Outlined" style="font-size: 15px;">refresh</span>
-                                        </button>
-                                        <button type="button" class="btn-action-icon btn-action-resync" 
-                                                onclick="resyncSingleDevice('{{ route('admin.installations.resync-specs', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}', this, {{ $item->id }})" 
-                                                title="สั่งตรวจสอบสเปกเครื่องใหม่ (CPU, RAM, DISK, OS, Office)">
-                                            <span class="material-symbols-Outlined" style="font-size: 15px;">sync_saved_locally</span>
-                                        </button>
-                                        <button type="button" class="btn-action-icon btn-action-view" 
-                                                onclick="openDetailsModal({{ json_encode($item) }})" title="ดูรายละเอียดสเปก">
-                                            <span class="material-symbols-Outlined" style="font-size: 15px;">visibility</span>
-                                        </button>
-                                        <button type="button" class="btn-action-icon btn-action-edit" 
-                                                onclick="openEditModal({{ json_encode($item) }})" title="แก้ไขข้อมูล">
-                                            <span class="material-symbols-Outlined" style="font-size: 15px;">edit</span>
-                                        </button>
-                                        <button type="button" class="btn-action-icon btn-action-delete"
-                                                onclick="confirmDeleteRow('{{ route('admin.installations.destroy', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}')" title="ลบข้อมูลเครื่อง">
-                                            <span class="material-symbols-Outlined" style="font-size: 15px;">delete</span>
-                                        </button>
-                                    </div>
-                                </td>
+                                @if(Auth::user()->isAdmin())
+                                    <td style="text-align: center;">
+                                        <div class="table-actions-cell">
+                                            <button type="button" class="btn-action-icon btn-action-refresh" 
+                                                    onclick="refreshSingleDevice('{{ route('admin.installations.refresh', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}', this, {{ $item->id }})" 
+                                                    title="รีเฟรชสถานะ / ตรวจสอบการเชื่อมต่อเครื่องนี้">
+                                                <span class="material-symbols-Outlined" style="font-size: 15px;">refresh</span>
+                                            </button>
+                                            <button type="button" class="btn-action-icon btn-action-resync" 
+                                                    onclick="resyncSingleDevice('{{ route('admin.installations.resync-specs', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}', this, {{ $item->id }})" 
+                                                    title="สั่งตรวจสอบสเปกเครื่องใหม่ (CPU, RAM, DISK, OS, Office)">
+                                                <span class="material-symbols-Outlined" style="font-size: 15px;">sync_saved_locally</span>
+                                            </button>
+                                            <button type="button" class="btn-action-icon btn-action-view" 
+                                                    onclick="openDetailsModal({{ json_encode($item) }})" title="ดูรายละเอียดสเปก">
+                                                <span class="material-symbols-Outlined" style="font-size: 15px;">visibility</span>
+                                            </button>
+                                            <button type="button" class="btn-action-icon btn-action-edit" 
+                                                    onclick="openEditModal({{ json_encode($item) }})" title="แก้ไขข้อมูล">
+                                                <span class="material-symbols-Outlined" style="font-size: 15px;">edit</span>
+                                            </button>
+                                            <button type="button" class="btn-action-icon btn-action-delete"
+                                                    onclick="confirmDeleteRow('{{ route('admin.installations.destroy', $item->id) }}', '{{ addslashes($item->hostname ?: '') }}', '{{ $item->ip_address }}')" title="ลบข้อมูลเครื่อง">
+                                                <span class="material-symbols-Outlined" style="font-size: 15px;">delete</span>
+                                            </button>
+                                        </div>
+                                    </td>
+                                @endif
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="10">
+                                <td colspan="{{ Auth::user()->isAdmin() ? '12' : '10' }}">
                                     <div class="empty-state">
                                         <span class="material-symbols-Outlined">devices_off</span>
                                         <h3>ยังไม่มีข้อมูลการติดตั้งในระบบ</h3>
@@ -2690,21 +2712,23 @@
                                 </a>
                             </div>
                         </div>
-                        <div class="detail-item full-width" id="dtRiskSoftwareBox" style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 8px 12px; margin-top: 4px;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-                                <div style="flex: 1;">
-                                    <label style="color: #B45309; font-weight: 700; margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
-                                        <span class="material-symbols-Outlined" style="font-size: 16px;">security</span>
-                                        <span>การตรวจสอบโปรแกรมเสี่ยง (Risk Software Check)</span>
-                                    </label>
-                                    <div id="dtRiskSoftwareStatus" style="font-weight: 600; color: #92400E; font-size: 0.88rem;">-</div>
+                        @if(Auth::user()->isAdmin())
+                            <div class="detail-item full-width" id="dtRiskSoftwareBox" style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 8px; padding: 8px 12px; margin-top: 4px;">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                                    <div style="flex: 1;">
+                                        <label style="color: #B45309; font-weight: 700; margin-bottom: 3px; display: flex; align-items: center; gap: 4px;">
+                                            <span class="material-symbols-Outlined" style="font-size: 16px;">security</span>
+                                            <span>การตรวจสอบโปรแกรมเสี่ยง (Risk Software Check)</span>
+                                        </label>
+                                        <div id="dtRiskSoftwareStatus" style="font-weight: 600; color: #92400E; font-size: 0.88rem;">-</div>
+                                    </div>
+                                    <button type="button" id="btnResyncRiskRealtime" onclick="resyncRiskFromDetails(this)" title="สั่งตรวจสอบโปรแกรมเสี่ยงตามกฎปัจจุบันแบบเรียลไทม์ทันที" style="display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; background: #FFFFFF; border: 1px solid #CBD5E1; color: #334155; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.2s;">
+                                        <span class="material-symbols-Outlined" style="font-size: 15px; color: #0284C7;">sync</span>
+                                        <span>ตรวจสอบเรียลไทม์</span>
+                                    </button>
                                 </div>
-                                <button type="button" id="btnResyncRiskRealtime" onclick="resyncRiskFromDetails(this)" title="สั่งตรวจสอบโปรแกรมเสี่ยงตามกฎปัจจุบันแบบเรียลไทม์ทันที" style="display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; background: #FFFFFF; border: 1px solid #CBD5E1; color: #334155; border-radius: 6px; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: all 0.2s;">
-                                    <span class="material-symbols-Outlined" style="font-size: 15px; color: #0284C7;">sync</span>
-                                    <span>ตรวจสอบเรียลไทม์</span>
-                                </button>
                             </div>
-                        </div>
+                        @endif
                     </div>
                 </div>
 

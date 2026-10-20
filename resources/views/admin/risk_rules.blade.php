@@ -558,10 +558,23 @@
                 <span>กลับหน้ารายการเครื่องคอมพิวเตอร์</span>
             </a>
 
+            <a href="{{ route('admin.users.index') }}" class="btn-nav" title="จัดการผู้ใช้งานระบบ (Admin & IT)">
+                <span class="material-symbols-Outlined" style="color: #4F46E5;">manage_accounts</span>
+                <span>จัดการผู้ใช้งาน</span>
+            </a>
+
             <button type="button" class="btn-nav btn-primary" onclick="openAddModal()">
                 <span class="material-symbols-Outlined">add_circle</span>
                 <span>เพิ่มโปรแกรมเสี่ยงใหม่</span>
             </button>
+
+            @if(Auth::check())
+                <div class="user-badge" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; background: #F1F5F9; border-radius: 10px; font-size: 0.85rem; font-weight: 600; color: #334155;">
+                    <span class="material-symbols-Outlined" style="font-size: 18px; color: #DC2626;">account_circle</span>
+                    <span>{{ Auth::user()->name }}</span>
+                    <span style="font-size: 0.7rem; padding: 2px 7px; background: #FEE2E2; color: #DC2626; border-radius: 9999px; font-weight: 700;">ADMIN</span>
+                </div>
+            @endif
         </div>
     </header>
 
