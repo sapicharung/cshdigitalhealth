@@ -357,6 +357,7 @@
         .stat-icon.green { background: #D1FAE5; color: #059669; }
         .stat-icon.purple { background: #EDE9FE; color: #7C3AED; }
         .stat-icon.amber { background: #FEF3C7; color: #D97706; }
+        .stat-icon.slate { background: #F1F5F9; color: #64748B; }
 
         /* --- Alert Messages --- */
         .alert {
@@ -2297,7 +2298,7 @@
 
         <!-- Summary Statistics Cards -->
         <section class="stats-grid">
-            <div class="stat-card">
+            <div class="stat-card" onclick="location.href='{{ route('admin.installations') }}'" style="cursor: pointer;" title="คลิกเพื่อดูเครื่องทั้งหมด">
                 <div class="stat-info">
                     <p>เครื่องที่ลงทะเบียนทั้งหมด</p>
                     <h2>{{ number_format($stats['total_devices']) }}</h2>
@@ -2307,33 +2308,33 @@
                 </div>
             </div>
 
-            <div class="stat-card">
+            <div class="stat-card" onclick="location.href='{{ route('admin.installations', ['status' => 'online']) }}'" style="cursor: pointer;" title="คลิกเพื่อกรองเฉพาะเครื่องออนไลน์">
                 <div class="stat-info">
-                    <p>ติดตั้งเป็นไอคอน (App)</p>
-                    <h2>{{ number_format($stats['installed_count']) }}</h2>
+                    <p>ออนไลน์</p>
+                    <h2>{{ number_format($stats['online_count']) }}</h2>
                 </div>
                 <div class="stat-icon green">
-                    <span class="material-symbols-Outlined">install_desktop</span>
+                    <span class="material-symbols-Outlined">sensors</span>
                 </div>
             </div>
 
-            <div class="stat-card">
+            <div class="stat-card" onclick="location.href='{{ route('admin.installations', ['status' => 'offline']) }}'" style="cursor: pointer;" title="คลิกเพื่อกรองเฉพาะเครื่องออฟไลน์">
                 <div class="stat-info">
-                    <p>เปิดใช้งานวันนี้</p>
-                    <h2>{{ number_format($stats['active_today']) }}</h2>
+                    <p>ออฟไลน์</p>
+                    <h2>{{ number_format($stats['offline_count']) }}</h2>
                 </div>
-                <div class="stat-icon purple">
-                    <span class="material-symbols-Outlined">today</span>
+                <div class="stat-icon slate">
+                    <span class="material-symbols-Outlined">sensors_off</span>
                 </div>
             </div>
 
-            <div class="stat-card">
+            <div class="stat-card" onclick="location.href='{{ route('admin.installations', ['status' => 'missing_asset']) }}'" style="cursor: pointer;" title="คลิกเพื่อกรองเฉพาะเครื่องที่ไม่พบรหัสครุภัณฑ์">
                 <div class="stat-info">
-                    <p>จำนวน IP ภายใน รพ.</p>
-                    <h2>{{ number_format($stats['unique_ips']) }}</h2>
+                    <p>ไม่พบรหัสครุภัณฑ์</p>
+                    <h2>{{ number_format($stats['missing_asset_code_count']) }}</h2>
                 </div>
                 <div class="stat-icon amber">
-                    <span class="material-symbols-Outlined">hub</span>
+                    <span class="material-symbols-Outlined">qr_code_scanner</span>
                 </div>
             </div>
 
@@ -2371,8 +2372,9 @@
 
                     <select name="status" class="select-filter">
                         <option value="">-- ทุกสถานะ / ช่วงเวลา --</option>
-                        <option value="online" {{ request('status') == 'online' ? 'selected' : '' }}>🟢 เฉพาะเครื่องออนไลน์</option>
-                        <option value="offline" {{ request('status') == 'offline' ? 'selected' : '' }}>⚪ เฉพาะเครื่องออฟไลน์</option>
+                        <option value="online" {{ request('status') == 'online' ? 'selected' : '' }}>🟢 เฉพาะเครื่องออนไลน์ ({{ $stats['online_count'] ?? 0 }})</option>
+                        <option value="offline" {{ request('status') == 'offline' ? 'selected' : '' }}>⚪ เฉพาะเครื่องออฟไลน์ ({{ $stats['offline_count'] ?? 0 }})</option>
+                        <option value="missing_asset" {{ request('status') == 'missing_asset' ? 'selected' : '' }}>🏷️ ไม่พบรหัสครุภัณฑ์ ({{ $stats['missing_asset_code_count'] ?? 0 }})</option>
                         @if(Auth::user()->isAdmin())
                             <option value="risk_only" {{ request('status') == 'risk_only' ? 'selected' : '' }}>⚠️ ตรวจพบโปรแกรมเสี่ยง ({{ $stats['risk_count'] ?? 0 }})</option>
                         @endif

@@ -419,6 +419,11 @@ class AppInstallationController extends Controller
                   ->orWhere('last_active_at', '<', now()->subMinutes(15))
                   ->orWhereNull('last_active_at');
             });
+        } elseif ($request->input('status') === 'missing_asset') {
+            $query->where(function ($q) {
+                $q->whereNull('asset_code')
+                  ->orWhere('asset_code', '');
+            });
         } elseif ($request->input('status') === 'risk_only') {
             $query->where('has_risk_software', true);
         } elseif ($request->input('status') === 'today') {
@@ -438,16 +443,26 @@ class AppInstallationController extends Controller
         })->count();
 
         $stats = [
-            'total_devices'   => AppInstallation::count(),
-            'online_count'    => AppInstallation::where('is_online', true)->where('last_active_at', '>=', now()->subMinutes(15))->count(),
-            'installed_count' => AppInstallation::where('install_type', 'installed')->count(),
-            'active_today'    => AppInstallation::whereDate('last_active_at', today())->count(),
-            'active_7days'    => AppInstallation::where('last_active_at', '>=', now()->subDays(7))->count(),
-            'unique_ips'      => AppInstallation::distinct('ip_address')->count('ip_address'),
-            'risk_count'      => AppInstallation::where('has_risk_software', true)->count(),
-            'outdated_count'  => $outdatedCount,
-            'pending_count'   => AppInstallation::where('pending_update', true)->count(),
-            'server_version'  => $serverVersion,
+            'total_devices'            => AppInstallation::count(),
+            'online_count'             => AppInstallation::where('is_online', true)->where('last_active_at', '>=', now()->subMinutes(15))->count(),
+            'offline_count'            => AppInstallation::where(function ($q) {
+                $q->where('is_online', false)
+                  ->orWhereNull('is_online')
+                  ->orWhere('last_active_at', '<', now()->subMinutes(15))
+                  ->orWhereNull('last_active_at');
+            })->count(),
+            'missing_asset_code_count' => AppInstallation::where(function ($q) {
+                $q->whereNull('asset_code')
+                  ->orWhere('asset_code', '');
+            })->count(),
+            'installed_count'          => AppInstallation::where('install_type', 'installed')->count(),
+            'active_today'             => AppInstallation::whereDate('last_active_at', today())->count(),
+            'active_7days'             => AppInstallation::where('last_active_at', '>=', now()->subDays(7))->count(),
+            'unique_ips'               => AppInstallation::distinct('ip_address')->count('ip_address'),
+            'risk_count'               => AppInstallation::where('has_risk_software', true)->count(),
+            'outdated_count'           => $outdatedCount,
+            'pending_count'            => AppInstallation::where('pending_update', true)->count(),
+            'server_version'           => $serverVersion,
         ];
 
         // Unique departments for filter dropdown
