@@ -11,6 +11,7 @@ class AppInstallation extends Model
         'ip_address',
         'mac_address',
         'hostname',
+        'asset_code',
         'department',
         'device_name',
         'os',

@@ -2240,7 +2240,7 @@
                 <div class="filter-inputs">
                     <div class="search-box">
                         <span class="material-symbols-Outlined">search</span>
-                        <input type="text" name="search" placeholder="ค้นหา IP, สเปก, แผนก, เครื่อง..." 
+                        <input type="text" name="search" placeholder="ค้นหา IP, รหัสครุภัณฑ์, แผนก, ชื่อเครื่อง..." 
                                value="{{ request('search') }}">
                     </div>
 
@@ -2314,6 +2314,7 @@
                             <th style="width: 45px; text-align: center;">ลำดับ</th>
                             <th style="width: 75px; text-align: center;">สถานะ</th>
                             <th style="width: 150px;">ชื่อเครื่องคอมพิวเตอร์</th>
+                            <th style="width: 140px; text-align: center;">รหัสครุภัณฑ์(COM)</th>
                             <th style="width: 130px;">IP Address</th>
                             <th style="width: 85px; text-align: center;">รีโมท (VNC)</th>
                             <th style="width: 135px; text-align: center;">AnyDesk</th>
@@ -2350,6 +2351,15 @@
                                         <span class="material-symbols-Outlined host-icon">computer</span>
                                         <span class="host-name-text">{{ $item->hostname ?: '-' }}</span>
                                     </div>
+                                </td>
+                                <td style="text-align: center;">
+                                    @if($item->asset_code)
+                                        <span class="font-mono" style="display: inline-block; font-size: 0.8rem; font-weight: 600; color: #4338CA; background: #EEF2FF; padding: 2px 8px; border-radius: 6px; border: 1px solid #C7D2FE; cursor: pointer;" onclick="openEditModal({{ json_encode($item) }})" title="คลิกเพื่อแก้ไขรหัสครุภัณฑ์">
+                                            {{ $item->asset_code }}
+                                        </span>
+                                    @else
+                                        <span style="color: #94A3B8; font-size: 0.85rem; cursor: pointer;" onclick="openEditModal({{ json_encode($item) }})" title="คลิกเพื่อระบุรหัสครุภัณฑ์">-</span>
+                                    @endif
                                 </td>
                                 <td>
                                     @if($item->ip_address)
@@ -2508,7 +2518,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ Auth::user()->isAdmin() ? '12' : '10' }}">
+                                <td colspan="{{ Auth::user()->isAdmin() ? '13' : '11' }}">
                                     <div class="empty-state">
                                         <span class="material-symbols-Outlined">devices_off</span>
                                         <h3>ยังไม่มีข้อมูลการติดตั้งในระบบ</h3>
@@ -2580,6 +2590,11 @@
                         <button type="button" class="quick-dept-btn" onclick="setQuickDept('ศูนย์คอมพิวเตอร์/IT')">IT</button>
                         <button type="button" class="quick-dept-btn" onclick="setQuickDept('บริหารทั่วไป/การเงิน')">การเงิน</button>
                     </div>
+                </div>
+
+                <div class="modal-form-group">
+                    <label for="modalAssetCode">รหัสครุภัณฑ์ (COM)</label>
+                    <input type="text" id="modalAssetCode" name="asset_code" class="modal-input font-mono" placeholder="เช่น COM-67-0012, 7440-001-0001/65">
                 </div>
 
                 <div class="modal-form-group">
@@ -2680,6 +2695,10 @@
                         <div class="detail-item">
                             <label>ชื่อเครื่อง (Computer Name)</label>
                             <div id="dtCompName" class="detail-value" style="font-weight: 700; color: #0F172A;">-</div>
+                        </div>
+                        <div class="detail-item">
+                            <label>รหัสครุภัณฑ์ (COM)</label>
+                            <div id="dtAssetCode" class="detail-value font-mono" style="font-weight: 700; color: #4338CA;">-</div>
                         </div>
                         <div class="detail-item">
                             <label>ชื่อเจ้าหน้าที่ (ผู้ใช้งาน CSHOS)</label>
@@ -3156,6 +3175,10 @@
                 macEl.textContent = item.mac_address || 'ยังไม่มีข้อมูล MAC (จะบันทึกเมื่อเครื่องซิงก์รอบถัดไป)';
             }
             document.getElementById('dtCompName').textContent = item.hostname || '-';
+            const assetEl = document.getElementById('dtAssetCode');
+            if (assetEl) {
+                assetEl.textContent = item.asset_code || '-';
+            }
             const staffEl = document.getElementById('dtStaff');
             if (staffEl) {
                 if (item.staff_name) {
@@ -3365,6 +3388,7 @@
             
             form.action = "{{ url('/admin/installations') }}/" + item.id;
             document.getElementById('modalIpHost').value = (item.ip_address || '') + (item.hostname ? ' (' + item.hostname + ')' : '');
+            document.getElementById('modalAssetCode').value = item.asset_code || '';
             document.getElementById('modalDept').value = item.department || '';
             document.getElementById('modalDeviceName').value = item.device_name || '';
             document.getElementById('modalNotes').value = item.notes || '';

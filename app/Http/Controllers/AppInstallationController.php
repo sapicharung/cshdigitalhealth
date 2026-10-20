@@ -390,6 +390,7 @@ class AppInstallationController extends Controller
             $query->where(function ($q) use ($search, $matchedIps) {
                 $q->where('ip_address', 'like', "%{$search}%")
                   ->orWhere('hostname', 'like', "%{$search}%")
+                  ->orWhere('asset_code', 'like', "%{$search}%")
                   ->orWhere('department', 'like', "%{$search}%")
                   ->orWhere('device_name', 'like', "%{$search}%")
                   ->orWhere('device_id', 'like', "%{$search}%")
@@ -538,6 +539,7 @@ class AppInstallationController extends Controller
         $validated = $request->validate([
             'department'  => 'nullable|string|max:100',
             'device_name' => 'nullable|string|max:100',
+            'asset_code'  => 'nullable|string|max:100',
             'notes'       => 'nullable|string|max:500',
         ]);
 
@@ -1184,6 +1186,7 @@ class AppInstallationController extends Controller
                 'Device UUID',
                 'IP Address (LAN)',
                 'Hostname (ชื่อคอมพิวเตอร์)',
+                'รหัสครุภัณฑ์ (COM)',
                 'ชื่อเจ้าหน้าที่ (CSHOS / Staff Name)',
                 'แผนก/ฝ่าย (HOSxP)',
                 'ชื่อเครื่อง/เจ้าของ',
@@ -1223,6 +1226,7 @@ class AppInstallationController extends Controller
                         $item->device_id,
                         $item->ip_address,
                         $item->hostname ?? '-',
+                        $item->asset_code ?: '-',
                         $staffName,
                         $hosDept,
                         $item->device_name ?? '-',
