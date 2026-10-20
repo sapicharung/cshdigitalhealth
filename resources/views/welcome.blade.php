@@ -867,10 +867,6 @@
                 </div>
             </a>
             <div class="nav-actions">
-                <button id="btnInstallApp" class="btn-install-app" onclick="installPWA()" title="คลิกเพื่อติดตั้งไอคอน CSHOS STAFF บนหน้าจอ Desktop">
-                    <span class="material-symbols-outlined" style="font-size: 19px;">install_desktop</span>
-                    <span>ติดตั้งไอคอน CSHOS STAFF</span>
-                </button>
                 <div class="client-ip-badge" onclick="copyClientIp()">
                     <span class="material-symbols-outlined ip-icon">devices</span>
                     <span class="ip-label">IP:</span>
