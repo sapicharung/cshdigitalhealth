@@ -6,13 +6,14 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>จัดการผู้ใช้งานระบบ - CSHOS STAFF INFO</title>
     
-    <!-- Google Fonts: Sarabun & Inter -->
+    <link rel="icon" type="image/png" href="{{ asset('favicon.png') }}">
+    <!-- Google Fonts: Prompt & Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
     <!-- Material Symbols -->
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
 
     <style>
         :root {
@@ -39,16 +40,36 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Sarabun', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
         }
 
         body {
+            font-family: 'Prompt', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background-color: var(--bg-main);
             color: var(--text-dark);
             min-height: 100vh;
             display: flex;
             flex-direction: column;
             overflow-x: hidden;
+            line-height: 1.55;
+        }
+
+        .material-symbols-outlined,
+        .material-symbols-Outlined {
+            font-family: 'Material Symbols Outlined' !important;
+            font-weight: normal;
+            font-style: normal;
+            font-size: 20px;
+            line-height: 1;
+            letter-spacing: normal;
+            text-transform: none !important;
+            display: inline-block;
+            white-space: nowrap;
+            word-wrap: normal;
+            direction: ltr;
+            -webkit-font-feature-settings: 'liga';
+            font-feature-settings: 'liga';
+            -webkit-font-smoothing: antialiased;
+            vertical-align: middle;
         }
 
         /* --- Header Navbar (Full Screen) --- */
@@ -80,8 +101,12 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
             box-shadow: 0 4px 12px rgba(79, 70, 229, 0.3);
+            flex-shrink: 0;
+        }
+
+        .brand-icon .material-symbols-Outlined {
+            font-size: 24px !important;
         }
 
         .brand-text h1 {
@@ -164,12 +189,14 @@
         }
 
         .role-pill {
-            font-size: 0.7rem;
-            padding: 2px 7px;
+            font-size: 0.72rem;
+            padding: 2px 8px;
             border-radius: 9999px;
             font-weight: 700;
-            text-transform: uppercase;
             letter-spacing: 0.03em;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
         }
 
         .role-pill-admin {
@@ -246,8 +273,11 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 26px;
             flex-shrink: 0;
+        }
+
+        .stat-icon .material-symbols-Outlined {
+            font-size: 26px !important;
         }
 
         .stat-icon-all {
@@ -320,7 +350,8 @@
             top: 50%;
             transform: translateY(-50%);
             color: #94A3B8;
-            font-size: 20px;
+            font-size: 20px !important;
+            pointer-events: none;
         }
 
         .search-box input {
@@ -1318,3 +1349,4 @@
     </script>
 </body>
 </html>
+
