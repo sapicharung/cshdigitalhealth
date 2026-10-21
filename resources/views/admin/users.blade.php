@@ -1106,9 +1106,9 @@
                                             <span>ระบบส่งตรวจแอลกอฮอล์, ส่งออก Excel</span>
                                         </span>
                                     @else
-                                        <span style="font-size: 0.78rem; color: #64748B; display: inline-flex; align-items: center; gap: 4px;" title="ดูเครื่องลูกข่าย, สเปก, VNC, AnyDesk (ไม่เห็นโปรแกรมเสี่ยง, ไม่เห็นปุ่มจัดการหลัก)">
-                                            <span class="material-symbols-Outlined" style="font-size: 15px; color: #0284C7;">visibility</span>
-                                            <span>ตรวจเครื่อง & สเปก (ตัดโปรแกรมเสี่ยง/จัดการ)</span>
+                                        <span style="font-size: 0.78rem; color: #64748B; display: inline-flex; align-items: center; gap: 4px;" title="ดูเครื่องลูกข่าย, สเปก, VNC, AnyDesk, แก้ไขข้อมูลเครื่อง (ตัดโปรแกรมเสี่ยงและปุ่มดูแลหลัก)">
+                                            <span class="material-symbols-Outlined" style="font-size: 15px; color: #0284C7;">edit_note</span>
+                                            <span>ตรวจเครื่อง, สเปก & แก้ไขข้อมูล</span>
                                         </span>
                                     @endif
                                 </td>
@@ -1221,7 +1221,7 @@
                                     <span>IT</span>
                                 </div>
                                 <div class="role-card-desc">
-                                    เจ้าหน้าที่ไอที ดูเครื่องลูกข่าย, สเปก, รีโมท VNC/AnyDesk (ตัดโปรแกรมเสี่ยงและจัดการ)
+                                    เจ้าหน้าที่ไอที ดูเครื่องลูกข่าย, สเปก, รีโมท VNC/AnyDesk และแก้ไขข้อมูลเครื่อง (ตัดโปรแกรมเสี่ยงและลบเครื่อง)
                                 </div>
                             </div>
 

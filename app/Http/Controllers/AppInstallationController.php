@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AppInstallation;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -570,6 +571,10 @@ class AppInstallationController extends Controller
      */
     public function update(Request $request, $id)
     {
+        if (!Auth::check() || (!Auth::user()->isAdmin() && !Auth::user()->isIt())) {
+            abort(403, 'คุณไม่มีสิทธิ์แก้ไขข้อมูลส่วนนี้');
+        }
+
         $installation = AppInstallation::findOrFail($id);
 
         $validated = $request->validate([

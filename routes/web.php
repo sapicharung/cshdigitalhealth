@@ -60,6 +60,7 @@ Route::post('/admin/login', [AdminAuthController::class, 'login'])->name('login.
 Route::middleware('auth')->prefix('admin')->group(function () {
     // เส้นทางที่ทั้ง Admin และ IT เข้าถึงได้ (Common)
     Route::get('/installations', [AppInstallationController::class, 'index'])->name('admin.installations');
+    Route::put('/installations/{id}', [AppInstallationController::class, 'update'])->name('admin.installations.update');
     Route::get('/installations/export', [AppInstallationController::class, 'exportCsv'])->name('admin.installations.export');
     Route::get('/installations/{id}/vnc', [AppInstallationController::class, 'downloadVnc'])->name('admin.installations.vnc');
     Route::get('/installations/{id}/rdp', [AppInstallationController::class, 'downloadRdp'])->name('admin.installations.rdp');
@@ -83,7 +84,6 @@ Route::middleware('auth')->prefix('admin')->group(function () {
         Route::get('/api/risk-rules/active', [RiskSoftwareRuleController::class, 'getActiveRulesJson'])->name('admin.risk-rules.active-json');
 
         // ฟังก์ชันจัดการเครื่องลูกข่ายและการบำรุงรักษา
-        Route::put('/installations/{id}', [AppInstallationController::class, 'update'])->name('admin.installations.update');
         Route::post('/installations/{id}/reset', [AppInstallationController::class, 'reset'])->name('admin.installations.reset');
         Route::post('/installations/reset-all', [AppInstallationController::class, 'resetAll'])->name('admin.installations.reset-all');
         Route::post('/installations/clear-offline', [AppInstallationController::class, 'clearOffline'])->name('admin.installations.clear-offline');

@@ -2520,8 +2520,8 @@
                                     <span class="material-symbols-Outlined sort-icon">unfold_more</span>
                                 </div>
                             </th>
-                            @if(Auth::user()->isAdmin())
-                                <th style="width: 135px; text-align: center;">จัดการ</th>
+                            @if(Auth::user()->isAdmin() || Auth::user()->isIt())
+                                <th style="width: {{ Auth::user()->isAdmin() ? '135px' : '75px' }}; text-align: center;">จัดการ</th>
                             @endif
                         </tr>
                     </thead>
@@ -2714,11 +2714,24 @@
                                             </button>
                                         </div>
                                     </td>
+                                @elseif(Auth::user()->isIt())
+                                    <td style="text-align: center;">
+                                        <div class="table-actions-cell" style="justify-content: center;">
+                                            <button type="button" class="btn-action-icon btn-action-view" 
+                                                    onclick="openDetailsModal({{ json_encode($item) }})" title="ดูรายละเอียดสเปก">
+                                                <span class="material-symbols-Outlined" style="font-size: 15px;">visibility</span>
+                                            </button>
+                                            <button type="button" class="btn-action-icon btn-action-edit" 
+                                                    onclick="openEditModal({{ json_encode($item) }})" title="แก้ไขข้อมูลเครื่องคอมพิวเตอร์">
+                                                <span class="material-symbols-Outlined" style="font-size: 15px;">edit</span>
+                                            </button>
+                                        </div>
+                                    </td>
                                 @endif
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ Auth::user()->isAdmin() ? '14' : '12' }}">
+                                <td colspan="{{ Auth::user()->isAdmin() ? '14' : (Auth::user()->isIt() ? '13' : '12') }}">
                                     <div class="empty-state">
                                         <span class="material-symbols-Outlined">devices_off</span>
                                         <h3>ยังไม่มีข้อมูลการติดตั้งในระบบ</h3>
