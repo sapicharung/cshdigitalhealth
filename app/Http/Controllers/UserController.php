@@ -36,6 +36,7 @@ class UserController extends Controller
             'total' => User::count(),
             'admin' => User::where('role', 'admin')->count(),
             'it'    => User::where('role', 'it')->count(),
+            'staff' => User::where('role', 'staff')->count(),
         ];
 
         return view('admin.users', compact('users', 'stats'));
@@ -50,7 +51,7 @@ class UserController extends Controller
             'name'     => ['required', 'string', 'max:100', 'unique:users,name'],
             'fullname' => ['required', 'string', 'max:150'],
             'password' => ['required', 'string', 'min:4'],
-            'role'     => ['required', 'string', Rule::in(['admin', 'it'])],
+            'role'     => ['required', 'string', Rule::in(['admin', 'it', 'staff'])],
         ], [
             'name.required'     => 'กรุณากรอกชื่อผู้ใช้งาน',
             'name.unique'       => 'ชื่อผู้ใช้งานนี้มีอยู่ในระบบแล้ว',
@@ -58,7 +59,7 @@ class UserController extends Controller
             'password.required' => 'กรุณากรอกรหัสผ่าน',
             'password.min'      => 'รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร',
             'role.required'     => 'กรุณาเลือกระดับสิทธิ์ (Role)',
-            'role.in'           => 'ระดับสิทธิ์ต้องเป็น admin หรือ it เท่านั้น',
+            'role.in'           => 'ระดับสิทธิ์ต้องเป็น admin, it หรือ staff เท่านั้น',
         ]);
 
         $username = trim($validated['name']);
@@ -95,14 +96,14 @@ class UserController extends Controller
             'name'     => ['required', 'string', 'max:100', Rule::unique('users', 'name')->ignore($user->id)],
             'fullname' => ['required', 'string', 'max:150'],
             'password' => ['nullable', 'string', 'min:4'],
-            'role'     => ['required', 'string', Rule::in(['admin', 'it'])],
+            'role'     => ['required', 'string', Rule::in(['admin', 'it', 'staff'])],
         ], [
             'name.required'     => 'กรุณากรอกชื่อผู้ใช้งาน',
             'name.unique'       => 'ชื่อผู้ใช้งานนี้มีอยู่ในระบบแล้ว',
             'fullname.required' => 'กรุณากรอกชื่อ-สกุล',
             'password.min'      => 'รหัสผ่านต้องมีความยาวอย่างน้อย 4 ตัวอักษร',
             'role.required'     => 'กรุณาเลือกระดับสิทธิ์ (Role)',
-            'role.in'           => 'ระดับสิทธิ์ต้องเป็น admin หรือ it เท่านั้น',
+            'role.in'           => 'ระดับสิทธิ์ต้องเป็น admin, it หรือ staff เท่านั้น',
         ]);
 
         // ป้องกันไม่ให้ปลด role ตัวเอง หากเหลือ admin เพียงคนเดียว

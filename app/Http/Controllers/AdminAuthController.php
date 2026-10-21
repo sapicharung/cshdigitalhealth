@@ -13,6 +13,9 @@ class AdminAuthController extends Controller
     public function showLogin()
     {
         if (Auth::check()) {
+            if (Auth::user()->isStaff()) {
+                return redirect()->route('blood-alc.index');
+            }
             return redirect()->route('admin.installations');
         }
 
@@ -41,7 +44,8 @@ class AdminAuthController extends Controller
 
         if (Auth::attempt($authData, $remember)) {
             $request->session()->regenerate();
-            return redirect()->intended(route('admin.installations'))
+            $defaultRoute = Auth::user()->isStaff() ? route('blood-alc.index') : route('admin.installations');
+            return redirect()->intended($defaultRoute)
                 ->with('success', 'เข้าสู่ระบบสำเร็จ');
         }
 

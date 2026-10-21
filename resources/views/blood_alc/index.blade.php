@@ -62,7 +62,7 @@
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             border-bottom: 1px solid var(--border-color);
-            padding: 0.75rem 3%;
+            padding: 0.75rem 1.5rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -155,12 +155,12 @@
             transform: translateY(-1px);
         }
 
-        /* --- Main Container --- */
+        /* --- Main Container (Full Screen) --- */
         .main-content {
-            padding: 1.8rem 3% 3rem;
-            max-width: 1600px;
-            margin: 0 auto;
+            padding: 1.1rem 1.5rem 2.5rem;
+            max-width: 100%;
             width: 100%;
+            margin: 0;
             flex: 1;
         }
 
@@ -348,7 +348,8 @@
 
         .table-responsive {
             overflow-x: auto;
-            max-height: 70vh;
+            max-height: calc(100vh - 270px);
+            min-height: 420px;
         }
 
         table.sheet-table {
@@ -357,7 +358,7 @@
             border-spacing: 0;
             font-size: 0.88rem;
             text-align: left;
-            min-width: 1350px;
+            min-width: 1420px;
         }
 
         table.sheet-table th {
@@ -372,6 +373,73 @@
             z-index: 10;
             white-space: nowrap;
             letter-spacing: 0.01em;
+        }
+
+        /* --- Sortable Table Headers --- */
+        th.th-sortable {
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+
+        th.th-sortable:hover {
+            background: #eff6ff !important;
+            color: #1d4ed8 !important;
+        }
+
+        th.th-sortable .th-content {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+        }
+
+        th.th-sortable .sort-icon {
+            font-size: 15px;
+            color: #94a3b8;
+            transition: color 0.15s ease;
+            vertical-align: middle;
+            user-select: none;
+        }
+
+        th.th-sortable:hover .sort-icon {
+            color: #2563eb;
+        }
+
+        th.th-sortable.sorted-desc,
+        th.th-sortable.sorted-asc {
+            background: #eef2ff !important;
+            color: #3730a3 !important;
+        }
+
+        th.th-sortable.sorted-desc .sort-icon,
+        th.th-sortable.sorted-asc .sort-icon {
+            color: #4f46e5 !important;
+        }
+
+        .toast-sort {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1e293b;
+            color: #ffffff;
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+            z-index: 9999;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.2s ease, transform 0.2s ease;
+        }
+
+        .toast-sort.show {
+            opacity: 1;
+            transform: translateY(0);
         }
 
         table.sheet-table td {
@@ -770,10 +838,50 @@
                 <span class="material-symbols-outlined" style="font-size: 18px;">arrow_back</span>
                 หน้าหลัก CSH
             </a>
-            {{-- <a href="{{ route('blood-alc.export', request()->query()) }}" class="btn btn-outline">
-                <span class="material-symbols-outlined" style="font-size: 18px; color: #16a34a;">table_view</span>
-                ส่งออก Excel (CSV)
-            </a> --}}
+
+            @auth
+                <a href="{{ route('blood-alc.export', request()->query()) }}" class="btn btn-success" title="ส่งออกข้อมูลเป็นไฟล์ Excel (.csv)">
+                    <span class="material-symbols-outlined" style="font-size: 18px;">table_view</span>
+                    <span>ส่งออก Excel</span>
+                </a>
+
+                <div class="user-pill-badge" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: #F1F5F9; border-radius: 50px; font-size: 0.82rem; border: 1px solid var(--border-color);">
+                    <span class="material-symbols-outlined" style="font-size: 18px; color: var(--primary);">account_circle</span>
+                    <span style="font-weight: 600; color: #1E293B;">{{ Auth::user()->name }}</span>
+                    @if(Auth::user()->isAdmin())
+                        <span style="font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: #FEE2E2; color: #DC2626;">ADMIN</span>
+                    @elseif(Auth::user()->isIt())
+                        <span style="font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: #E0E7FF; color: #4338CA;">IT</span>
+                    @else
+                        <span style="font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; background: #DCFCE7; color: #15803D;">STAFF</span>
+                    @endif
+                </div>
+
+                @if(Auth::user()->isAdmin() || Auth::user()->isIt())
+                    <a href="{{ route('admin.installations') }}" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.82rem;" title="ไปที่ระบบจัดการแอดมิน">
+                        <span class="material-symbols-outlined" style="font-size: 16px; color: var(--primary);">dashboard</span>
+                        <span>แอดมิน</span>
+                    </a>
+                @endif
+
+                <form action="{{ route('admin.logout') }}" method="POST" style="display: inline;">
+                    @csrf
+                    <button type="submit" class="btn btn-outline" style="padding: 6px 12px; font-size: 0.82rem;" title="ออกจากระบบ">
+                        <span class="material-symbols-outlined" style="font-size: 16px; color: #EF4444;">logout</span>
+                        <span>ออก</span>
+                    </button>
+                </form>
+            @else
+                <a href="{{ route('login', ['redirect' => route('blood-alc.export', request()->query())]) }}" class="btn btn-outline" title="ต้องเข้าสู่ระบบก่อน จึงจะสามารถส่งออกข้อมูล Excel ได้" style="color: #059669; border-color: #A7F3D0; background: #F0FDF4;">
+                    <span class="material-symbols-outlined" style="font-size: 18px; color: #059669;">lock</span>
+                    <span>ส่งออก Excel (เข้าสู่ระบบ)</span>
+                </a>
+                <a href="{{ route('login') }}" class="btn btn-outline" style="padding: 6px 14px; font-size: 0.82rem;">
+                    <span class="material-symbols-outlined" style="font-size: 16px; color: #4F46E5;">login</span>
+                    <span>เข้าสู่ระบบ</span>
+                </a>
+            @endauth
+
             <button class="btn btn-primary" onclick="openAddModal()">
                 <span class="material-symbols-outlined" style="font-size: 18px;">add_circle</span>
                 บันทึกรายการส่งตรวจ
@@ -788,6 +896,18 @@
             <div class="alert-banner">
                 <span class="material-symbols-outlined" style="font-size: 20px;">check_circle</span>
                 <span>{{ session('success') }}</span>
+            </div>
+        @endif
+        @if(session('error'))
+            <div class="alert-banner" style="background: #FEF2F2; border-color: #FECACA; color: #991B1B;">
+                <span class="material-symbols-outlined" style="font-size: 20px; color: #DC2626;">error</span>
+                <span>{{ session('error') }}</span>
+            </div>
+        @endif
+        @if(session('warning'))
+            <div class="alert-banner" style="background: #FFFBEB; border-color: #FDE68A; color: #92400E;">
+                <span class="material-symbols-outlined" style="font-size: 20px; color: #D97706;">warning</span>
+                <span>{{ session('warning') }}</span>
             </div>
         @endif
 
@@ -923,17 +1043,67 @@
                 <table class="sheet-table">
                     <thead>
                         <tr>
-                            <th style="width: 50px; text-align: center;">ลำดับ</th>
-                            <th style="width: 120px; text-align: center;">วันที่ตรวจ</th>
-                            <th style="width: 95px;">HN / ตัวอย่าง</th>
-                            <th style="width: 140px;">สถานีตำรวจที่ส่งตรวจ</th>
-                            <th style="min-width: 240px;">ตำรวจผู้ร้องขอ / โทร</th>
+                            <th class="th-sortable" onclick="sortTable(this, 'number')" style="width: 65px; text-align: center;" title="คลิกเพื่อเรียงลำดับ">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">ลำดับ</span>
+                                    <span class="material-symbols-outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable sorted-desc" onclick="sortTable(this, 'date')" style="width: 130px; text-align: center;" title="คลิกเพื่อเรียงตามวันที่ตรวจ (มากไปน้อย / น้อยไปมาก)">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">วันที่ตรวจ</span>
+                                    <span class="material-symbols-outlined sort-icon">arrow_downward</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'text')" style="width: 105px;" title="คลิกเพื่อเรียงตาม HN">
+                                <div class="th-content">
+                                    <span class="th-label">HN / ตัวอย่าง</span>
+                                    <span class="material-symbols-outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'text')" style="width: 140px;" title="คลิกเพื่อเรียงตามสถานีตำรวจ">
+                                <div class="th-content">
+                                    <span class="th-label">สถานีตำรวจที่ส่งตรวจ</span>
+                                    <span class="material-symbols-outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'text')" style="min-width: 240px;" title="คลิกเพื่อเรียงตามตำรวจผู้ร้องขอ">
+                                <div class="th-content">
+                                    <span class="th-label">ตำรวจผู้ร้องขอ / โทร</span>
+                                    <span class="material-symbols-outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
                             <th style="width: 150px; text-align: center;">เอกสารประกอบ</th>
-                            <th style="width: 110px;">วันที่ส่งตรวจ</th>
-                            <th style="width: 110px;">วันที่ออกผล HosXP</th>
-                            <th style="width: 110px; text-align: center;">สถานะเบิกจ่าย</th>
-                            <th style="width: 130px;">วันที่เบิกจ่าย</th>
-                            <th style="width: 100px;">วันที่ได้รับเงิน</th>
+                            <th class="th-sortable" onclick="sortTable(this, 'date_th')" style="width: 110px;" title="คลิกเพื่อเรียงตามวันที่ส่งตรวจ">
+                                <div class="th-content">
+                                    <span class="th-label">วันที่ส่งตรวจ</span>
+                                    <span class="material-symbols-outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'date_th')" style="width: 110px;" title="คลิกเพื่อเรียงตามวันที่ออกผล HosXP">
+                                <div class="th-content">
+                                    <span class="th-label">วันที่ออกผล HosXP</span>
+                                    <span class="material-symbols-outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'text')" style="width: 110px; text-align: center;" title="คลิกเพื่อเรียงตามสถานะเบิกจ่าย">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">สถานะเบิกจ่าย</span>
+                                    <span class="material-symbols-outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'date_th')" style="width: 130px;" title="คลิกเพื่อเรียงตามวันที่เบิกจ่าย">
+                                <div class="th-content">
+                                    <span class="th-label">วันที่เบิกจ่าย</span>
+                                    <span class="material-symbols-outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
+                            <th class="th-sortable" onclick="sortTable(this, 'date_th')" style="width: 110px;" title="คลิกเพื่อเรียงตามวันที่ได้รับเงิน">
+                                <div class="th-content">
+                                    <span class="th-label">วันที่ได้รับเงิน</span>
+                                    <span class="material-symbols-outlined sort-icon">unfold_more</span>
+                                </div>
+                            </th>
                             <th style="min-width: 150px;">หมายเหตุ</th>
                             <th style="width: 90px; text-align: center; position: sticky; right: 0; background: #f8fafc; z-index: 15;">จัดการ</th>
                         </tr>
@@ -944,23 +1114,23 @@
                                 $isCancelled = str_contains($r->claim_status ?? '', 'ยกเลิก') || str_contains($r->lab_send_date ?? '', 'ยกเลิก');
                             @endphp
                             <tr class="{{ $isCancelled ? 'row-cancelled' : '' }}">
-                                <td style="text-align: center; font-weight: 600; color: #475569;">
+                                <td data-sort-value="{{ $r->order_no ?? $r->id }}" style="text-align: center; font-weight: 600; color: #475569;">
                                     {{ $r->order_no ?? $r->id }}
                                 </td>
-                                <td style="text-align: center; font-weight: 600; color: #1e293b; font-family: monospace, inherit; font-size: 0.9rem;">
+                                <td data-sort-value="{{ $r->test_date ? $r->test_date->format('Y-m-d') : '' }}" style="text-align: center; font-weight: 600; color: #1e293b; font-family: monospace, inherit; font-size: 0.9rem;">
                                     {{ $r->formatted_test_date }}
                                 </td>
-                                <td>
+                                <td data-sort-value="{{ $r->hn ?? '' }}">
                                     <span style="font-family: monospace; font-size: 0.88rem; font-weight: 600; color: #0284c7;">
                                         {{ $r->hn ?? '-' }}
                                     </span>
                                 </td>
-                                <td>
+                                <td data-sort-value="{{ $r->police_station ?? '' }}">
                                     <span class="badge badge-info">
                                         {{ $r->police_station ?? 'ไม่ระบุ' }}
                                     </span>
                                 </td>
-                                <td style="white-space: nowrap;">
+                                <td data-sort-value="{{ $r->police_officer ?? '' }}" style="white-space: nowrap;">
                                     @if($r->police_officer)
                                         <div style="font-weight: 500; white-space: nowrap;">{{ $r->police_officer }}</div>
                                     @endif
@@ -987,9 +1157,9 @@
                                         </span>
                                     </div>
                                 </td>
-                                <td>{{ $r->lab_send_date ?? '-' }}</td>
-                                <td>{{ $r->hosxp_result_date ?? '-' }}</td>
-                                <td style="text-align: center;">
+                                <td data-sort-value="{{ $r->lab_send_date ?? '' }}">{{ $r->lab_send_date ?? '-' }}</td>
+                                <td data-sort-value="{{ $r->hosxp_result_date ?? '' }}">{{ $r->hosxp_result_date ?? '-' }}</td>
+                                <td data-sort-value="{{ $r->claim_status ?? 'รอส่งเบิก' }}" style="text-align: center;">
                                     @if($r->claim_status === 'เบิกจ่ายแล้ว')
                                         <span class="badge badge-success">
                                             <span class="material-symbols-outlined" style="font-size: 14px;">check_circle</span>
@@ -1008,10 +1178,10 @@
                                         <span class="badge badge-warning">รอส่งเบิก</span>
                                     @endif
                                 </td>
-                                <td>
+                                <td data-sort-value="{{ $r->claim_date ?? '' }}">
                                     <small>{{ $r->claim_date ?? '-' }}</small>
                                 </td>
-                                <td>
+                                <td data-sort-value="{{ $r->payment_received_date ?? '' }}">
                                     @if($r->payment_received_date)
                                         <strong style="color: #15803d;">{{ $r->payment_received_date }}</strong>
                                     @else
@@ -1885,6 +2055,118 @@
             if (event.target === addModal) closeAddModal();
             if (event.target === editModal) closeEditModal();
             if (event.target === delModal) closeDeleteModal();
+        }
+
+        // --- Table Column Sorting ---
+        let currentSortTh = document.querySelector('th.th-sortable.sorted-desc');
+        let currentSortDir = 'desc';
+
+        function showSortToast(msg) {
+            let toast = document.getElementById('toastSort');
+            if (!toast) {
+                toast = document.createElement('div');
+                toast.id = 'toastSort';
+                toast.className = 'toast-sort';
+                document.body.appendChild(toast);
+            }
+            toast.innerHTML = `<span class="material-symbols-outlined" style="font-size: 18px; color: #38bdf8;">sort</span><span>${msg}</span>`;
+            toast.classList.add('show');
+            clearTimeout(window.__sortToastTimer);
+            window.__sortToastTimer = setTimeout(() => {
+                toast.classList.remove('show');
+            }, 2200);
+        }
+
+        function parseThaiDateToIso(str) {
+            if (!str) return '';
+            str = str.trim();
+            const m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (m) {
+                const d = m[1].padStart(2, '0');
+                const mo = m[2].padStart(2, '0');
+                let yr = parseInt(m[3], 10);
+                if (yr > 2400) yr -= 543;
+                return `${yr}-${mo}-${d}`;
+            }
+            return str;
+        }
+
+        function sortTable(th, type) {
+            if (!th) return;
+            const table = th.closest('table');
+            if (!table) return;
+            const tbody = table.querySelector('tbody');
+            if (!tbody) return;
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            if (rows.length <= 1) return;
+            if (rows[0].querySelector('td[colspan]')) return;
+
+            const colIndex = Array.from(th.parentNode.children).indexOf(th);
+            if (colIndex < 0) return;
+
+            let dir = 'desc';
+            if (currentSortTh === th) {
+                dir = (currentSortDir === 'desc') ? 'asc' : 'desc';
+            }
+            currentSortTh = th;
+            currentSortDir = dir;
+
+            const allThs = th.parentNode.querySelectorAll('th');
+            allThs.forEach(item => {
+                item.classList.remove('sorted-asc', 'sorted-desc');
+                const icon = item.querySelector('.sort-icon');
+                if (icon) {
+                    if (item === th) {
+                        item.classList.add(dir === 'desc' ? 'sorted-desc' : 'sorted-asc');
+                        icon.textContent = dir === 'desc' ? 'arrow_downward' : 'arrow_upward';
+                    } else {
+                        icon.textContent = 'unfold_more';
+                    }
+                }
+            });
+
+            rows.sort((rowA, rowB) => {
+                const cellA = rowA.children[colIndex];
+                const cellB = rowB.children[colIndex];
+                if (!cellA || !cellB) return 0;
+
+                let valA = cellA.getAttribute('data-sort-value');
+                let valB = cellB.getAttribute('data-sort-value');
+
+                if (valA === null) valA = cellA.innerText.trim();
+                if (valB === null) valB = cellB.innerText.trim();
+
+                if (type === 'number') {
+                    const numA = parseFloat(valA) || 0;
+                    const numB = parseFloat(valB) || 0;
+                    return dir === 'desc' ? (numB - numA) : (numA - numB);
+                } else if (type === 'date') {
+                    const strA = (valA || '').toString();
+                    const strB = (valB || '').toString();
+                    if (!strA && strB) return 1;
+                    if (strA && !strB) return -1;
+                    return dir === 'desc' ? strB.localeCompare(strA) : strA.localeCompare(strB);
+                } else if (type === 'date_th') {
+                    const isoA = parseThaiDateToIso(valA);
+                    const isoB = parseThaiDateToIso(valB);
+                    if (!isoA && isoB) return 1;
+                    if (isoA && !isoB) return -1;
+                    return dir === 'desc' ? isoB.localeCompare(isoA) : isoA.localeCompare(isoB);
+                } else {
+                    const strA = (valA || '').toString();
+                    const strB = (valB || '').toString();
+                    if (!strA && strB) return 1;
+                    if (strA && !strB) return -1;
+                    const res = strA.localeCompare(strB, 'th', { numeric: true, sensitivity: 'base' });
+                    return dir === 'desc' ? -res : res;
+                }
+            });
+
+            rows.forEach(row => tbody.appendChild(row));
+
+            const thTitle = th.querySelector('.th-label')?.textContent?.trim() || 'คอลัมน์';
+            const dirLabel = dir === 'desc' ? 'มากไปน้อย ↓' : 'น้อยไปมาก ↑';
+            showSortToast(`เรียงตาม "${thTitle}" (${dirLabel})`);
         }
     </script>
 </body>

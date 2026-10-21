@@ -61,6 +61,14 @@ class User extends Authenticatable
      */
     public function isIt(): bool
     {
-        return ($this->role ?? 'it') === 'it';
+        return ($this->role ?? '') === 'it';
+    }
+
+    /**
+     * Check if the user is general Staff.
+     */
+    public function isStaff(): bool
+    {
+        return ($this->role ?? '') === 'staff';
     }
 }

@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\BloodAlcRecord;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BloodAlcController extends Controller
@@ -81,8 +82,8 @@ class BloodAlcController extends Controller
             ->distinct()
             ->pluck('police_station');
 
-        // Records list
-        $records = $query->orderByRaw('order_no IS NULL, order_no ASC, id ASC')
+        // Records list (เรียงจากวันที่มากไปน้อย)
+        $records = $query->orderByRaw('test_date IS NULL, test_date DESC, order_no DESC, id DESC')
                          ->paginate(50)
                          ->withQueryString();
 
@@ -280,6 +281,11 @@ class BloodAlcController extends Controller
      */
     public function export(Request $request)
     {
+        if (!Auth::check()) {
+            return redirect()->guest(route('login'))
+                ->with('error', 'กรุณาเข้าสู่ระบบก่อนทำการดาวน์โหลด/ส่งออกข้อมูล Excel');
+        }
+
         $query = BloodAlcRecord::query();
 
         if ($request->filled('search')) {
@@ -309,7 +315,7 @@ class BloodAlcController extends Controller
             $query->where('police_station', $request->police_station);
         }
 
-        $records = $query->orderByRaw('order_no IS NULL, order_no ASC, id ASC')->get();
+        $records = $query->orderByRaw('test_date IS NULL, test_date DESC, order_no DESC, id DESC')->get();
 
         $headers = [
             'Content-Type'        => 'text/csv; charset=UTF-8',

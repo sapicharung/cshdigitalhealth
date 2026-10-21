@@ -108,7 +108,9 @@ Route::get('/api/client/risk-rules', [\App\Http\Controllers\RiskSoftwareRuleCont
 Route::prefix('blood-alc')->group(function () {
     Route::get('/', [BloodAlcController::class, 'index'])->name('blood-alc.index');
     Route::post('/', [BloodAlcController::class, 'store'])->name('blood-alc.store');
-    Route::get('/export', [BloodAlcController::class, 'export'])->name('blood-alc.export');
+    Route::get('/export', [BloodAlcController::class, 'export'])
+        ->middleware('auth')
+        ->name('blood-alc.export');
     Route::get('/lookup-patient', [BloodAlcController::class, 'lookupPatient'])->name('blood-alc.lookup-patient');
     Route::get('/{id}', [BloodAlcController::class, 'show'])->name('blood-alc.show');
     Route::put('/{id}', [BloodAlcController::class, 'update'])->name('blood-alc.update');

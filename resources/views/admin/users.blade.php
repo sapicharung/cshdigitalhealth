@@ -211,6 +211,12 @@
             border: 1px solid #C7D2FE;
         }
 
+        .role-pill-staff {
+            background: #DCFCE7;
+            color: #15803D;
+            border: 1px solid #BBF7D0;
+        }
+
         .btn-logout {
             display: inline-flex;
             align-items: center;
@@ -293,6 +299,11 @@
         .stat-icon-it {
             background: #E0F2FE;
             color: #0284C7;
+        }
+
+        .stat-icon-staff {
+            background: #DCFCE7;
+            color: #15803D;
         }
 
         .stat-content {
@@ -505,6 +516,12 @@
             background: #FEE2E2;
             color: #DC2626;
             border-color: #FECACA;
+        }
+
+        .user-avatar-staff {
+            background: #DCFCE7;
+            color: #15803D;
+            border-color: #BBF7D0;
         }
 
         .user-email-text {
@@ -728,8 +745,14 @@
 
         .role-cards-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(3, 1fr);
             gap: 0.75rem;
+        }
+
+        @media (max-width: 680px) {
+            .role-cards-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         .role-card-option {
@@ -972,6 +995,16 @@
                     <div class="stat-label">เจ้าหน้าที่ฝ่ายไอที (IT Staff)</div>
                 </div>
             </div>
+
+            <div class="stat-card">
+                <div class="stat-icon stat-icon-staff">
+                    <span class="material-symbols-Outlined">badge</span>
+                </div>
+                <div class="stat-content">
+                    <div class="stat-value" style="color: #15803D;">{{ number_format($stats['staff'] ?? 0) }}</div>
+                    <div class="stat-label">เจ้าหน้าที่ทั่วไป (Staff)</div>
+                </div>
+            </div>
         </section>
 
         <!-- Search & Filter Card -->
@@ -986,6 +1019,7 @@
                     <option value="">-- ทุกระดับสิทธิ์ (All Roles) --</option>
                     <option value="admin" {{ request('role') === 'admin' ? 'selected' : '' }}>👑 ผู้ดูแลระบบ (Admin)</option>
                     <option value="it" {{ request('role') === 'it' ? 'selected' : '' }}>💻 เจ้าหน้าที่ไอที (IT)</option>
+                    <option value="staff" {{ request('role') === 'staff' ? 'selected' : '' }}>📋 เจ้าหน้าที่ทั่วไป (Staff)</option>
                 </select>
 
                 <button type="submit" class="btn-filter">
@@ -1025,7 +1059,7 @@
                                 </td>
                                 <td>
                                     <div class="user-name-cell">
-                                        <div class="user-avatar {{ $user->role === 'admin' ? 'user-avatar-admin' : '' }}">
+                                        <div class="user-avatar {{ $user->role === 'admin' ? 'user-avatar-admin' : ($user->role === 'staff' ? 'user-avatar-staff' : '') }}">
                                             {{ strtoupper(substr($user->name, 0, 1)) }}
                                         </div>
                                         <div>
@@ -1048,6 +1082,11 @@
                                             <span class="material-symbols-Outlined" style="font-size: 13px;">admin_panel_settings</span>
                                             <span>Admin</span>
                                         </span>
+                                    @elseif($user->role === 'staff')
+                                        <span class="role-pill role-pill-staff" style="display: inline-flex; align-items: center; gap: 3px;">
+                                            <span class="material-symbols-Outlined" style="font-size: 13px;">badge</span>
+                                            <span>Staff</span>
+                                        </span>
                                     @else
                                         <span class="role-pill role-pill-it" style="display: inline-flex; align-items: center; gap: 3px;">
                                             <span class="material-symbols-Outlined" style="font-size: 13px;">engineering</span>
@@ -1060,6 +1099,11 @@
                                         <span style="font-size: 0.8rem; color: #047857; display: inline-flex; align-items: center; gap: 4px;">
                                             <span class="material-symbols-Outlined" style="font-size: 15px;">check_circle</span>
                                             <span>สิทธิ์เต็มทุกฟังก์ชันระบบ</span>
+                                        </span>
+                                    @elseif($user->role === 'staff')
+                                        <span style="font-size: 0.78rem; color: #15803D; display: inline-flex; align-items: center; gap: 4px;" title="ระบบส่งตรวจแอลกอฮอล์ (blood-alc), ส่งออกข้อมูล Excel">
+                                            <span class="material-symbols-Outlined" style="font-size: 15px; color: #15803D;">verified_user</span>
+                                            <span>ระบบส่งตรวจแอลกอฮอล์, ส่งออก Excel</span>
                                         </span>
                                     @else
                                         <span style="font-size: 0.78rem; color: #64748B; display: inline-flex; align-items: center; gap: 4px;" title="ดูเครื่องลูกข่าย, สเปก, VNC, AnyDesk (ไม่เห็นโปรแกรมเสี่ยง, ไม่เห็นปุ่มจัดการหลัก)">
@@ -1180,6 +1224,18 @@
                                     เจ้าหน้าที่ไอที ดูเครื่องลูกข่าย, สเปก, รีโมท VNC/AnyDesk (ตัดโปรแกรมเสี่ยงและจัดการ)
                                 </div>
                             </div>
+
+                            <!-- Staff Card -->
+                            <div class="role-card-option" id="roleCardStaff" onclick="selectRole('staff')">
+                                <input type="radio" name="role" id="roleStaff" value="staff" required>
+                                <div class="role-card-header" style="color: #15803D;">
+                                    <span class="material-symbols-Outlined" style="font-size: 18px;">badge</span>
+                                    <span>STAFF</span>
+                                </div>
+                                <div class="role-card-desc">
+                                    เจ้าหน้าที่ทั่วไป ใช้งานระบบส่งตรวจแอลกอฮอล์ในเลือด และสิทธิ์ส่งออกข้อมูล Excel
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1227,17 +1283,24 @@
         function selectRole(role) {
             const adminRadio = document.getElementById('roleAdmin');
             const itRadio = document.getElementById('roleIt');
+            const staffRadio = document.getElementById('roleStaff');
             const adminCard = document.getElementById('roleCardAdmin');
             const itCard = document.getElementById('roleCardIt');
+            const staffCard = document.getElementById('roleCardStaff');
+
+            [adminCard, itCard, staffCard].forEach(c => {
+                if (c) c.classList.remove('selected');
+            });
 
             if (role === 'admin') {
-                adminRadio.checked = true;
-                adminCard.classList.add('selected');
-                itCard.classList.remove('selected');
+                if (adminRadio) adminRadio.checked = true;
+                if (adminCard) adminCard.classList.add('selected');
+            } else if (role === 'staff') {
+                if (staffRadio) staffRadio.checked = true;
+                if (staffCard) staffCard.classList.add('selected');
             } else {
-                itRadio.checked = true;
-                itCard.classList.add('selected');
-                adminCard.classList.remove('selected');
+                if (itRadio) itRadio.checked = true;
+                if (itCard) itCard.classList.add('selected');
             }
         }
 
