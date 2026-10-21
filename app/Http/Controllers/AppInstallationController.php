@@ -567,6 +567,315 @@ class AppInstallationController extends Controller
     }
 
     /**
+     * Display client hardware specifications page (Admin & IT).
+     */
+    public function specs(Request $request)
+    {
+        $this->deduplicateRecords();
+
+        $query = AppInstallation::query();
+
+        // Search Keyword
+        if ($request->filled('search')) {
+            $search = trim($request->input('search'));
+            $query->where(function ($q) use ($search) {
+                $q->where('hostname', 'like', "%{$search}%")
+                  ->orWhere('ip_address', 'like', "%{$search}%")
+                  ->orWhere('asset_code', 'like', "%{$search}%")
+                  ->orWhere('department', 'like', "%{$search}%")
+                  ->orWhere('device_name', 'like', "%{$search}%")
+                  ->orWhere('cpu', 'like', "%{$search}%")
+                  ->orWhere('ram', 'like', "%{$search}%")
+                  ->orWhere('disk', 'like', "%{$search}%")
+                  ->orWhere('os_version', 'like', "%{$search}%")
+                  ->orWhere('os', 'like', "%{$search}%")
+                  ->orWhere('office_version', 'like', "%{$search}%")
+                  ->orWhere('mac_address', 'like', "%{$search}%")
+                  ->orWhere('notes', 'like', "%{$search}%");
+            });
+        }
+
+        // Filter by Department
+        if ($request->filled('department')) {
+            $query->where('department', $request->input('department'));
+        }
+
+        // Filter by RAM
+        if ($request->filled('ram')) {
+            $ram = $request->input('ram');
+            if ($ram === '4') {
+                $query->where(function ($q) {
+                    $q->where('ram', 'like', '4 GB%')->orWhere('ram', 'like', '3.%GB%');
+                });
+            } elseif ($ram === '8') {
+                $query->where(function ($q) {
+                    $q->where('ram', 'like', '8 GB%')->orWhere('ram', 'like', '7.%GB%');
+                });
+            } elseif ($ram === '16') {
+                $query->where(function ($q) {
+                    $q->where('ram', 'like', '16 GB%')->orWhere('ram', 'like', '15.%GB%');
+                });
+            } elseif ($ram === '32+') {
+                $query->where(function ($q) {
+                    $q->where('ram', 'like', '32 GB%')->orWhere('ram', 'like', '64 GB%');
+                });
+            } elseif ($ram === 'low') {
+                $query->where(function ($q) {
+                    $q->where('ram', 'like', '4 GB%')
+                      ->orWhere('ram', 'like', '2 GB%')
+                      ->orWhere('ram', 'like', '3.%GB%');
+                });
+            }
+        }
+
+        // Filter by Storage Type (SSD vs HDD)
+        if ($request->filled('disk_type')) {
+            $dt = $request->input('disk_type');
+            if ($dt === 'nvme') {
+                $query->where('disk', 'like', '%NVMe%');
+            } elseif ($dt === 'ssd') {
+                $query->where('disk', 'like', '%SSD%');
+            } elseif ($dt === 'hdd') {
+                $query->where('disk', 'like', '%HDD%')->where('disk', 'not like', '%SSD%');
+            }
+        }
+
+        // Filter by OS
+        if ($request->filled('os')) {
+            $osFilter = $request->input('os');
+            if ($osFilter === 'win11') {
+                $query->where(function ($q) {
+                    $q->where('os', 'like', '%Windows 11%')->orWhere('os_version', 'like', '%Windows 11%');
+                });
+            } elseif ($osFilter === 'win10') {
+                $query->where(function ($q) {
+                    $q->where('os', 'like', '%Windows 10%')->orWhere('os_version', 'like', '%Windows 10%');
+                });
+            } elseif ($osFilter === 'other') {
+                $query->where('os', 'not like', '%Windows 10%')
+                      ->where('os', 'not like', '%Windows 11%');
+            }
+        }
+
+        // Filter by Office
+        if ($request->filled('office')) {
+            $off = $request->input('office');
+            if ($off === 'installed') {
+                $query->whereNotNull('office_version')
+                      ->where('office_version', '!=', '')
+                      ->where('office_version', 'not like', '%Not Installed%')
+                      ->where('office_version', 'not like', '%ไม่ได้ติดตั้ง%');
+            } elseif ($off === 'not_installed') {
+                $query->where(function ($q) {
+                    $q->whereNull('office_version')
+                      ->orWhere('office_version', '')
+                      ->orWhere('office_version', 'like', '%Not Installed%')
+                      ->orWhere('office_version', 'like', '%ไม่ได้ติดตั้ง%');
+                });
+            } else {
+                $query->where('office_version', 'like', "%{$off}%");
+            }
+        }
+
+        // Filter by Online status
+        if ($request->input('status') === 'online') {
+            $query->where('is_online', true)->where('last_active_at', '>=', now()->subMinutes(15));
+        } elseif ($request->input('status') === 'offline') {
+            $query->where(function ($q) {
+                $q->where('is_online', false)
+                  ->orWhereNull('is_online')
+                  ->orWhere('last_active_at', '<', now()->subMinutes(15))
+                  ->orWhereNull('last_active_at');
+            });
+        }
+
+        // Hardware Summary Statistics
+        $totalDevices = AppInstallation::count();
+        $ssdCount = AppInstallation::where('disk', 'like', '%SSD%')->count();
+        $hddOnlyCount = AppInstallation::where('disk', 'like', '%HDD%')->where('disk', 'not like', '%SSD%')->count();
+        $win11Count = AppInstallation::where(function($q) {
+            $q->where('os', 'like', '%Windows 11%')->orWhere('os_version', 'like', '%Windows 11%');
+        })->count();
+        $win10Count = AppInstallation::where(function($q) {
+            $q->where('os', 'like', '%Windows 10%')->orWhere('os_version', 'like', '%Windows 10%');
+        })->count();
+        $ram8PlusCount = AppInstallation::where(function($q) {
+            $q->where('ram', 'like', '8 GB%')
+              ->orWhere('ram', 'like', '16 GB%')
+              ->orWhere('ram', 'like', '32 GB%')
+              ->orWhere('ram', 'like', '64 GB%');
+        })->count();
+        $ramLowCount = AppInstallation::where(function($q) {
+            $q->where('ram', 'like', '4 GB%')
+              ->orWhere('ram', 'like', '2 GB%')
+              ->orWhere('ram', 'like', '3.%GB%');
+        })->count();
+        $officeInstalledCount = AppInstallation::whereNotNull('office_version')
+            ->where('office_version', '!=', '')
+            ->where('office_version', 'not like', '%Not Installed%')
+            ->where('office_version', 'not like', '%ไม่ได้ติดตั้ง%')
+            ->count();
+
+        $stats = [
+            'total_devices'          => $totalDevices,
+            'ssd_count'              => $ssdCount,
+            'hdd_only_count'         => $hddOnlyCount,
+            'win11_count'            => $win11Count,
+            'win10_count'            => $win10Count,
+            'ram_8plus_count'        => $ram8PlusCount,
+            'ram_low_count'          => $ramLowCount,
+            'office_installed_count' => $officeInstalledCount,
+        ];
+
+        // Dropdown distinct values
+        $departments = AppInstallation::whereNotNull('department')
+            ->where('department', '!=', '')
+            ->distinct()
+            ->orderBy('department')
+            ->pluck('department');
+
+        // Sorting
+        $sortCol = $request->input('sort', 'last_active');
+        $sortDir = strtolower($request->input('dir', 'desc')) === 'asc' ? 'asc' : 'desc';
+        $sortMap = [
+            'hostname'    => 'hostname',
+            'department'  => 'department',
+            'asset_code'  => 'asset_code',
+            'ip'          => 'ip_address',
+            'cpu'         => 'cpu',
+            'ram'         => 'ram',
+            'disk'        => 'disk',
+            'os'          => 'os_version',
+            'office'      => 'office_version',
+            'last_active' => 'last_active_at',
+        ];
+
+        if (isset($sortMap[$sortCol])) {
+            $query->orderBy($sortMap[$sortCol], $sortDir);
+        } else {
+            $query->orderBy('last_active_at', 'desc');
+        }
+
+        // Paginate 25 items per page
+        $installations = $query->paginate(25)->withQueryString();
+
+        // Staff map
+        $ipList = $installations->pluck('ip_address')->filter()->unique()->values()->toArray();
+        $staffMap = $this->getStaffMapByIps($ipList);
+
+        foreach ($installations as $item) {
+            $item->computed_online = (bool) ($item->is_online && $item->last_active_at && $item->last_active_at->diffInMinutes(now()) <= 15);
+            if (isset($staffMap[$item->ip_address])) {
+                $info = $staffMap[$item->ip_address];
+                $item->staff_name = $info->staff_name ?: null;
+                $item->staff_login = $info->kskloginname ?: null;
+                $item->hos_dept = $info->hos_dept ?: null;
+            } else {
+                $item->staff_name = null;
+                $item->staff_login = null;
+                $item->hos_dept = null;
+            }
+        }
+
+        $vnc_password = $this->getVncPassword();
+        $serverVersion = $this->getClientAppVersion();
+
+        return view('admin.specs', compact(
+            'installations',
+            'stats',
+            'departments',
+            'vnc_password',
+            'serverVersion'
+        ));
+    }
+
+    /**
+     * Export hardware specs as CSV (Excel compatible with UTF-8 BOM).
+     */
+    public function exportSpecsCsv(Request $request)
+    {
+        $filename = 'cshos-hardware-specs-' . date('Y-m-d-His') . '.csv';
+
+        $response = new StreamedResponse(function () use ($request) {
+            $handle = fopen('php://output', 'w');
+
+            // UTF-8 BOM for Microsoft Excel
+            fputs($handle, "\xEF\xBB\xBF");
+
+            // Header row
+            fputcsv($handle, [
+                'ลำดับ (ID)',
+                'แผนก/หน่วยงาน',
+                'ชื่อเครื่อง (Hostname)',
+                'CPU',
+                'RAM',
+                'Disk',
+                'OS',
+                'Microsoft Office',
+                'รหัสครุภัณฑ์ (Asset Code)',
+                'ชื่อบัญชีผู้ใช้ (Device User)',
+                'เจ้าหน้าที่ HOSxP',
+                'IP Address',
+                'MAC Address',
+                'สถานะการเชื่อมต่อ',
+                'CPU เต็ม',
+                'RAM เต็ม',
+                'Disk เต็ม',
+                'OS เต็ม',
+                'Office เต็ม',
+                'ระยะเวลาเปิดเครื่อง (Uptime)',
+                'ใช้งานล่าสุด',
+                'หมายเหตุ',
+            ]);
+
+            $allIps = AppInstallation::whereNotNull('ip_address')->pluck('ip_address')->filter()->unique()->toArray();
+            $staffMap = $this->getStaffMapByIps($allIps);
+
+            AppInstallation::orderBy('last_active_at', 'desc')->chunk(200, function ($records) use ($handle, $staffMap) {
+                foreach ($records as $item) {
+                    $staffInfo = $staffMap[$item->ip_address] ?? null;
+                    $staffName = $staffInfo ? ($staffInfo->staff_name ?: $staffInfo->kskloginname) : '-';
+                    $isOnline = ($item->is_online && $item->last_active_at && $item->last_active_at->diffInMinutes(now()) <= 15);
+
+                    fputcsv($handle, [
+                        $item->id,
+                        $item->department ?: '-',
+                        $item->hostname ?? '-',
+                        $item->short_cpu,
+                        $item->short_ram,
+                        $item->short_disk,
+                        $item->short_os,
+                        $item->short_office,
+                        $item->asset_code ?: '-',
+                        $item->device_name ?? '-',
+                        $staffName,
+                        $item->ip_address,
+                        $item->mac_address ?: '-',
+                        $isOnline ? 'ออนไลน์' : 'ออฟไลน์',
+                        $item->cpu ?? '-',
+                        $item->ram ?? '-',
+                        $item->disk ?? '-',
+                        $item->os_version ?? ($item->os ?? '-'),
+                        $item->office_version ?: 'ไม่ได้ติดตั้ง',
+                        $item->dynamic_uptime ?: ($item->uptime_text ?: '-'),
+                        $item->last_active_at ? $item->last_active_at->format('Y-m-d H:i:s') : '-',
+                        $item->notes ?: '-',
+                    ]);
+                }
+            });
+
+            fclose($handle);
+        });
+
+        $response->headers->set('Content-Type', 'text/csv; charset=UTF-8');
+        $response->headers->set('Content-Disposition', 'attachment; filename="' . $filename . '"');
+        $response->headers->set('Pragma', 'no-cache');
+        $response->headers->set('Expires', '0');
+
+        return $response;
+    }
+
+    /**
      * Update department, device name, or notes for an installation record.
      */
     public function update(Request $request, $id)

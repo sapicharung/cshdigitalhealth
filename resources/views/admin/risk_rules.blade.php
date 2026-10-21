@@ -558,6 +558,11 @@
                 <span>กลับหน้ารายการเครื่องคอมพิวเตอร์</span>
             </a>
 
+            <a href="{{ route('admin.specs') }}" class="btn-nav" title="ดูคุณสมบัติและสเปกเครื่องลูกข่าย">
+                <span class="material-symbols-Outlined" style="color: #0284C7;">memory</span>
+                <span>คุณสมบัติสเปกเครื่อง</span>
+            </a>
+
             <a href="{{ route('admin.users.index') }}" class="btn-nav" title="จัดการผู้ใช้งานระบบ (Admin & IT)">
                 <span class="material-symbols-Outlined" style="color: #4F46E5;">manage_accounts</span>
                 <span>จัดการผู้ใช้งาน</span>

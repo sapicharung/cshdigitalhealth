@@ -907,6 +907,11 @@
                 <span>หน้ารายการเครื่องคอมพิวเตอร์</span>
             </a>
 
+            <a href="{{ route('admin.specs') }}" class="btn-nav" title="ดูคุณสมบัติและสเปกเครื่องลูกข่าย">
+                <span class="material-symbols-Outlined" style="color: #0284C7;">memory</span>
+                <span>คุณสมบัติสเปกเครื่อง</span>
+            </a>
+
             <a href="{{ route('admin.risk-rules.index') }}" class="btn-nav btn-risk-nav" title="จัดการเงื่อนไขตรวจสอบโปรแกรมเสี่ยง">
                 <span class="material-symbols-Outlined" style="color: #E11D48;">shield_lock</span>
                 <span>จัดการโปรแกรมเสี่ยง</span>

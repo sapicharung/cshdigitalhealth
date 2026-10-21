@@ -212,6 +212,17 @@
             transform: translateY(-1px);
         }
 
+        .btn-nav-specs {
+            background: #F0F9FF;
+            color: #0369A1 !important;
+            border: 1px solid #BAE6FD;
+        }
+        .btn-nav-specs:hover {
+            background: #E0F2FE;
+            color: #0284C7 !important;
+            transform: translateY(-1px);
+        }
+
         .btn-nav-risk {
             background: #FFF1F2;
             color: #BE123C !important;
@@ -1814,6 +1825,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
         }
 
         /* --- Edit Modal --- */
@@ -2243,6 +2256,11 @@
         </div>
 
         <div class="nav-actions">
+            <a href="{{ route('admin.specs') }}" class="btn-nav btn-nav-specs" title="ดูคุณสมบัติและสเปกเครื่องลูกข่ายทั้งหมด (CPU, RAM, Harddisk, OS, Office)">
+                <span class="material-symbols-Outlined" style="font-size: 17px;">memory</span>
+                <span>คุณสมบัติสเปกเครื่อง</span>
+            </a>
+
             <a href="{{ route('download.shortcut.installer') }}" class="btn-nav btn-nav-download" title="ดาวน์โหลดตัวติดตั้ง Install-CSHOS_v{{ $serverVersion }}.bat">
                 <span class="material-symbols-Outlined" style="font-size: 17px;">download</span>
                 <span>ดาวน์โหลดตัวติดตั้ง (v{{ $serverVersion }})</span>

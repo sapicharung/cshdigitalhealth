@@ -82,9 +82,9 @@ class BloodAlcController extends Controller
             ->distinct()
             ->pluck('police_station');
 
-        // Records list (เรียงจากวันที่มากไปน้อย)
+        // Records list (เรียงจากวันที่มากไปน้อย หน้าละ 25 รายการ)
         $records = $query->orderByRaw('test_date IS NULL, test_date DESC, order_no DESC, id DESC')
-                         ->paginate(50)
+                         ->paginate(25)
                          ->withQueryString();
 
         // Next order_no for creation modal

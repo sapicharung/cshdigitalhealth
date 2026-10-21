@@ -60,6 +60,8 @@ Route::post('/admin/login', [AdminAuthController::class, 'login'])->name('login.
 Route::middleware('auth')->prefix('admin')->group(function () {
     // เส้นทางที่ทั้ง Admin และ IT เข้าถึงได้ (Common)
     Route::get('/installations', [AppInstallationController::class, 'index'])->name('admin.installations');
+    Route::get('/specs', [AppInstallationController::class, 'specs'])->name('admin.specs');
+    Route::get('/specs/export', [AppInstallationController::class, 'exportSpecsCsv'])->name('admin.specs.export');
     Route::put('/installations/{id}', [AppInstallationController::class, 'update'])->name('admin.installations.update');
     Route::get('/installations/export', [AppInstallationController::class, 'exportCsv'])->name('admin.installations.export');
     Route::get('/installations/{id}/vnc', [AppInstallationController::class, 'downloadVnc'])->name('admin.installations.vnc');

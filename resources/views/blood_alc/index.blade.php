@@ -1226,9 +1226,9 @@
 
             <!-- Pagination -->
             @if($records->hasPages())
-                <div style="padding: 16px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
-                    <div style="font-size: 0.85rem; color: var(--text-muted);">
-                        หน้า {{ $records->currentPage() }} จากทั้งหมด {{ $records->lastPage() }}
+                <div style="padding: 14px 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; background: #FFFFFF;">
+                    <div style="font-size: 0.86rem; color: var(--text-muted); font-weight: 500;">
+                        แสดง <strong style="color: var(--text-dark);">{{ $records->firstItem() }}</strong> ถึง <strong style="color: var(--text-dark);">{{ $records->lastItem() }}</strong> จากทั้งหมด <strong style="color: var(--text-dark);">{{ $records->total() }}</strong> รายการ
                     </div>
                     <div>
                         {{ $records->links() }}
