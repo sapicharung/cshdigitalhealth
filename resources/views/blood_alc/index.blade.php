@@ -484,11 +484,23 @@
             padding: 2px 7px;
             border-radius: 6px;
             font-weight: 600;
-            display: inline-block;
+            display: inline-flex;
+            align-items: center;
+            white-space: nowrap;
+            line-height: 1.4;
         }
         .doc-has { background: #dcfce7; color: #166534; }
         .doc-no { background: #f1f5f9; color: #94a3b8; }
         .doc-empty { background: #f8fafc; color: #94a3b8; border: 1px dashed #cbd5e1; }
+
+        .doc-tags-row {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            flex-wrap: nowrap;
+            white-space: nowrap;
+        }
 
         .action-btns {
             display: flex;
@@ -1073,7 +1085,7 @@
                                     <span class="material-symbols-outlined sort-icon">unfold_more</span>
                                 </div>
                             </th>
-                            <th style="width: 150px; text-align: center;">เอกสารประกอบ</th>
+                            <th style="min-width: 215px; width: 215px; text-align: center; white-space: nowrap;">เอกสารประกอบ</th>
                             <th class="th-sortable" onclick="sortTable(this, 'date_th')" style="width: 110px;" title="คลิกเพื่อเรียงตามวันที่ส่งตรวจ">
                                 <div class="th-content">
                                     <span class="th-label">วันที่ส่งตรวจ</span>
@@ -1114,8 +1126,8 @@
                                 $isCancelled = str_contains($r->claim_status ?? '', 'ยกเลิก') || str_contains($r->lab_send_date ?? '', 'ยกเลิก');
                             @endphp
                             <tr class="{{ $isCancelled ? 'row-cancelled' : '' }}">
-                                <td data-sort-value="{{ $r->order_no ?? $r->id }}" style="text-align: center; font-weight: 600; color: #475569;">
-                                    {{ $r->order_no ?? $r->id }}
+                                <td class="col-row-seq" data-sort-value="{{ $records->firstItem() ? ($records->firstItem() + $loop->index) : $loop->iteration }}" style="text-align: center; font-weight: 600; color: #475569;">
+                                    {{ $records->firstItem() ? ($records->firstItem() + $loop->index) : $loop->iteration }}
                                 </td>
                                 <td data-sort-value="{{ $r->test_date ? $r->test_date->format('Y-m-d') : '' }}" style="text-align: center; font-weight: 600; color: #1e293b; font-family: monospace, inherit; font-size: 0.9rem;">
                                     {{ $r->formatted_test_date }}
@@ -1144,8 +1156,8 @@
                                         <span style="color: #94a3b8;">-</span>
                                     @endif
                                 </td>
-                                <td style="text-align: center;">
-                                    <div style="display: flex; gap: 4px; justify-content: center;">
+                                <td style="text-align: center; white-space: nowrap;">
+                                    <div class="doc-tags-row">
                                         <span class="doc-tag {{ $r->doc_k8 === 'มี' ? 'doc-has' : ($r->doc_k8 === 'ไม่มี' ? 'doc-no' : 'doc-empty') }}" title="ใบ ค.8">
                                             ค.8: {{ $r->doc_k8 ?: '-' }}
                                         </span>
@@ -2162,7 +2174,16 @@
                 }
             });
 
-            rows.forEach(row => tbody.appendChild(row));
+            const pageStartIndex = {{ $records->firstItem() ?? 1 }};
+            rows.forEach((row, idx) => {
+                tbody.appendChild(row);
+                const seqCell = row.querySelector('.col-row-seq') || row.children[0];
+                if (seqCell && seqCell.classList.contains('col-row-seq')) {
+                    const seqNum = pageStartIndex + idx;
+                    seqCell.textContent = seqNum;
+                    seqCell.setAttribute('data-sort-value', seqNum);
+                }
+            });
 
             const thTitle = th.querySelector('.th-label')?.textContent?.trim() || 'คอลัมน์';
             const dirLabel = dir === 'desc' ? 'มากไปน้อย ↓' : 'น้อยไปมาก ↑';

@@ -351,9 +351,10 @@ class BloodAlcController extends Controller
                 'หมายเหตุ'
             ]);
 
+            $rowNumber = 1;
             foreach ($records as $r) {
                 fputcsv($fp, [
-                    $r->order_no,
+                    $rowNumber++,
                     $r->month_year,
                     $r->test_day,
                     $r->hn,
