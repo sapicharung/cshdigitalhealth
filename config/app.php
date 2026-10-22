@@ -123,4 +123,12 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | CSHOS Auto-Sync Configuration
+    |--------------------------------------------------------------------------
+    */
+    'autosync_interval' => (int) env('AUTOSYNC_INTERVAL_MINUTES', 5),
+    'online_threshold'  => (int) env('CLIENT_ONLINE_THRESHOLD_MINUTES', 15),
+
 ];

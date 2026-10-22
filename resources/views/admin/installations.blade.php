@@ -2383,6 +2383,8 @@
         <!-- Search & Action Filters -->
         <section class="controls-card">
             <form action="{{ route('admin.installations') }}" method="GET" class="filter-form">
+                <input type="hidden" name="sort" value="{{ request('sort', 'active') }}">
+                <input type="hidden" name="direction" value="{{ request('direction', 'desc') }}">
                 <div class="filter-inputs">
                     <div class="search-box">
                         <span class="material-symbols-Outlined">search</span>
@@ -2417,8 +2419,8 @@
                         <span>กรองข้อมูล</span>
                     </button>
 
-                    @if(request()->hasAny(['search', 'department', 'status']))
-                        <a href="{{ route('admin.installations') }}" class="btn-reset">
+                    @if(request()->hasAny(['search', 'department', 'status', 'sort', 'direction']))
+                        <a href="{{ route('admin.installations') }}" class="btn-reset" title="ล้างการกรองและการเรียงลำดับทั้งหมด">
                             <span class="material-symbols-Outlined" style="font-size: 16px;">close</span>
                             <span>ล้างกรอง</span>
                         </a>
@@ -2456,86 +2458,116 @@
         <section class="table-card">
             <div class="table-responsive">
                 <table>
+                    @php
+                        $currSort = request('sort', 'active');
+                        $currDir  = strtolower(request('direction', 'desc'));
+                    @endphp
                     <thead>
                         <tr>
-                            <th class="th-sortable" onclick="sortTable(this, 'number')" style="width: 40px; text-align: center;" title="คลิกเพื่อเรียงลำดับ (มากไปน้อย / น้อยไปมาก)">
+                            <th class="th-sortable {{ $currSort === 'id' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('id')" style="width: 40px; text-align: center;" title="คลิกเพื่อเรียงลำดับ ID (ข้อมูลทั้งหมด)">
                                 <div class="th-content" style="justify-content: center;">
                                     <span class="th-label">ลำดับ</span>
-                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                    <span class="material-symbols-Outlined sort-icon">
+                                        {{ $currSort === 'id' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
                                 </div>
                             </th>
-                            <th class="th-sortable" onclick="sortTable(this, 'status')" style="width: 75px; text-align: center;" title="คลิกเพื่อเรียงตามสถานะ (ออนไลน์ / ออฟไลน์)">
+                            <th class="th-sortable {{ $currSort === 'status' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('status')" style="width: 75px; text-align: center;" title="คลิกเพื่อเรียงตามสถานะ ออนไลน์/ออฟไลน์ (ข้อมูลทั้งหมด)">
                                 <div class="th-content" style="justify-content: center;">
                                     <span class="th-label">สถานะ</span>
-                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                    <span class="material-symbols-Outlined sort-icon">
+                                        {{ $currSort === 'status' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
                                 </div>
                             </th>
-                            <th class="th-sortable" onclick="sortTable(this, 'text')" style="min-width: 125px;" title="คลิกเพื่อเรียงตามชื่อเครื่องคอมพิวเตอร์">
+                            <th class="th-sortable {{ $currSort === 'hostname' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('hostname')" style="min-width: 125px;" title="คลิกเพื่อเรียงตามชื่อเครื่องคอมพิวเตอร์ (ข้อมูลทั้งหมด)">
                                 <div class="th-content">
                                     <span class="th-label">ชื่อเครื่องคอมพิวเตอร์</span>
-                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                    <span class="material-symbols-Outlined sort-icon">
+                                        {{ $currSort === 'hostname' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
                                 </div>
                             </th>
-                            <th class="th-sortable" onclick="sortTable(this, 'text')" style="width: 125px; text-align: center;" title="คลิกเพื่อเรียงตามรหัสครุภัณฑ์">
+                            <th class="th-sortable {{ $currSort === 'asset_code' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('asset_code')" style="width: 125px; text-align: center;" title="คลิกเพื่อเรียงตามรหัสครุภัณฑ์ (ข้อมูลทั้งหมด)">
                                 <div class="th-content" style="justify-content: center;">
                                     <span class="th-label">รหัสครุภัณฑ์ (COM)</span>
-                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                    <span class="material-symbols-Outlined sort-icon">
+                                        {{ $currSort === 'asset_code' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
                                 </div>
                             </th>
-                            <th class="th-sortable" onclick="sortTable(this, 'ip')" style="width: 120px;" title="คลิกเพื่อเรียงตาม IP Address">
+                            <th class="th-sortable {{ $currSort === 'ip' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('ip')" style="width: 120px;" title="คลิกเพื่อเรียงตาม IP Address (ข้อมูลทั้งหมด)">
                                 <div class="th-content">
                                     <span class="th-label">IP Address</span>
-                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                    <span class="material-symbols-Outlined sort-icon">
+                                        {{ $currSort === 'ip' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
                                 </div>
                             </th>
-                            <th class="th-sortable" onclick="sortTable(this, 'vnc')" style="width: 85px; text-align: center;" title="คลิกเพื่อเรียงตามสถานะรีโมท VNC">
+                            <th class="th-sortable {{ $currSort === 'vnc' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('vnc')" style="width: 85px; text-align: center;" title="คลิกเพื่อเรียงตามสถานะรีโมท VNC (ข้อมูลทั้งหมด)">
                                 <div class="th-content" style="justify-content: center;">
                                     <span class="th-label">รีโมท (VNC)</span>
-                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                    <span class="material-symbols-Outlined sort-icon">
+                                        {{ $currSort === 'vnc' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
                                 </div>
                             </th>
-                            <th class="th-sortable" onclick="sortTable(this, 'anydesk')" style="width: 110px; text-align: center;" title="คลิกเพื่อเรียงตาม AnyDesk">
+                            <th class="th-sortable {{ $currSort === 'anydesk' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('anydesk')" style="width: 110px; text-align: center;" title="คลิกเพื่อเรียงตาม AnyDesk (ข้อมูลทั้งหมด)">
                                 <div class="th-content" style="justify-content: center;">
                                     <span class="th-label">AnyDesk</span>
-                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                    <span class="material-symbols-Outlined sort-icon">
+                                        {{ $currSort === 'anydesk' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
                                 </div>
                             </th>
                             @if(Auth::user()->isAdmin())
-                                <th class="th-sortable" onclick="sortTable(this, 'risk')" style="width: 105px; text-align: center;" title="คลิกเพื่อเรียงตามโปรแกรมเสี่ยง">
+                                <th class="th-sortable {{ $currSort === 'risk' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('risk')" style="width: 105px; text-align: center;" title="คลิกเพื่อเรียงตามโปรแกรมเสี่ยง (ข้อมูลทั้งหมด)">
                                     <div class="th-content" style="justify-content: center;">
                                         <span class="th-label">โปรแกรมเสี่ยง</span>
-                                        <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                        <span class="material-symbols-Outlined sort-icon">
+                                            {{ $currSort === 'risk' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                        </span>
                                     </div>
                                 </th>
                             @endif
-                            <th class="th-sortable" onclick="sortTable(this, 'uptime')" style="width: 105px; text-align: center;" title="คลิกเพื่อเรียงตาม System Uptime">
+                            <th class="th-sortable {{ $currSort === 'uptime' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('uptime')" style="width: 105px; text-align: center;" title="คลิกเพื่อเรียงตาม System Uptime (ข้อมูลทั้งหมด)">
                                 <div class="th-content" style="justify-content: center;">
                                     <span class="th-label">System Uptime</span>
-                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                    <span class="material-symbols-Outlined sort-icon">
+                                        {{ $currSort === 'uptime' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
                                 </div>
                             </th>
-                            <th class="th-sortable" onclick="sortTable(this, 'text')" style="min-width: 125px;" title="คลิกเพื่อเรียงตามชื่อเจ้าหน้าที่">
+                            <th class="th-sortable {{ $currSort === 'staff' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('staff')" style="min-width: 125px;" title="คลิกเพื่อเรียงตามชื่อเจ้าหน้าที่ (ข้อมูลทั้งหมด)">
                                 <div class="th-content">
                                     <span class="th-label">ชื่อเจ้าหน้าที่</span>
-                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                    <span class="material-symbols-Outlined sort-icon">
+                                        {{ $currSort === 'staff' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
                                 </div>
                             </th>
-                            <th class="th-sortable" onclick="sortTable(this, 'text')" style="min-width: 105px;" title="คลิกเพื่อเรียงตามแผนก">
+                            <th class="th-sortable {{ $currSort === 'department' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('department')" style="min-width: 105px;" title="คลิกเพื่อเรียงตามแผนก (ข้อมูลทั้งหมด)">
                                 <div class="th-content">
                                     <span class="th-label">แผนก</span>
-                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                    <span class="material-symbols-Outlined sort-icon">
+                                        {{ $currSort === 'department' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
                                 </div>
                             </th>
-                            <th class="th-sortable" onclick="sortTable(this, 'version')" style="width: 80px; text-align: center;" title="คลิกเพื่อเรียงตามเวอร์ชัน">
+                            <th class="th-sortable {{ $currSort === 'version' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('version')" style="width: 80px; text-align: center;" title="คลิกเพื่อเรียงตามเวอร์ชัน (ข้อมูลทั้งหมด)">
                                 <div class="th-content" style="justify-content: center;">
                                     <span class="th-label">เวอร์ชัน</span>
-                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                    <span class="material-symbols-Outlined sort-icon">
+                                        {{ $currSort === 'version' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
                                 </div>
                             </th>
-                            <th class="th-sortable" onclick="sortTable(this, 'text')" style="min-width: 85px;" title="คลิกเพื่อเรียงตามหมายเหตุ">
+                            <th class="th-sortable {{ $currSort === 'notes' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('notes')" style="min-width: 85px;" title="คลิกเพื่อเรียงตามหมายเหตุ (ข้อมูลทั้งหมด)">
                                 <div class="th-content">
                                     <span class="th-label">หมายเหตุ</span>
-                                    <span class="material-symbols-Outlined sort-icon">unfold_more</span>
+                                    <span class="material-symbols-Outlined sort-icon">
+                                        {{ $currSort === 'notes' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
                                 </div>
                             </th>
                             @if(Auth::user()->isAdmin() || Auth::user()->isIt())
@@ -2647,7 +2679,7 @@
                                         @endif
                                     </td>
                                 @endif
-                                <td style="text-align: center;" data-sort-value="{{ $item->last_boot_time ? now()->diffInSeconds($item->last_boot_time) : -1 }}">
+                                <td style="text-align: center;" data-sort-value="{{ $item->uptime_seconds }}">
                                     @php
                                         $uptime = $item->dynamic_uptime ?: $item->uptime_text;
                                     @endphp
@@ -3214,89 +3246,22 @@
     <script>
         let currentDetailItem = null;
 
-        // --- Table Column Sorting (DESC first, then ASC toggle) ---
-        let currentSortTh = null;
-        let currentSortDir = ''; // 'desc' or 'asc'
-        const pageStartIndex = {{ $installations->firstItem() ?? 1 }};
+        // --- Server-side Table Column Sorting for all records across all pages ---
+        function sortByServer(column) {
+            const url = new URL(window.location.href);
+            const currentSort = url.searchParams.get('sort') || 'active';
+            const currentDir = (url.searchParams.get('direction') || 'desc').toLowerCase();
 
-        function sortTable(th, type) {
-            if (!th) return;
-            const table = th.closest('table');
-            if (!table) return;
-            const tbody = table.querySelector('tbody');
-            if (!tbody) return;
-            const rows = Array.from(tbody.querySelectorAll('tr'));
-            if (rows.length <= 1) return;
-            if (rows[0].querySelector('.empty-state')) return;
-
-            const colIndex = Array.from(th.parentNode.children).indexOf(th);
-            if (colIndex < 0) return;
-
-            // First click on a column: DESC (มากไปน้อย)
-            // Second click on the same column: ASC (น้อยไปมาก)
-            let dir = 'desc';
-            if (currentSortTh === th) {
-                dir = (currentSortDir === 'desc') ? 'asc' : 'desc';
+            let newDir = 'desc';
+            if (currentSort === column) {
+                newDir = currentDir === 'desc' ? 'asc' : 'desc';
             }
-            currentSortTh = th;
-            currentSortDir = dir;
 
-            // Update all headers' icons & classes
-            const allThs = th.parentNode.querySelectorAll('th');
-            allThs.forEach(item => {
-                item.classList.remove('sorted-asc', 'sorted-desc');
-                const icon = item.querySelector('.sort-icon');
-                if (icon) {
-                    if (item === th) {
-                        item.classList.add(dir === 'desc' ? 'sorted-desc' : 'sorted-asc');
-                        icon.textContent = dir === 'desc' ? 'arrow_downward' : 'arrow_upward';
-                    } else {
-                        icon.textContent = 'unfold_more';
-                    }
-                }
-            });
+            url.searchParams.set('sort', column);
+            url.searchParams.set('direction', newDir);
+            url.searchParams.delete('page'); // กลับไปหน้า 1 เสมอเมื่อเปลี่ยนการเรียง
 
-            // Perform sorting
-            rows.sort((rowA, rowB) => {
-                const cellA = rowA.children[colIndex];
-                const cellB = rowB.children[colIndex];
-                if (!cellA || !cellB) return 0;
-
-                let valA = cellA.getAttribute('data-sort-value');
-                let valB = cellB.getAttribute('data-sort-value');
-
-                if (valA === null) valA = cellA.innerText.trim();
-                if (valB === null) valB = cellB.innerText.trim();
-
-                if (type === 'number' || type === 'ip' || type === 'uptime' || type === 'status' || type === 'vnc' || type === 'anydesk' || type === 'risk') {
-                    const numA = parseFloat(valA) || 0;
-                    const numB = parseFloat(valB) || 0;
-                    return dir === 'desc' ? (numB - numA) : (numA - numB);
-                } else if (type === 'version') {
-                    const res = compareVersions(valA, valB);
-                    return dir === 'desc' ? -res : res;
-                } else {
-                    const strA = (valA || '').toString();
-                    const strB = (valB || '').toString();
-                    if (!strA && strB) return 1;
-                    if (strA && !strB) return -1;
-                    const res = strA.localeCompare(strB, 'th', { numeric: true, sensitivity: 'base' });
-                    return dir === 'desc' ? -res : res;
-                }
-            });
-
-            // Re-render rows and update row numbers (ลำดับ)
-            rows.forEach((row, idx) => {
-                tbody.appendChild(row);
-                const seqCell = row.children[0];
-                if (seqCell && seqCell.classList.contains('col-row-index')) {
-                    seqCell.textContent = pageStartIndex + idx;
-                }
-            });
-
-            const thTitle = th.querySelector('.th-label')?.textContent?.trim() || 'คอลัมน์';
-            const dirLabel = dir === 'desc' ? 'มากไปน้อย ↓' : 'น้อยไปมาก ↑';
-            showToast(`เรียงตาม "${thTitle}" (${dirLabel})`);
+            window.location.href = url.toString();
         }
 
         function compareVersions(v1, v2) {

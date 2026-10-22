@@ -283,15 +283,15 @@
         /* Stats Grid */
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 1.2rem;
-            margin-bottom: 1.5rem;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.25rem;
         }
 
         .stat-card {
             background: var(--surface);
             border-radius: var(--radius-lg);
-            padding: 1.25rem 1.4rem;
+            padding: 1.15rem 1.3rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -345,44 +345,36 @@
         .stat-icon.emerald { background: #D1FAE5; color: #059669; }
         .stat-icon.indigo { background: #EEF2FF; color: #4F46E5; }
         .stat-icon.amber { background: #FEF3C7; color: #D97706; }
+        .stat-icon.rose { background: #FFE4E6; color: #E11D48; }
+        .stat-icon.purple { background: #F3E8FF; color: #7E22CE; }
 
         /* Filter Section */
+        /* Filter Section - Compact 1-Row Toolbar */
         .filter-section {
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 1.2rem 1.5rem;
-            margin-bottom: 1.5rem;
-            box-shadow: var(--shadow-sm);
-        }
-
-        .filter-header-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            border-radius: var(--radius-md);
+            padding: 0.55rem 0.85rem;
             margin-bottom: 1rem;
-            flex-wrap: wrap;
-            gap: 0.75rem;
-        }
-
-        .filter-header-title {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-weight: 700;
-            color: var(--text-main);
-            font-size: 0.95rem;
+            box-shadow: var(--shadow-sm);
+            position: relative;
+            z-index: 50;
+            overflow: visible;
         }
 
         .filter-form {
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 0.45rem;
             flex-wrap: wrap;
+            position: relative;
+            overflow: visible;
         }
 
         .search-box {
-            flex: 1 1 260px;
+            flex: 1 1 170px;
+            min-width: 130px;
+            max-width: 250px;
             position: relative;
             display: flex;
             align-items: center;
@@ -390,11 +382,11 @@
 
         .search-box input {
             width: 100%;
-            height: 38px;
-            padding: 0 1rem 0 2.4rem;
+            height: 33px;
+            padding: 0 0.75rem 0 2rem;
             border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-            font-size: 0.85rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
             background: #F8FAFC;
             transition: all 0.2s;
         }
@@ -402,31 +394,33 @@
             outline: none;
             border-color: var(--primary);
             background: #FFFFFF;
-            box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.15);
+            box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
         }
 
         .search-box .material-symbols-outlined {
             position: absolute;
-            left: 0.75rem;
+            left: 0.55rem;
             top: 50%;
             transform: translateY(-50%);
             color: var(--text-muted);
-            font-size: 18px !important;
+            font-size: 16px !important;
             pointer-events: none;
         }
 
         .filter-select {
-            height: 38px;
-            padding: 0 2rem 0 0.8rem;
+            height: 33px;
+            padding: 0 1.5rem 0 0.6rem;
             border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-            font-size: 0.83rem;
-            background: #F8FAFC url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") no-repeat right 0.75rem center/14px;
+            border-radius: 6px;
+            font-size: 0.79rem;
+            background: #F8FAFC url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") no-repeat right 0.45rem center/12px;
             appearance: none;
             cursor: pointer;
             color: var(--text-main);
-            min-width: 130px;
+            min-width: 100px;
             transition: all 0.2s;
+            white-space: nowrap;
+            flex-shrink: 0;
         }
         .filter-select:focus {
             outline: none;
@@ -435,39 +429,41 @@
         }
 
         .btn-filter-submit {
-            height: 38px;
-            padding: 0 1.1rem;
+            height: 33px;
+            padding: 0 0.8rem;
             background: var(--primary);
             color: #FFFFFF;
             border: none;
-            border-radius: var(--radius-md);
+            border-radius: 6px;
             font-weight: 500;
-            font-size: 0.84rem;
+            font-size: 0.8rem;
             cursor: pointer;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
             transition: all 0.2s;
             white-space: nowrap;
+            flex-shrink: 0;
         }
         .btn-filter-submit:hover {
             background: var(--primary-dark);
         }
 
         .btn-filter-reset {
-            height: 38px;
-            padding: 0 0.85rem;
+            height: 33px;
+            padding: 0 0.7rem;
             background: #F1F5F9;
             color: var(--text-muted);
             border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-            font-size: 0.84rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
             gap: 4px;
             transition: all 0.2s;
             white-space: nowrap;
+            flex-shrink: 0;
         }
         .btn-filter-reset:hover {
             background: #E2E8F0;
@@ -475,24 +471,160 @@
         }
 
         .btn-export {
-            height: 36px;
-            padding: 0 1rem;
+            height: 33px;
+            padding: 0 0.8rem;
             background: #F0FDF4;
             color: #166534;
             border: 1px solid #BBF7D0;
-            border-radius: var(--radius-md);
-            font-size: 0.82rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
             font-weight: 600;
             text-decoration: none;
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
             transition: all 0.2s;
             white-space: nowrap;
+            flex-shrink: 0;
+            margin-left: auto;
         }
         .btn-export:hover {
             background: #DCFCE7;
             transform: translateY(-1px);
+        }
+
+        /* Multi-Select Dropdown with Checkboxes */
+        .filter-dropdown-multiselect {
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .filter-dropdown-btn {
+            height: 33px;
+            padding: 0 0.65rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.79rem;
+            background: #F8FAFC;
+            cursor: pointer;
+            color: var(--text-main);
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
+            white-space: nowrap;
+            user-select: none;
+        }
+        .filter-dropdown-btn:hover {
+            background-color: #FFFFFF;
+            border-color: #CBD5E1;
+        }
+        .filter-dropdown-btn.active {
+            border-color: var(--primary);
+            background-color: #FFFFFF;
+            box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+        }
+        .filter-dropdown-btn.has-value {
+            background-color: #EFF6FF;
+            color: #1D4ED8;
+            border-color: #BFDBFE;
+            font-weight: 600;
+        }
+        .filter-dropdown-btn .dropdown-arrow {
+            font-size: 15px !important;
+            color: var(--text-muted);
+            transition: transform 0.2s;
+        }
+        .filter-dropdown-btn.active .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+
+        .filter-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            z-index: 9999;
+            background: #FFFFFF;
+            border: 1px solid #CBD5E1;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.18), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+            min-width: 200px;
+            max-height: 320px;
+            overflow-y: auto;
+            padding: 0.4rem 0 0 0;
+            display: none;
+        }
+        .filter-dropdown-menu.show {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
+        .filter-dropdown-footer {
+            padding: 0.45rem 0.75rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            background: #F8FAFC;
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+            margin-top: 4px;
+        }
+        .btn-multi-apply {
+            background: var(--primary);
+            color: #FFFFFF;
+            border: none;
+            border-radius: 4px;
+            padding: 3px 12px;
+            font-size: 0.76rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-multi-apply:hover {
+            background: var(--primary-dark);
+        }
+
+        .filter-dropdown-header {
+            padding: 0.3rem 0.75rem 0.45rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .btn-clear-multi {
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 0.73rem;
+            padding: 0;
+            text-decoration: underline;
+        }
+
+        .multi-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.8rem;
+            color: var(--text-main);
+            cursor: pointer;
+            transition: background-color 0.15s;
+            user-select: none;
+        }
+        .multi-item:hover {
+            background-color: #F1F5F9;
+        }
+        .multi-item input[type="checkbox"] {
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+            accent-color: var(--primary);
         }
 
         /* Table Card */
@@ -516,26 +648,95 @@
             width: 100%;
             border-collapse: collapse;
             text-align: left;
-            font-size: 0.84rem;
-            min-width: 950px;
+            font-size: 0.82rem;
+            min-width: 900px;
         }
 
         .specs-table th {
             background: #F8FAFC;
             color: #475569;
             font-weight: 600;
-            padding: 0.75rem 0.9rem;
+            padding: 0.55rem 0.75rem;
             border-bottom: 1px solid var(--border);
             white-space: nowrap;
             user-select: none;
+            font-size: 0.78rem;
+        }
+
+        th.th-sortable {
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+
+        th.th-sortable:hover {
+            background: #EFF6FF;
+            color: #1D4ED8;
+        }
+
+        th.th-sortable .th-content {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            white-space: nowrap;
+        }
+
+        th.th-sortable .sort-icon {
+            font-size: 14px;
+            color: #94A3B8;
+            transition: color 0.15s ease;
+            vertical-align: middle;
+            user-select: none;
+        }
+
+        th.th-sortable:hover .sort-icon {
+            color: #2563EB;
+        }
+
+        th.th-sortable.sorted-desc,
+        th.th-sortable.sorted-asc {
+            background: #EEF2FF;
+            color: #3730A3;
+        }
+
+        th.th-sortable.sorted-desc .sort-icon,
+        th.th-sortable.sorted-asc .sort-icon {
+            color: #4F46E5;
+        }
+
+        /* Toast Notification */
+        .toast-notify {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #0F172A;
+            color: #FFFFFF;
+            padding: 10px 18px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+            z-index: 99999;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+            pointer-events: none;
+        }
+
+        .toast-notify.show {
+            opacity: 1;
+            transform: translateY(0);
         }
 
         .specs-table td {
-            padding: 0.65rem 0.9rem;
+            padding: 0.38rem 0.75rem;
             border-bottom: 1px solid #F1F5F9;
             vertical-align: middle;
             color: #1E293B;
             white-space: nowrap;
+            line-height: 1.3;
         }
 
         .specs-table tbody tr:hover {
@@ -546,12 +747,13 @@
         .badge {
             display: inline-flex;
             align-items: center;
-            gap: 4px;
-            padding: 2px 8px;
-            border-radius: 6px;
-            font-size: 0.74rem;
+            gap: 3px;
+            padding: 1.5px 7px;
+            border-radius: 5px;
+            font-size: 0.73rem;
             font-weight: 600;
             white-space: nowrap;
+            line-height: 1.35;
         }
 
         .badge-online { background: #D1FAE5; color: #065F46; border: 1px solid #A7F3D0; }
@@ -610,12 +812,12 @@
         }
 
         .status-dot {
-            width: 8px;
-            height: 8px;
+            width: 7px;
+            height: 7px;
             border-radius: 50%;
             display: inline-block;
             flex-shrink: 0;
-            margin-right: 4px;
+            margin-right: 3px;
         }
         .status-dot.online {
             background-color: #10B981;
@@ -645,6 +847,86 @@
             background: #FEF2F2;
             color: #991B1B;
             border: 1px solid #FECACA;
+        }
+
+        /* Performance Badges (5 Tiers) */
+        .badge-perf-highest {
+            background: #ECFDF5;
+            color: #047857;
+            border: 1px solid #A7F3D0;
+            font-weight: 700;
+        }
+        .badge-perf-high {
+            background: #F0F9FF;
+            color: #0369A1;
+            border: 1px solid #BAE6FD;
+            font-weight: 700;
+        }
+        .badge-perf-fair {
+            background: #F0FDFA;
+            color: #0F766E;
+            border: 1px solid #99F6E4;
+            font-weight: 700;
+        }
+        .badge-perf-low {
+            background: #FFFBEB;
+            color: #B45309;
+            border: 1px solid #FDE68A;
+            font-weight: 700;
+        }
+        .badge-perf-lowest {
+            background: #FEF2F2;
+            color: #B91C1C;
+            border: 1px solid #FECACA;
+            font-weight: 700;
+        }
+
+        .badge-cores {
+            background: #F8FAFC;
+            color: #334155;
+            border: 1px solid #CBD5E1;
+            font-family: 'Inter', monospace;
+            font-weight: 600;
+            font-size: 0.72rem;
+        }
+
+        /* Speed & Separated RAM Badges */
+        .badge-speed {
+            background: #F0F9FF;
+            color: #0369A1;
+            border: 1px solid #BAE6FD;
+            font-family: 'Inter', monospace;
+            font-weight: 600;
+            font-size: 0.72rem;
+        }
+        .badge-ram-size {
+            background: #F5F3FF;
+            color: #6D28D9;
+            border: 1px solid #DDD6FE;
+            font-family: 'Inter', monospace;
+            font-weight: 700;
+            font-size: 0.72rem;
+        }
+        .badge-ram-ddr5 {
+            background: #ECFDF5;
+            color: #047857;
+            border: 1px solid #A7F3D0;
+            font-weight: 700;
+            font-size: 0.72rem;
+        }
+        .badge-ram-ddr4 {
+            background: #EFF6FF;
+            color: #1D4ED8;
+            border: 1px solid #BFDBFE;
+            font-weight: 700;
+            font-size: 0.72rem;
+        }
+        .badge-ram-ddr3 {
+            background: #FFFBEB;
+            color: #B45309;
+            border: 1px solid #FDE68A;
+            font-weight: 700;
+            font-size: 0.72rem;
         }
 
         /* Hardware info components in table */
@@ -697,14 +979,14 @@
         .actions-cell {
             display: flex;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
             justify-content: center;
         }
 
         .btn-action-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
+            width: 26px;
+            height: 26px;
+            border-radius: 6px;
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -712,6 +994,10 @@
             cursor: pointer;
             transition: all 0.15s;
             text-decoration: none;
+        }
+
+        .btn-action-icon .material-symbols-outlined {
+            font-size: 14px !important;
         }
 
         .btn-action-view {
@@ -1053,13 +1339,28 @@
                 </div>
             </div>
 
+            <!-- Performance Overview Card -->
+            <div class="stat-card">
+                <div class="stat-info">
+                    <p>ประสิทธิภาพ (ดี - สูงมาก)</p>
+                    <h2>{{ number_format($stats['good_perf_count']) }} <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">เครื่อง</span></h2>
+                    <div class="stat-subtext" title="สูงมาก {{ $stats['perf_counts']['highest'] }} | สูง {{ $stats['perf_counts']['high'] }} | พอใช้ {{ $stats['perf_counts']['fair'] }} | ต่ำ {{ $stats['perf_counts']['low'] }} | ต่ำมาก {{ $stats['perf_counts']['lowest'] }}">
+                        <span class="material-symbols-outlined" style="font-size: 15px; color: #7E22CE;">rocket_launch</span>
+                        <span>สูง/มาก {{ $stats['good_perf_count'] }} | พอใช้ {{ $stats['perf_counts']['fair'] }} | ต่ำ {{ $stats['perf_counts']['low'] + $stats['perf_counts']['lowest'] }}</span>
+                    </div>
+                </div>
+                <div class="stat-icon purple">
+                    <span class="material-symbols-outlined">speed</span>
+                </div>
+            </div>
+
             <div class="stat-card">
                 <div class="stat-info">
                     <p>สัดส่วน Storage (SSD vs HDD)</p>
                     <h2>{{ number_format($stats['ssd_count']) }} <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">SSD</span></h2>
                     <div class="stat-subtext">
-                        <span class="material-symbols-outlined" style="font-size: 15px; color: #059669;">speed</span>
-                        <span>ใช้ SSD {{ $stats['total_devices'] > 0 ? round(($stats['ssd_count'] / $stats['total_devices']) * 100) : 0 }}% (HDD จานหมุน {{ number_format($stats['hdd_only_count']) }} เครื่อง)</span>
+                        <span class="material-symbols-outlined" style="font-size: 15px; color: #059669;">hard_drive</span>
+                        <span>ใช้ SSD {{ $stats['total_devices'] > 0 ? round(($stats['ssd_count'] / $stats['total_devices']) * 100) : 0 }}% (HDD {{ number_format($stats['hdd_only_count']) }} เครื่อง)</span>
                     </div>
                 </div>
                 <div class="stat-icon emerald">
@@ -1101,25 +1402,17 @@
             </div>
         </section>
 
-        <!-- Filters Section -->
+        <!-- Filters Section - 1 Compact Row -->
         <section class="filter-section">
-            <div class="filter-header-bar">
-                <div class="filter-header-title">
-                    <span class="material-symbols-outlined" style="color: var(--primary); font-size: 21px;">tune</span>
-                    <span>ค้นหาและกรองสเปกเครื่องลูกข่าย</span>
-                </div>
-                <a href="{{ route('admin.specs.export') }}" class="btn-export" title="ส่งออกสเปกเครื่องทั้งหมดเป็นไฟล์ CSV (เปิดใน Excel ภาษาไทยไม่เพี้ยน)">
-                    <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
-                    <span>ส่งออกสเปก (CSV)</span>
-                </a>
-            </div>
-
             <form action="{{ route('admin.specs') }}" method="GET" class="filter-form">
+                <input type="hidden" name="sort" value="{{ request('sort', 'last_active') }}">
+                <input type="hidden" name="dir" value="{{ request('dir', 'desc') }}">
+
                 <!-- Search Input -->
                 <div class="search-box">
                     <span class="material-symbols-outlined">search</span>
                     <input type="text" name="search" value="{{ request('search') }}" 
-                           placeholder="ค้นหา: ชื่อเครื่อง, IP, CPU, RAM, ดิสก์, แผนก, รหัสครุภัณฑ์...">
+                           placeholder="ค้นหา: เครื่อง, IP, CPU, แผนก...">
                 </div>
 
                 <!-- Department Filter -->
@@ -1132,22 +1425,165 @@
                     @endforeach
                 </select>
 
-                <!-- RAM Filter -->
-                <select name="ram" class="filter-select">
-                    <option value="">ขนาด RAM ทั้งหมด</option>
-                    <option value="4" {{ request('ram') == '4' ? 'selected' : '' }}>RAM 4 GB</option>
-                    <option value="8" {{ request('ram') == '8' ? 'selected' : '' }}>RAM 8 GB</option>
-                    <option value="16" {{ request('ram') == '16' ? 'selected' : '' }}>RAM 16 GB</option>
-                    <option value="32+" {{ request('ram') == '32+' ? 'selected' : '' }}>RAM 32 GB ขึ้นไป</option>
-                    <option value="low" {{ request('ram') == 'low' ? 'selected' : '' }}>⚠️ ต่ำกว่า 8 GB (ควรเพิ่ม)</option>
-                </select>
+                <!-- Performance Tier Filter (Multi-select Checkboxes) -->
+                @php
+                    $rawPerf = request('perf', []);
+                    $selectedPerfs = is_array($rawPerf) ? $rawPerf : ($rawPerf ? explode(',', (string)$rawPerf) : []);
+                    $perfCount = count($selectedPerfs);
+                @endphp
+                <div class="filter-dropdown-multiselect" id="perfDropdown">
+                    <button type="button" class="filter-dropdown-btn {{ $perfCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'perfDropdown')">
+                        <span id="perfDropdownLabel">
+                            @if($perfCount === 0)
+                                ประสิทธิภาพ
+                            @elseif($perfCount === 1)
+                                @php
+                                    $perfTitles = ['highest' => '🚀 สูงมาก', 'high' => '✨ สูง', 'fair' => '⚡ พอใช้', 'low' => '⚠️ ต่ำ', 'lowest' => '🛑 ต่ำมาก'];
+                                @endphp
+                                {{ $perfTitles[$selectedPerfs[0]] ?? $selectedPerfs[0] }}
+                            @else
+                                ประสิทธิภาพ ({{ $perfCount }})
+                            @endif
+                        </span>
+                        <span class="material-symbols-outlined dropdown-arrow">expand_more</span>
+                    </button>
+                    <div class="filter-dropdown-menu" id="perfDropdownMenu" onclick="event.stopPropagation();">
+                        <div class="filter-dropdown-header">
+                            <span>ติ๊กเลือกระดับประสิทธิภาพ</span>
+                            <button type="button" class="btn-clear-multi" onclick="clearMulti('perfDropdown', 'ประสิทธิภาพ')">ล้าง</button>
+                        </div>
+                        <label class="multi-item">
+                            <input type="checkbox" name="perf[]" value="highest" onchange="updateMultiLabel('perfDropdown', 'ประสิทธิภาพ')" {{ in_array('highest', $selectedPerfs) ? 'checked' : '' }}>
+                            <span>🚀 5. สูงมาก</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="perf[]" value="high" onchange="updateMultiLabel('perfDropdown', 'ประสิทธิภาพ')" {{ in_array('high', $selectedPerfs) ? 'checked' : '' }}>
+                            <span>✨ 4. สูง</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="perf[]" value="fair" onchange="updateMultiLabel('perfDropdown', 'ประสิทธิภาพ')" {{ in_array('fair', $selectedPerfs) ? 'checked' : '' }}>
+                            <span>⚡ 3. พอใช้</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="perf[]" value="low" onchange="updateMultiLabel('perfDropdown', 'ประสิทธิภาพ')" {{ in_array('low', $selectedPerfs) ? 'checked' : '' }}>
+                            <span>⚠️ 2. ต่ำ</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="perf[]" value="lowest" onchange="updateMultiLabel('perfDropdown', 'ประสิทธิภาพ')" {{ in_array('lowest', $selectedPerfs) ? 'checked' : '' }}>
+                            <span>🛑 1. ต่ำมาก</span>
+                        </label>
+                        <div class="filter-dropdown-footer">
+                            <button type="submit" class="btn-multi-apply">ตกลง</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RAM Filter (Multi-select Checkboxes) -->
+                @php
+                    $rawRam = request('ram', []);
+                    $selectedRams = is_array($rawRam) ? $rawRam : ($rawRam ? explode(',', (string)$rawRam) : []);
+                    $ramCount = count($selectedRams);
+                @endphp
+                <div class="filter-dropdown-multiselect" id="ramDropdown">
+                    <button type="button" class="filter-dropdown-btn {{ $ramCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'ramDropdown')">
+                        <span id="ramDropdownLabel">
+                            @if($ramCount === 0)
+                                ความจุ RAM
+                            @elseif($ramCount === 1)
+                                RAM {{ $selectedRams[0] == '32+' ? '32GB+' : ($selectedRams[0] == 'low' ? '< 8GB' : $selectedRams[0] . ' GB') }}
+                            @else
+                                ความจุ RAM ({{ $ramCount }})
+                            @endif
+                        </span>
+                        <span class="material-symbols-outlined dropdown-arrow">expand_more</span>
+                    </button>
+                    <div class="filter-dropdown-menu" id="ramDropdownMenu" onclick="event.stopPropagation();">
+                        <div class="filter-dropdown-header">
+                            <span>ติ๊กเลือกเพื่อเทียบ RAM</span>
+                            <button type="button" class="btn-clear-multi" onclick="clearMulti('ramDropdown', 'ความจุ RAM')">ล้าง</button>
+                        </div>
+                        <label class="multi-item">
+                            <input type="checkbox" name="ram[]" value="4" onchange="updateMultiLabel('ramDropdown', 'ความจุ RAM')" {{ in_array('4', $selectedRams) ? 'checked' : '' }}>
+                            <span>RAM 4 GB</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="ram[]" value="8" onchange="updateMultiLabel('ramDropdown', 'ความจุ RAM')" {{ in_array('8', $selectedRams) ? 'checked' : '' }}>
+                            <span>RAM 8 GB</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="ram[]" value="12" onchange="updateMultiLabel('ramDropdown', 'ความจุ RAM')" {{ in_array('12', $selectedRams) ? 'checked' : '' }}>
+                            <span>RAM 12 GB</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="ram[]" value="16" onchange="updateMultiLabel('ramDropdown', 'ความจุ RAM')" {{ in_array('16', $selectedRams) ? 'checked' : '' }}>
+                            <span>RAM 16 GB</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="ram[]" value="32+" onchange="updateMultiLabel('ramDropdown', 'ความจุ RAM')" {{ in_array('32+', $selectedRams) ? 'checked' : '' }}>
+                            <span>RAM 32 GB ขึ้นไป</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="ram[]" value="low" onchange="updateMultiLabel('ramDropdown', 'ความจุ RAM')" {{ in_array('low', $selectedRams) ? 'checked' : '' }}>
+                            <span>⚠️ ต่ำกว่า 8 GB</span>
+                        </label>
+                        <div class="filter-dropdown-footer">
+                            <button type="submit" class="btn-multi-apply">ตกลง</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RAM Type Filter (Multi-select Checkboxes) -->
+                @php
+                    $rawRamType = request('ram_type', []);
+                    $selectedRamTypes = is_array($rawRamType) ? $rawRamType : ($rawRamType ? explode(',', (string)$rawRamType) : []);
+                    $ramTypeCount = count($selectedRamTypes);
+                @endphp
+                <div class="filter-dropdown-multiselect" id="ramTypeDropdown">
+                    <button type="button" class="filter-dropdown-btn {{ $ramTypeCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'ramTypeDropdown')">
+                        <span id="ramTypeDropdownLabel">
+                            @if($ramTypeCount === 0)
+                                ประเภท RAM
+                            @elseif($ramTypeCount === 1)
+                                {{ strtoupper($selectedRamTypes[0]) === 'OTHER' ? 'อื่นๆ / ไม่ระบุ' : strtoupper($selectedRamTypes[0]) }}
+                            @else
+                                ประเภท RAM ({{ $ramTypeCount }})
+                            @endif
+                        </span>
+                        <span class="material-symbols-outlined dropdown-arrow">expand_more</span>
+                    </button>
+                    <div class="filter-dropdown-menu" id="ramTypeDropdownMenu" onclick="event.stopPropagation();">
+                        <div class="filter-dropdown-header">
+                            <span>ติ๊กเลือกประเภท RAM</span>
+                            <button type="button" class="btn-clear-multi" onclick="clearMulti('ramTypeDropdown', 'ประเภท RAM')">ล้าง</button>
+                        </div>
+                        <label class="multi-item">
+                            <input type="checkbox" name="ram_type[]" value="DDR5" onchange="updateMultiLabel('ramTypeDropdown', 'ประเภท RAM')" {{ in_array('DDR5', $selectedRamTypes) ? 'checked' : '' }}>
+                            <span>🚀 DDR5</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="ram_type[]" value="DDR4" onchange="updateMultiLabel('ramTypeDropdown', 'ประเภท RAM')" {{ in_array('DDR4', $selectedRamTypes) ? 'checked' : '' }}>
+                            <span>⚡ DDR4</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="ram_type[]" value="DDR3" onchange="updateMultiLabel('ramTypeDropdown', 'ประเภท RAM')" {{ in_array('DDR3', $selectedRamTypes) ? 'checked' : '' }}>
+                            <span>⏳ DDR3</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="ram_type[]" value="other" onchange="updateMultiLabel('ramTypeDropdown', 'ประเภท RAM')" {{ in_array('other', $selectedRamTypes) ? 'checked' : '' }}>
+                            <span>❓ อื่นๆ / ไม่ระบุ</span>
+                        </label>
+                        <div class="filter-dropdown-footer">
+                            <button type="submit" class="btn-multi-apply">ตกลง</button>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Disk Type Filter -->
                 <select name="disk_type" class="filter-select">
                     <option value="">ประเภทดิสก์ทั้งหมด</option>
-                    <option value="nvme" {{ request('disk_type') == 'nvme' ? 'selected' : '' }}>SSD NVMe M.2 (เร็วสุด)</option>
+                    <option value="nvme" {{ request('disk_type') == 'nvme' ? 'selected' : '' }}>SSD NVMe</option>
                     <option value="ssd" {{ request('disk_type') == 'ssd' ? 'selected' : '' }}>SSD ทั้งหมด</option>
-                    <option value="hdd" {{ request('disk_type') == 'hdd' ? 'selected' : '' }}>HDD จานหมุน (ช้า)</option>
+                    <option value="hdd" {{ request('disk_type') == 'hdd' ? 'selected' : '' }}>HDD จานหมุน</option>
                 </select>
 
                 <!-- OS Filter -->
@@ -1172,21 +1608,26 @@
                 <!-- Online Status -->
                 <select name="status" class="filter-select">
                     <option value="">สถานะทั้งหมด</option>
-                    <option value="online" {{ request('status') == 'online' ? 'selected' : '' }}>ออนไลน์ (Online)</option>
-                    <option value="offline" {{ request('status') == 'offline' ? 'selected' : '' }}>ออฟไลน์ (Offline)</option>
+                    <option value="online" {{ request('status') == 'online' ? 'selected' : '' }}>ออนไลน์</option>
+                    <option value="offline" {{ request('status') == 'offline' ? 'selected' : '' }}>ออฟไลน์</option>
                 </select>
 
-                <button type="submit" class="btn-filter-submit">
-                    <span class="material-symbols-outlined" style="font-size: 18px;">filter_alt</span>
+                <button type="submit" class="btn-filter-submit" title="ค้นหาตามเงื่อนไข">
+                    <span class="material-symbols-outlined" style="font-size: 17px;">filter_alt</span>
                     <span>กรอง</span>
                 </button>
 
-                @if(request()->hasAny(['search', 'department', 'ram', 'disk_type', 'os', 'office', 'status']))
-                    <a href="{{ route('admin.specs') }}" class="btn-filter-reset" title="ล้างตัวกรองทั้งหมด">
-                        <span class="material-symbols-outlined" style="font-size: 17px;">restart_alt</span>
+                @if(request()->hasAny(['search', 'department', 'perf', 'ram', 'ram_type', 'disk_type', 'os', 'office', 'status', 'sort', 'dir']))
+                    <a href="{{ route('admin.specs') }}" class="btn-filter-reset" title="ล้างการกรองและการเรียงลำดับทั้งหมด">
+                        <span class="material-symbols-outlined" style="font-size: 16px;">restart_alt</span>
                         <span>ล้างค่า</span>
                     </a>
                 @endif
+
+                <a href="{{ route('admin.specs.export') }}" class="btn-export" title="ส่งออกสเปกเครื่องทั้งหมดเป็นไฟล์ CSV">
+                    <span class="material-symbols-outlined" style="font-size: 17px;">download</span>
+                    <span>ส่งออก CSV</span>
+                </a>
             </form>
         </section>
 
@@ -1194,32 +1635,124 @@
         <section class="table-card">
             <div class="table-responsive">
                 <table class="specs-table">
+                    @php
+                        $currSort = request('sort', 'last_active');
+                        $currDir  = strtolower(request('dir', 'desc'));
+                    @endphp
                     <thead>
                         <tr>
-                            <th style="width: 50px; text-align: center;">#</th>
-                            <th style="width: 140px;">แผนก</th>
-                            <th style="width: 170px;">ชื่อเครื่อง</th>
-                            <th style="min-width: 150px;">CPU</th>
-                            <th style="min-width: 120px;">RAM</th>
-                            <th style="min-width: 140px;">Disk</th>
-                            <th style="min-width: 150px;">OS</th>
-                            <th style="min-width: 130px;">Microsoft</th>
-                            <th style="width: 90px; text-align: center;">จัดการ</th>
+                            <th class="th-sortable {{ $currSort === 'id' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('id')" style="width: 40px; text-align: center;" title="คลิกเรียงลำดับ ID (ข้อมูลทั้งหมด)">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">#</span>
+                                    <span class="material-symbols-outlined sort-icon">
+                                        {{ $currSort === 'id' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
+                                </div>
+                            </th>
+                            <th class="th-sortable {{ $currSort === 'department' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('department')" style="width: 125px;" title="คลิกเรียงตามแผนก (ข้อมูลทั้งหมด)">
+                                <div class="th-content">
+                                    <span class="th-label">แผนก</span>
+                                    <span class="material-symbols-outlined sort-icon">
+                                        {{ $currSort === 'department' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
+                                </div>
+                            </th>
+                            <th class="th-sortable {{ $currSort === 'hostname' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('hostname')" style="width: 155px;" title="คลิกเรียงตามชื่อเครื่อง (ข้อมูลทั้งหมด)">
+                                <div class="th-content">
+                                    <span class="th-label">ชื่อเครื่อง</span>
+                                    <span class="material-symbols-outlined sort-icon">
+                                        {{ $currSort === 'hostname' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
+                                </div>
+                            </th>
+                            <th class="th-sortable {{ $currSort === 'perf' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('perf')" style="width: 90px; text-align: center;" title="คลิกเรียงตามระดับประสิทธิภาพ สูงมาก-ต่ำมาก (ข้อมูลทั้งหมด)">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">ประสิทธิภาพ</span>
+                                    <span class="material-symbols-outlined sort-icon">
+                                        {{ $currSort === 'perf' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
+                                </div>
+                            </th>
+                            <th class="th-sortable {{ $currSort === 'cpu' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('cpu')" style="min-width: 130px;" title="คลิกเรียงตามรุ่น CPU (ข้อมูลทั้งหมด)">
+                                <div class="th-content">
+                                    <span class="th-label">CPU</span>
+                                    <span class="material-symbols-outlined sort-icon">
+                                        {{ $currSort === 'cpu' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
+                                </div>
+                            </th>
+                            <th class="th-sortable {{ $currSort === 'cores' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('cores')" style="width: 95px; text-align: center;" title="คลิกเรียงตามจำนวน Core/Threads (ข้อมูลทั้งหมด)">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">Core/Threads</span>
+                                    <span class="material-symbols-outlined sort-icon">
+                                        {{ $currSort === 'cores' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
+                                </div>
+                            </th>
+                            <th class="th-sortable {{ $currSort === 'speed' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('speed')" style="width: 85px; text-align: center;" title="คลิกเรียงตามความเร็ว CPU Speed GHz (ข้อมูลทั้งหมด)">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">Speed</span>
+                                    <span class="material-symbols-outlined sort-icon">
+                                        {{ $currSort === 'speed' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
+                                </div>
+                            </th>
+                            <th class="th-sortable {{ $currSort === 'ram_size' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('ram_size')" style="width: 85px; text-align: center;" title="คลิกเรียงตามขนาดความจุ RAM GB (ข้อมูลทั้งหมด)">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">ความจุ RAM</span>
+                                    <span class="material-symbols-outlined sort-icon">
+                                        {{ $currSort === 'ram_size' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
+                                </div>
+                            </th>
+                            <th class="th-sortable {{ $currSort === 'ram_type' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('ram_type')" style="width: 85px; text-align: center;" title="คลิกเรียงตามประเภท RAM DDR5/4/3 (ข้อมูลทั้งหมด)">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">ประเภท RAM</span>
+                                    <span class="material-symbols-outlined sort-icon">
+                                        {{ $currSort === 'ram_type' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
+                                </div>
+                            </th>
+                            <th class="th-sortable {{ $currSort === 'disk' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('disk')" style="min-width: 130px;" title="คลิกเรียงตามประเภทดิสก์ NVMe/SSD/HDD (ข้อมูลทั้งหมด)">
+                                <div class="th-content">
+                                    <span class="th-label">Disk</span>
+                                    <span class="material-symbols-outlined sort-icon">
+                                        {{ $currSort === 'disk' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
+                                </div>
+                            </th>
+                            <th class="th-sortable {{ $currSort === 'os' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('os')" style="min-width: 140px;" title="คลิกเรียงตามระบบปฏิบัติการ Windows (ข้อมูลทั้งหมด)">
+                                <div class="th-content">
+                                    <span class="th-label">OS</span>
+                                    <span class="material-symbols-outlined sort-icon">
+                                        {{ $currSort === 'os' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
+                                </div>
+                            </th>
+                            <th class="th-sortable {{ $currSort === 'office' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('office')" style="min-width: 140px;" title="คลิกเรียงตามโปรแกรม Microsoft Office (ข้อมูลทั้งหมด)">
+                                <div class="th-content">
+                                    <span class="th-label">Microsoft</span>
+                                    <span class="material-symbols-outlined sort-icon">
+                                        {{ $currSort === 'office' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
+                                </div>
+                            </th>
+                            <th style="width: 85px; text-align: center;">จัดการ</th>
                         </tr>
                     </thead>
                     <tbody>
                         @forelse($installations as $idx => $item)
                             <tr>
                                 <!-- Index -->
-                                <td style="text-align: center; color: var(--text-muted); font-size: 0.82rem; font-weight: 500;">
+                                <td class="col-row-index" style="text-align: center; color: var(--text-muted); font-size: 0.82rem; font-weight: 500;" data-sort-value="{{ $installations->firstItem() + $idx }}">
                                     {{ $installations->firstItem() + $idx }}
                                 </td>
 
                                 <!-- แผนก -->
-                                <td>
+                                <td data-sort-value="{{ $item->department ?: '' }}">
                                     @if($item->department)
                                         <span class="badge badge-dept" title="แผนก/หน่วยงาน: {{ $item->department }}">
-                                            <span class="material-symbols-outlined" style="font-size: 13px; color: var(--primary);">domain</span>
+                                             <span class="material-symbols-outlined" style="font-size: 13px; color: var(--primary);">domain</span>
                                             <span>{{ $item->department }}</span>
                                         </span>
                                     @else
@@ -1228,18 +1761,37 @@
                                 </td>
 
                                 <!-- ชื่อเครื่อง -->
-                                <td>
+                                <td data-sort-value="{{ $item->hostname ?: '' }}">
                                     <div style="display: inline-flex; align-items: center; gap: 6px;" title="IP: {{ $item->ip_address }} | ผู้ใช้: {{ $item->device_name ?: '-' }} | สถานะ: {{ $item->computed_online ? 'ออนไลน์' : 'ออฟไลน์' }}">
                                         <span class="status-dot {{ $item->computed_online ? 'online' : 'offline' }}" title="{{ $item->computed_online ? 'ออนไลน์' : 'ออฟไลน์' }}"></span>
                                         <span style="font-weight: 600; color: #0F172A;">{{ $item->hostname ?: '-' }}</span>
                                     </div>
                                 </td>
 
+                                <!-- ประสิทธิภาพ -->
+                                @php
+                                    $perf = $item->performance_level;
+                                    $perfTierScore = match($perf['key'] ?? '') {
+                                        'highest' => 5,
+                                        'high'    => 4,
+                                        'fair'    => 3,
+                                        'low'     => 2,
+                                        'lowest'  => 1,
+                                        default   => 0
+                                    };
+                                @endphp
+                                <td style="text-align: center;" data-sort-value="{{ $perfTierScore }}">
+                                    <span class="badge badge-{{ $perf['class'] }}" title="{{ $perf['desc'] }}">
+                                        <span class="material-symbols-outlined" style="font-size: 13px;">{{ $perf['icon'] }}</span>
+                                        <span>{{ $perf['level'] }}</span>
+                                    </span>
+                                </td>
+
                                 <!-- CPU -->
-                                <td>
+                                <td data-sort-value="{{ $item->short_cpu ?: '' }}">
                                     @if($item->short_cpu && $item->short_cpu !== '-')
                                         <span class="badge badge-cpu" title="{{ $item->cpu }}">
-                                            <span class="material-symbols-outlined" style="font-size: 13px; color: #4F46E5;">developer_board</span>
+                                             <span class="material-symbols-outlined" style="font-size: 13px; color: #4F46E5;">developer_board</span>
                                             <span>{{ $item->short_cpu }}</span>
                                         </span>
                                     @else
@@ -1247,12 +1799,82 @@
                                     @endif
                                 </td>
 
-                                <!-- RAM -->
-                                <td>
-                                    @if($item->short_ram && $item->short_ram !== '-')
-                                        <span class="badge badge-ram" title="{{ $item->ram }}">
-                                            <span class="material-symbols-outlined" style="font-size: 13px;">memory</span>
-                                            <span>{{ $item->short_ram }}</span>
+                                <!-- Core/Threads -->
+                                @php
+                                    // Extract core number for sorting e.g. "4C / 8T" -> 4
+                                    $coreNum = 0;
+                                    if (preg_match('/(\d+)\s*C/i', (string)$item->short_cpu_cores, $cm)) {
+                                        $coreNum = (int)$cm[1];
+                                    }
+                                @endphp
+                                <td style="text-align: center;" data-sort-value="{{ $coreNum }}">
+                                    @if($item->short_cpu_cores && $item->short_cpu_cores !== '-')
+                                        <span class="badge badge-cores" title="{{ $item->cpu_cores_detail }}">
+                                            <span>{{ $item->short_cpu_cores }}</span>
+                                        </span>
+                                    @else
+                                        <span style="color: #94A3B8;">-</span>
+                                    @endif
+                                </td>
+
+                                <!-- Speed -->
+                                @php
+                                    // Extract GHz for numeric sorting e.g. "3.20 GHz" -> 3.20
+                                    $ghzNum = 0;
+                                    if (preg_match('/([\d\.]+)\s*GHz/i', (string)$item->short_cpu_speed, $sm)) {
+                                        $ghzNum = (float)$sm[1];
+                                    }
+                                @endphp
+                                <td style="text-align: center;" data-sort-value="{{ $ghzNum }}">
+                                    @if($item->short_cpu_speed && $item->short_cpu_speed !== '-')
+                                        <span class="badge badge-speed" title="ความเร็ว CPU: {{ $item->short_cpu_speed }}">
+                                            <span>{{ $item->short_cpu_speed }}</span>
+                                        </span>
+                                    @else
+                                        <span style="color: #94A3B8;">-</span>
+                                    @endif
+                                </td>
+
+                                <!-- ความจุ RAM -->
+                                @php
+                                    // Extract RAM GB number e.g. "16 GB" -> 16
+                                    $ramGb = 0;
+                                    if (preg_match('/(\d+)\s*GB/i', (string)$item->short_ram_size, $rm)) {
+                                        $ramGb = (int)$rm[1];
+                                    }
+                                @endphp
+                                <td style="text-align: center;" data-sort-value="{{ $ramGb }}">
+                                    @if($item->short_ram_size && $item->short_ram_size !== '-')
+                                        <span class="badge badge-ram-size" title="{{ $item->ram }}">
+                                            <span>{{ $item->short_ram_size }}</span>
+                                        </span>
+                                    @else
+                                        <span style="color: #94A3B8;">-</span>
+                                    @endif
+                                </td>
+
+                                <!-- ประเภท RAM -->
+                                @php
+                                    $ramTypeWeight = match($item->short_ram_type) {
+                                        'DDR5' => 5,
+                                        'DDR4' => 4,
+                                        'DDR3' => 3,
+                                        'DDR2' => 2,
+                                        default => 0,
+                                    };
+                                @endphp
+                                <td style="text-align: center;" data-sort-value="{{ $ramTypeWeight }}">
+                                    @if($item->short_ram_type && $item->short_ram_type !== '-')
+                                        @php
+                                            $typeClass = match($item->short_ram_type) {
+                                                'DDR5' => 'badge-ram-ddr5',
+                                                'DDR4' => 'badge-ram-ddr4',
+                                                'DDR3' => 'badge-ram-ddr3',
+                                                default => 'badge-ram',
+                                            };
+                                        @endphp
+                                        <span class="badge {{ $typeClass }}" title="{{ $item->ram }}">
+                                            <span>{{ $item->short_ram_type }}</span>
                                         </span>
                                     @else
                                         <span style="color: #94A3B8;">-</span>
@@ -1260,7 +1882,17 @@
                                 </td>
 
                                 <!-- Disk -->
-                                <td>
+                                @php
+                                    $diskWeight = 0;
+                                    if (str_contains($item->short_disk, 'NVMe')) {
+                                        $diskWeight = 3;
+                                    } elseif (str_contains($item->short_disk, 'SSD')) {
+                                        $diskWeight = 2;
+                                    } elseif (str_contains($item->short_disk, 'HDD')) {
+                                        $diskWeight = 1;
+                                    }
+                                @endphp
+                                <td data-sort-value="{{ $diskWeight }}_{{ $item->short_disk }}">
                                     @if($item->short_disk && $item->short_disk !== '-')
                                         @php
                                             $isNvme = str_contains($item->short_disk, 'NVMe');
@@ -1277,7 +1909,7 @@
                                 </td>
 
                                 <!-- OS -->
-                                <td>
+                                <td data-sort-value="{{ $item->short_os ?: '' }}">
                                     @if($item->short_os && $item->short_os !== '-')
                                         @php
                                             $isWin11 = str_contains($item->short_os, 'Windows 11');
@@ -1294,7 +1926,7 @@
                                 </td>
 
                                 <!-- Microsoft -->
-                                <td>
+                                <td data-sort-value="{{ $item->short_office === 'ไม่มี' ? '' : $item->short_office }}">
                                     @if($item->short_office && $item->short_office !== 'ไม่มี')
                                         <span class="badge badge-office-ok" title="{{ $item->office_version }}">
                                             <span class="material-symbols-outlined" style="font-size: 13px;">description</span>
@@ -1332,7 +1964,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="9">
+                                <td colspan="13">
                                     <div class="empty-state">
                                         <span class="material-symbols-outlined">devices_off</span>
                                         <h3>ไม่พบข้อมูลสเปกเครื่องลูกข่ายตามเงื่อนไข</h3>
@@ -1369,6 +2001,7 @@
                     <span id="dtHostname">รายละเอียดคุณสมบัติสเปกเครื่อง</span>
                 </h3>
                 <div style="display: flex; align-items: center; gap: 8px;">
+                    <span id="dtPerfBadge" class="badge"></span>
                     <span id="dtStatusBadge" class="badge"></span>
                     <button type="button" class="modal-close" onclick="closeDetailsModal()">
                         <span class="material-symbols-outlined">close</span>
@@ -1511,8 +2144,45 @@
         </div>
     </div>
 
+    <!-- Toast Notification -->
+    <div id="toastNotification" class="toast-notify">
+        <span class="material-symbols-outlined" style="color: #34D399; font-size: 18px;">check_circle</span>
+        <span id="toastMessage">เรียงลำดับเรียบร้อย</span>
+    </div>
+
     <!-- JavaScript -->
     <script>
+        // --- Server-side Sorting for all records across all pages ---
+        function sortByServer(column) {
+            const url = new URL(window.location.href);
+            const currentSort = url.searchParams.get('sort') || 'last_active';
+            const currentDir = (url.searchParams.get('dir') || 'desc').toLowerCase();
+
+            let newDir = 'desc';
+            if (currentSort === column) {
+                newDir = currentDir === 'desc' ? 'asc' : 'desc';
+            }
+
+            url.searchParams.set('sort', column);
+            url.searchParams.set('dir', newDir);
+            url.searchParams.delete('page'); // กลับไปหน้า 1 เสมอเมื่อเปลี่ยนการเรียง
+
+            window.location.href = url.toString();
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toastNotification');
+            const toastMsg = document.getElementById('toastMessage');
+            if (toast && toastMsg) {
+                toastMsg.textContent = msg;
+                toast.classList.add('show');
+                clearTimeout(window.toastTimer);
+                window.toastTimer = setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 3000);
+            }
+        }
+
         function openDetailsModal(item) {
             document.getElementById('dtHostname').textContent = item.hostname || 'ไม่ระบุชื่อเครื่อง';
             
@@ -1520,6 +2190,14 @@
             const badge = document.getElementById('dtStatusBadge');
             badge.className = 'badge ' + (isOnline ? 'badge-online' : 'badge-offline');
             badge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 13px;">${isOnline ? 'check_circle' : 'power_off'}</span> ${isOnline ? 'ออนไลน์' : 'ออฟไลน์'}`;
+
+            const perfBadge = document.getElementById('dtPerfBadge');
+            if (perfBadge && item.performance_level) {
+                const perf = item.performance_level;
+                perfBadge.className = 'badge badge-' + perf.class;
+                perfBadge.innerHTML = `<span class="material-symbols-outlined" style="font-size: 13px;">${perf.icon}</span> ${perf.level}`;
+                perfBadge.title = perf.desc || '';
+            }
 
             document.getElementById('dtCpu').textContent = item.cpu || '- ไม่พบข้อมูล -';
             document.getElementById('dtRam').textContent = item.ram || '- ไม่พบข้อมูล -';
@@ -1575,6 +2253,65 @@
             if (e.key === 'Escape') {
                 closeDetailsModal();
                 closeEditModal();
+                document.querySelectorAll('.filter-dropdown-menu.show').forEach(m => m.classList.remove('show'));
+                document.querySelectorAll('.filter-dropdown-btn.active').forEach(b => b.classList.remove('active'));
+            }
+        });
+
+        // Multi-Select Dropdowns
+        function toggleMultiDropdown(e, id) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            const dropdown = document.getElementById(id);
+            if (!dropdown) return;
+            const menu = dropdown.querySelector('.filter-dropdown-menu');
+            const btn = dropdown.querySelector('.filter-dropdown-btn');
+            const isShown = menu.classList.contains('show');
+
+            // Close other dropdowns
+            document.querySelectorAll('.filter-dropdown-menu.show').forEach(m => m.classList.remove('show'));
+            document.querySelectorAll('.filter-dropdown-btn.active').forEach(b => b.classList.remove('active'));
+
+            if (!isShown) {
+                menu.classList.add('show');
+                btn.classList.add('active');
+            }
+        }
+
+        function updateMultiLabel(dropdownId, defaultLabel) {
+            const dropdown = document.getElementById(dropdownId);
+            if (!dropdown) return;
+            const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]:checked');
+            const labelSpan = dropdown.querySelector('.filter-dropdown-btn span:first-child');
+            const btn = dropdown.querySelector('.filter-dropdown-btn');
+
+            if (checkboxes.length === 0) {
+                labelSpan.textContent = defaultLabel;
+                btn.classList.remove('has-value');
+            } else if (checkboxes.length === 1) {
+                const labelText = checkboxes[0].parentElement.querySelector('span').textContent.trim();
+                labelSpan.textContent = labelText;
+                btn.classList.add('has-value');
+            } else {
+                labelSpan.textContent = `${defaultLabel} (${checkboxes.length} รายการ)`;
+                btn.classList.add('has-value');
+            }
+        }
+
+        function clearMulti(dropdownId, defaultLabel) {
+            const dropdown = document.getElementById(dropdownId);
+            if (!dropdown) return;
+            dropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+            updateMultiLabel(dropdownId, defaultLabel);
+        }
+
+        // Close dropdowns on outside click
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.filter-dropdown-multiselect')) {
+                document.querySelectorAll('.filter-dropdown-menu.show').forEach(m => m.classList.remove('show'));
+                document.querySelectorAll('.filter-dropdown-btn.active').forEach(b => b.classList.remove('active'));
             }
         });
     </script>

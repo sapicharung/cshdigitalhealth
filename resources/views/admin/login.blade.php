@@ -337,8 +337,8 @@
                 <div class="input-wrapper">
                     <span class="material-symbols-outlined">person</span>
                     <input type="text" id="login" name="login" class="form-control" 
-                           placeholder="admin หรือ admin@csh.local" 
-                           value="{{ old('login', 'admin') }}" required autofocus autocomplete="username">
+                           placeholder="กรอกชื่อผู้ใช้งาน หรือ อีเมล" 
+                           value="{{ old('login') }}" required autofocus autocomplete="username">
                 </div>
             </div>
 

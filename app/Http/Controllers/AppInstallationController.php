@@ -23,6 +23,22 @@ class AppInstallationController extends Controller
     }
 
     /**
+     * Get auto-sync interval in minutes (configurable via .env AUTOSYNC_INTERVAL_MINUTES).
+     */
+    public function getAutoSyncIntervalMinutes(): int
+    {
+        return (int) (config('app.autosync_interval') ?: env('AUTOSYNC_INTERVAL_MINUTES', 5));
+    }
+
+    /**
+     * Get client online threshold in minutes (configurable via .env CLIENT_ONLINE_THRESHOLD_MINUTES).
+     */
+    public function getOnlineThresholdMinutes(): int
+    {
+        return (int) (config('app.online_threshold') ?: env('CLIENT_ONLINE_THRESHOLD_MINUTES', 15));
+    }
+
+    /**
      * Determine reachable base URL for client requests (avoids localhost for remote clients).
      */
     public function getEffectiveAppUrl(?Request $request = null): string
@@ -410,14 +426,16 @@ class AppInstallationController extends Controller
             $query->where('department', $request->input('department'));
         }
 
+        $onlineThreshold = $this->getOnlineThresholdMinutes();
+
         // Status filter
         if ($request->input('status') === 'online') {
-            $query->where('is_online', true)->where('last_active_at', '>=', now()->subMinutes(15));
+            $query->where('is_online', true)->where('last_active_at', '>=', now()->subMinutes($onlineThreshold));
         } elseif ($request->input('status') === 'offline') {
-            $query->where(function ($q) {
+            $query->where(function ($q) use ($onlineThreshold) {
                 $q->where('is_online', false)
                   ->orWhereNull('is_online')
-                  ->orWhere('last_active_at', '<', now()->subMinutes(15))
+                  ->orWhere('last_active_at', '<', now()->subMinutes($onlineThreshold))
                   ->orWhereNull('last_active_at');
             });
         } elseif ($request->input('status') === 'missing_asset') {
@@ -445,11 +463,11 @@ class AppInstallationController extends Controller
 
         $stats = [
             'total_devices'            => AppInstallation::count(),
-            'online_count'             => AppInstallation::where('is_online', true)->where('last_active_at', '>=', now()->subMinutes(15))->count(),
-            'offline_count'            => AppInstallation::where(function ($q) {
+            'online_count'             => AppInstallation::where('is_online', true)->where('last_active_at', '>=', now()->subMinutes($onlineThreshold))->count(),
+            'offline_count'            => AppInstallation::where(function ($q) use ($onlineThreshold) {
                 $q->where('is_online', false)
                   ->orWhereNull('is_online')
-                  ->orWhere('last_active_at', '<', now()->subMinutes(15))
+                  ->orWhere('last_active_at', '<', now()->subMinutes($onlineThreshold))
                   ->orWhereNull('last_active_at');
             })->count(),
             'missing_asset_code_count' => AppInstallation::where(function ($q) {
@@ -476,37 +494,15 @@ class AppInstallationController extends Controller
         $sortCol = $request->input('sort');
         $sortDir = strtolower($request->input('direction', 'desc')) === 'asc' ? 'asc' : 'desc';
 
-        $sortMap = [
-            'id'         => 'id',
-            'status'     => 'is_online',
-            'hostname'   => 'hostname',
-            'asset_code' => 'asset_code',
-            'ip'         => 'ip_address',
-            'vnc'        => 'remote_ready',
-            'anydesk'    => 'anydesk_installed',
-            'risk'       => 'has_risk_software',
-            'uptime'     => 'last_boot_time',
-            'department' => 'department',
-            'version'    => 'client_version',
-            'notes'      => 'notes',
-            'active'     => 'last_active_at',
-        ];
+        // Retrieve all records matching the filters
+        $allRecords = $query->get();
 
-        if ($sortCol && isset($sortMap[$sortCol])) {
-            $query->orderBy($sortMap[$sortCol], $sortDir);
-        } else {
-            $query->orderBy('last_active_at', 'desc');
-        }
+        // Query CSHOS_DB (onlineuser + opduser) for staff info before sorting
+        $allIps = $allRecords->pluck('ip_address')->filter()->unique()->values()->toArray();
+        $staffMap = $this->getStaffMapByIps($allIps);
 
-        $installations = $query->paginate(25)->withQueryString();
-        $vnc_password = $this->getVncPassword();
-
-        // Query CSHOS_DB (onlineuser + opduser) for current page IPs to display Staff Name
-        $ipList = $installations->pluck('ip_address')->filter()->unique()->values()->toArray();
-        $staffMap = $this->getStaffMapByIps($ipList);
-
-        foreach ($installations as $item) {
-            $item->computed_online = (bool) ($item->is_online && $item->last_active_at && $item->last_active_at->diffInMinutes(now()) <= 15);
+        foreach ($allRecords as $item) {
+            $item->computed_online = (bool) ($item->is_online && $item->last_active_at && $item->last_active_at->diffInMinutes(now()) <= $onlineThreshold);
             if (isset($staffMap[$item->ip_address])) {
                 $info = $staffMap[$item->ip_address];
                 $item->staff_name = $info->staff_name ?: null;
@@ -520,6 +516,44 @@ class AppInstallationController extends Controller
                 $item->staff_position = null;
             }
         }
+
+        // Perform in-memory sorting across the full dataset so computed columns (online status, staff, etc.) sort accurately
+        $sortedRecords = $allRecords->sortBy(function ($item) use ($sortCol) {
+            return match ($sortCol) {
+                'id'         => (int) $item->id,
+                'status'     => $item->computed_online ? 1 : 0,
+                'hostname'   => mb_strtolower((string) $item->hostname, 'UTF-8'),
+                'asset_code' => mb_strtolower((string) $item->asset_code, 'UTF-8'),
+                'ip'         => sprintf('%03d.%03d.%03d.%03d', ...array_pad(explode('.', (string) $item->ip_address), 4, 0)),
+                'vnc'        => (int) $item->remote_ready,
+                'anydesk'    => (int) $item->anydesk_installed,
+                'risk'       => (int) $item->has_risk_software,
+                'uptime'     => (int) $item->uptime_seconds,
+                'staff'      => mb_strtolower((string) ($item->staff_name ?? ''), 'UTF-8'),
+                'department' => mb_strtolower((string) $item->department, 'UTF-8'),
+                'version'    => (string) $item->client_version,
+                'notes'      => mb_strtolower((string) $item->notes, 'UTF-8'),
+                'active'     => $item->last_active_at ? $item->last_active_at->timestamp : 0,
+                default      => $item->last_active_at ? $item->last_active_at->timestamp : 0,
+            };
+        }, SORT_REGULAR, $sortDir === 'desc')->values();
+
+        // Paginate manually with full query string preservation
+        $perPage = 25;
+        $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage('page') ?: 1;
+        $currentPageItems = $sortedRecords->slice(($currentPage - 1) * $perPage, $perPage)->values();
+
+        $installations = new \Illuminate\Pagination\LengthAwarePaginator(
+            $currentPageItems,
+            $sortedRecords->count(),
+            $perPage,
+            $currentPage,
+            [
+                'path'  => \Illuminate\Pagination\Paginator::resolveCurrentPath(),
+                'query' => $request->query(),
+            ]
+        );
+        $vnc_password = $this->getVncPassword();
 
         return view('admin.installations', compact('installations', 'stats', 'departments', 'vnc_password', 'serverVersion'));
     }
@@ -600,30 +634,57 @@ class AppInstallationController extends Controller
             $query->where('department', $request->input('department'));
         }
 
-        // Filter by RAM
+        // Filter by RAM (Supports multiple selected sizes e.g. ['4', '8'] or string '4,8')
         if ($request->filled('ram')) {
-            $ram = $request->input('ram');
-            if ($ram === '4') {
-                $query->where(function ($q) {
-                    $q->where('ram', 'like', '4 GB%')->orWhere('ram', 'like', '3.%GB%');
+            $ramInput = $request->input('ram');
+            $ramList = is_array($ramInput) ? $ramInput : explode(',', (string)$ramInput);
+            $ramList = array_filter(array_map('trim', $ramList));
+
+            if (!empty($ramList)) {
+                $query->where(function ($q) use ($ramList) {
+                    foreach ($ramList as $idx => $val) {
+                        $method = ($idx === 0) ? 'where' : 'orWhere';
+                        $q->$method(function ($sub) use ($val) {
+                            if ($val === '4') {
+                                $sub->where('ram', 'like', '4 GB%')->orWhere('ram', 'like', '3.%GB%');
+                            } elseif ($val === '8') {
+                                $sub->where('ram', 'like', '8 GB%')->orWhere('ram', 'like', '7.%GB%');
+                            } elseif ($val === '12') {
+                                $sub->where('ram', 'like', '12 GB%')->orWhere('ram', 'like', '11.%GB%');
+                            } elseif ($val === '16') {
+                                $sub->where('ram', 'like', '16 GB%')->orWhere('ram', 'like', '15.%GB%');
+                            } elseif ($val === '32+') {
+                                $sub->where('ram', 'like', '32 GB%')->orWhere('ram', 'like', '64 GB%');
+                            } elseif ($val === 'low') {
+                                $sub->where('ram', 'like', '4 GB%')
+                                    ->orWhere('ram', 'like', '2 GB%')
+                                    ->orWhere('ram', 'like', '3.%GB%');
+                            }
+                        });
+                    }
                 });
-            } elseif ($ram === '8') {
-                $query->where(function ($q) {
-                    $q->where('ram', 'like', '8 GB%')->orWhere('ram', 'like', '7.%GB%');
-                });
-            } elseif ($ram === '16') {
-                $query->where(function ($q) {
-                    $q->where('ram', 'like', '16 GB%')->orWhere('ram', 'like', '15.%GB%');
-                });
-            } elseif ($ram === '32+') {
-                $query->where(function ($q) {
-                    $q->where('ram', 'like', '32 GB%')->orWhere('ram', 'like', '64 GB%');
-                });
-            } elseif ($ram === 'low') {
-                $query->where(function ($q) {
-                    $q->where('ram', 'like', '4 GB%')
-                      ->orWhere('ram', 'like', '2 GB%')
-                      ->orWhere('ram', 'like', '3.%GB%');
+            }
+        }
+
+        // Filter by RAM Type (DDR5, DDR4, DDR3, etc.)
+        if ($request->filled('ram_type')) {
+            $rtInput = $request->input('ram_type');
+            $rtList = is_array($rtInput) ? $rtInput : explode(',', (string)$rtInput);
+            $rtList = array_filter(array_map('trim', $rtList));
+
+            if (!empty($rtList)) {
+                $query->where(function ($q) use ($rtList) {
+                    foreach ($rtList as $idx => $val) {
+                        $method = ($idx === 0) ? 'where' : 'orWhere';
+                        $q->$method(function ($sub) use ($val) {
+                            if (strtoupper($val) === 'OTHER' || $val === '-') {
+                                $sub->where('ram', 'not like', '%DDR%')
+                                    ->orWhereNull('ram');
+                            } else {
+                                $sub->where('ram', 'like', '%' . strtoupper($val) . '%');
+                            }
+                        });
+                    }
                 });
             }
         }
@@ -677,14 +738,41 @@ class AppInstallationController extends Controller
             }
         }
 
+        // Filter by Performance Tier (Supports multiple selected tiers e.g. ['fair', 'high'])
+        if ($request->filled('perf')) {
+            $perfInput = $request->input('perf');
+            $perfList = is_array($perfInput) ? $perfInput : explode(',', (string)$perfInput);
+            $perfList = array_filter(array_map('trim', $perfList));
+
+            if (!empty($perfList)) {
+                $aliasMap = [
+                    'excellent' => 'highest',
+                    'good' => 'high',
+                ];
+                $perfList = array_map(function ($p) use ($aliasMap) {
+                    return $aliasMap[$p] ?? $p;
+                }, $perfList);
+
+                $matchingIds = AppInstallation::all(['id', 'cpu', 'ram', 'disk'])
+                    ->filter(function ($item) use ($perfList) {
+                        return in_array($item->performance_level['key'] ?? '', $perfList, true);
+                    })
+                    ->pluck('id');
+
+                $query->whereIn('id', $matchingIds);
+            }
+        }
+
+        $onlineThreshold = $this->getOnlineThresholdMinutes();
+
         // Filter by Online status
         if ($request->input('status') === 'online') {
-            $query->where('is_online', true)->where('last_active_at', '>=', now()->subMinutes(15));
+            $query->where('is_online', true)->where('last_active_at', '>=', now()->subMinutes($onlineThreshold));
         } elseif ($request->input('status') === 'offline') {
-            $query->where(function ($q) {
+            $query->where(function ($q) use ($onlineThreshold) {
                 $q->where('is_online', false)
                   ->orWhereNull('is_online')
-                  ->orWhere('last_active_at', '<', now()->subMinutes(15))
+                  ->orWhere('last_active_at', '<', now()->subMinutes($onlineThreshold))
                   ->orWhereNull('last_active_at');
             });
         }
@@ -716,6 +804,25 @@ class AppInstallationController extends Controller
             ->where('office_version', 'not like', '%ไม่ได้ติดตั้ง%')
             ->count();
 
+        // Performance Tier Summary Distribution
+        $allDevicesForPerf = AppInstallation::all(['id', 'cpu', 'ram', 'disk']);
+        $perfCounts = [
+            'highest' => 0,
+            'high'    => 0,
+            'fair'    => 0,
+            'low'     => 0,
+            'lowest'  => 0,
+        ];
+        foreach ($allDevicesForPerf as $dev) {
+            $k = $dev->performance_level['key'] ?? 'lowest';
+            if (isset($perfCounts[$k])) {
+                $perfCounts[$k]++;
+            } else {
+                $perfCounts['lowest']++;
+            }
+        }
+        $goodPerfCount = $perfCounts['highest'] + $perfCounts['high']; // เครื่องประสิทธิภาพดี-สูง
+
         $stats = [
             'total_devices'          => $totalDevices,
             'ssd_count'              => $ssdCount,
@@ -725,6 +832,8 @@ class AppInstallationController extends Controller
             'ram_8plus_count'        => $ram8PlusCount,
             'ram_low_count'          => $ramLowCount,
             'office_installed_count' => $officeInstalledCount,
+            'perf_counts'            => $perfCounts,
+            'good_perf_count'        => $goodPerfCount,
         ];
 
         // Dropdown distinct values
@@ -734,37 +843,86 @@ class AppInstallationController extends Controller
             ->orderBy('department')
             ->pluck('department');
 
-        // Sorting
+        // Sorting for all records across all pages
         $sortCol = $request->input('sort', 'last_active');
         $sortDir = strtolower($request->input('dir', 'desc')) === 'asc' ? 'asc' : 'desc';
-        $sortMap = [
-            'hostname'    => 'hostname',
-            'department'  => 'department',
-            'asset_code'  => 'asset_code',
-            'ip'          => 'ip_address',
-            'cpu'         => 'cpu',
-            'ram'         => 'ram',
-            'disk'        => 'disk',
-            'os'          => 'os_version',
-            'office'      => 'office_version',
-            'last_active' => 'last_active_at',
-        ];
 
-        if (isset($sortMap[$sortCol])) {
-            $query->orderBy($sortMap[$sortCol], $sortDir);
-        } else {
-            $query->orderBy('last_active_at', 'desc');
-        }
+        // Retrieve all records matching the filters
+        $allRecords = $query->get();
 
-        // Paginate 25 items per page
-        $installations = $query->paginate(25)->withQueryString();
+        // Perform in-memory sorting across the full dataset so computed columns (speed, cores, ram size, ram type, perf) sort accurately
+        $sortedRecords = $allRecords->sortBy(function ($item) use ($sortCol) {
+            return match ($sortCol) {
+                'id'          => (int) $item->id,
+                'hostname'    => mb_strtolower((string) $item->hostname, 'UTF-8'),
+                'department'  => mb_strtolower((string) $item->department, 'UTF-8'),
+                'perf'        => (int) ($item->performance_level['tier_number'] ?? 0),
+                'cpu'         => mb_strtolower((string) $item->short_cpu, 'UTF-8'),
+                'cores'       => (function () use ($item) {
+                    if (preg_match('/(\d+)\s*C/i', (string) $item->short_cpu_cores, $m)) {
+                        return (int) $m[1];
+                    }
+                    return 0;
+                })(),
+                'speed'       => (function () use ($item) {
+                    if (preg_match('/([\d\.]+)\s*GHz/i', (string) $item->short_cpu_speed, $m)) {
+                        return (float) $m[1];
+                    }
+                    return 0.0;
+                })(),
+                'ram_size'    => (function () use ($item) {
+                    if (preg_match('/(\d+)\s*GB/i', (string) $item->short_ram_size, $m)) {
+                        return (int) $m[1];
+                    }
+                    return 0;
+                })(),
+                'ram_type'    => match ($item->short_ram_type) {
+                    'DDR5'  => 5,
+                    'DDR4'  => 4,
+                    'DDR3'  => 3,
+                    'DDR2'  => 2,
+                    default => 0,
+                },
+                'disk'        => (function () use ($item) {
+                    $weight = 0;
+                    if (str_contains($item->short_disk, 'NVMe')) {
+                        $weight = 3;
+                    } elseif (str_contains($item->short_disk, 'SSD')) {
+                        $weight = 2;
+                    } elseif (str_contains($item->short_disk, 'HDD')) {
+                        $weight = 1;
+                    }
+                    return sprintf('%d_%s', $weight, mb_strtolower((string) $item->short_disk, 'UTF-8'));
+                })(),
+                'os'          => mb_strtolower((string) $item->short_os, 'UTF-8'),
+                'office'      => $item->short_office === 'ไม่มี' ? '' : mb_strtolower((string) $item->short_office, 'UTF-8'),
+                'last_active' => $item->last_active_at ? $item->last_active_at->timestamp : 0,
+                default       => $item->last_active_at ? $item->last_active_at->timestamp : 0,
+            };
+        }, SORT_REGULAR, $sortDir === 'desc')->values();
+
+        // Paginate manually with full query string preservation
+        $perPage = 25;
+        $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage('page') ?: 1;
+        $currentPageItems = $sortedRecords->slice(($currentPage - 1) * $perPage, $perPage)->values();
+
+        $installations = new \Illuminate\Pagination\LengthAwarePaginator(
+            $currentPageItems,
+            $sortedRecords->count(),
+            $perPage,
+            $currentPage,
+            [
+                'path'  => \Illuminate\Pagination\Paginator::resolveCurrentPath(),
+                'query' => $request->query(),
+            ]
+        );
 
         // Staff map
         $ipList = $installations->pluck('ip_address')->filter()->unique()->values()->toArray();
         $staffMap = $this->getStaffMapByIps($ipList);
 
         foreach ($installations as $item) {
-            $item->computed_online = (bool) ($item->is_online && $item->last_active_at && $item->last_active_at->diffInMinutes(now()) <= 15);
+            $item->computed_online = (bool) ($item->is_online && $item->last_active_at && $item->last_active_at->diffInMinutes(now()) <= $onlineThreshold);
             if (isset($staffMap[$item->ip_address])) {
                 $info = $staffMap[$item->ip_address];
                 $item->staff_name = $info->staff_name ?: null;
@@ -807,8 +965,12 @@ class AppInstallationController extends Controller
                 'ลำดับ (ID)',
                 'แผนก/หน่วยงาน',
                 'ชื่อเครื่อง (Hostname)',
+                'ประสิทธิภาพ',
                 'CPU',
-                'RAM',
+                'Core/Threads',
+                'CPU Speed',
+                'ความจุ RAM',
+                'ประเภท RAM',
                 'Disk',
                 'OS',
                 'Microsoft Office',
@@ -831,18 +993,24 @@ class AppInstallationController extends Controller
             $allIps = AppInstallation::whereNotNull('ip_address')->pluck('ip_address')->filter()->unique()->toArray();
             $staffMap = $this->getStaffMapByIps($allIps);
 
-            AppInstallation::orderBy('last_active_at', 'desc')->chunk(200, function ($records) use ($handle, $staffMap) {
+            $onlineThreshold = $this->getOnlineThresholdMinutes();
+
+            AppInstallation::orderBy('last_active_at', 'desc')->chunk(200, function ($records) use ($handle, $staffMap, $onlineThreshold) {
                 foreach ($records as $item) {
                     $staffInfo = $staffMap[$item->ip_address] ?? null;
                     $staffName = $staffInfo ? ($staffInfo->staff_name ?: $staffInfo->kskloginname) : '-';
-                    $isOnline = ($item->is_online && $item->last_active_at && $item->last_active_at->diffInMinutes(now()) <= 15);
+                    $isOnline = ($item->is_online && $item->last_active_at && $item->last_active_at->diffInMinutes(now()) <= $onlineThreshold);
 
                     fputcsv($handle, [
                         $item->id,
                         $item->department ?: '-',
                         $item->hostname ?? '-',
+                        $item->performance_level['level'] ?? '-',
                         $item->short_cpu,
-                        $item->short_ram,
+                        $item->short_cpu_cores,
+                        $item->short_cpu_speed,
+                        $item->short_ram_size,
+                        $item->short_ram_type,
                         $item->short_disk,
                         $item->short_os,
                         $item->short_office,
@@ -2043,7 +2211,7 @@ try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:15 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /f 2>&1 | Out-Null
-    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Periodic" /tr $taskCmd /sc MINUTE /mo 5 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Periodic" /tr $taskCmd /sc MINUTE /mo {{AUTOSYNC_INTERVAL}} /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /delete /tn "CSHOS-AutoSync-Hourly" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 08:30 /ri 60 /du 24:00 /ru "SYSTEM" /f 2>&1 | Out-Null
 
@@ -2082,9 +2250,11 @@ Start-Sleep -Milliseconds 800
 try { Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue } catch {}
 POWERSHELL;
 
+        $autoSyncInterval = $this->getAutoSyncIntervalMinutes();
+
         $script = str_replace(
-            ['{{APP_NAME}}', '{{APP_URL}}', '{{ICON_URL}}', '{{VNC_PASSWORD}}', '{{VNC_HASH}}', '{{SERVER_VERSION}}', '{{SYNC_CODE}}'],
-            [$appName, $appUrl, $iconUrl, $vncPassword, $vncHash, $serverVersion, $syncCode],
+            ['{{APP_NAME}}', '{{APP_URL}}', '{{ICON_URL}}', '{{VNC_PASSWORD}}', '{{VNC_HASH}}', '{{SERVER_VERSION}}', '{{SYNC_CODE}}', '{{AUTOSYNC_INTERVAL}}'],
+            [$appName, $appUrl, $iconUrl, $vncPassword, $vncHash, $serverVersion, $syncCode, $autoSyncInterval],
             $updateTemplate
         );
 
@@ -3682,7 +3852,7 @@ try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:15 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /f 2>&1 | Out-Null
-    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Periodic" /tr $taskCmd /sc MINUTE /mo 5 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Periodic" /tr $taskCmd /sc MINUTE /mo {{AUTOSYNC_INTERVAL}} /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /delete /tn "CSHOS-AutoSync-Hourly" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 08:30 /ri 60 /du 24:00 /ru "SYSTEM" /f 2>&1 | Out-Null
 
@@ -4210,11 +4380,12 @@ try {
 POWERSHELL;
 
         $clientVersion = $this->getClientAppVersion();
+        $autoSyncInterval = $this->getAutoSyncIntervalMinutes();
         $syncCode = $this->getClientSyncScriptTemplate($appUrl, $appName);
 
         $psScript = str_replace(
-            ['{{APP_NAME}}', '{{APP_URL}}', '{{ICON_URL}}', '{{VNC_PASSWORD}}', '{{VNC_HASH}}', '{{CLIENT_VERSION}}', '{{SYNC_CODE}}'],
-            [$appName, $appUrl, $iconUrl, $vncPassword, $vncHash, $clientVersion, $syncCode],
+            ['{{APP_NAME}}', '{{APP_URL}}', '{{ICON_URL}}', '{{VNC_PASSWORD}}', '{{VNC_HASH}}', '{{CLIENT_VERSION}}', '{{SYNC_CODE}}', '{{AUTOSYNC_INTERVAL}}'],
+            [$appName, $appUrl, $iconUrl, $vncPassword, $vncHash, $clientVersion, $syncCode, $autoSyncInterval],
             $psTemplate
         );
 
@@ -4346,7 +4517,7 @@ try {
     $taskCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Startup" /tr $taskCmd /sc ONSTART /delay 0000:15 /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Logon" /tr $taskCmd /sc ONLOGON /f 2>&1 | Out-Null
-    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Periodic" /tr $taskCmd /sc MINUTE /mo 5 /ru "SYSTEM" /f 2>&1 | Out-Null
+    $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Periodic" /tr $taskCmd /sc MINUTE /mo {{AUTOSYNC_INTERVAL}} /ru "SYSTEM" /f 2>&1 | Out-Null
     $null | & schtasks.exe /delete /tn "CSHOS-AutoSync-Hourly" /f 2>&1 | Out-Null
     $null | & schtasks.exe /create /tn "CSHOS-AutoSync-Daily" /tr $taskCmd /sc DAILY /st 08:30 /ri 60 /du 24:00 /ru "SYSTEM" /f 2>&1 | Out-Null
 
@@ -4733,10 +4904,11 @@ try {
 POWERSHELL;
 
         $clientVersion = $this->getClientAppVersion();
+        $autoSyncInterval = $this->getAutoSyncIntervalMinutes();
         $syncCode = $this->getClientSyncScriptTemplate($appUrl, $appName);
         $psScript = str_replace(
-            ['{{APP_NAME}}', '{{APP_URL}}', '{{CLIENT_VERSION}}', '{{SYNC_CODE}}'],
-            [$appName, $appUrl, $clientVersion, $syncCode],
+            ['{{APP_NAME}}', '{{APP_URL}}', '{{CLIENT_VERSION}}', '{{SYNC_CODE}}', '{{AUTOSYNC_INTERVAL}}'],
+            [$appName, $appUrl, $clientVersion, $syncCode, $autoSyncInterval],
             $psTemplate
         );
 
