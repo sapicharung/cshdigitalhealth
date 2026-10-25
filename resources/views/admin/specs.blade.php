@@ -1258,18 +1258,17 @@
         .perf-card-badge-pill {
             display: inline-flex;
             align-items: center;
-            gap: 3px;
-            font-size: 0.72rem;
+            justify-content: center;
+            width: 24px;
+            height: 24px;
             color: #7E22CE;
             background: #F3E8FF;
             border: 1px solid #E9D5FF;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-weight: 600;
+            border-radius: 50%;
             transition: all 0.2s;
         }
         .perf-card-badge-pill .expand-arrow {
-            font-size: 15px;
+            font-size: 16px;
             transition: transform 0.25s ease;
         }
         .stat-card-perf.is-expanded .perf-card-badge-pill {
@@ -1580,13 +1579,12 @@
             <div class="stat-card stat-card-perf {{ $perfCount > 0 ? 'is-expanded' : '' }}" 
                  id="perfMainCard" 
                  onclick="togglePerfSubCards()" 
-                 title="คลิกเพื่อเปิด/ปิดการ์ดย่อยประสิทธิภาพ 5 ระดับ">
+                 title="คลิกเพื่อเปิด/ปิดรายละเอียดระดับประสิทธิภาพ">
                 <div class="stat-info">
                     <p style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                         <span>ประสิทธิภาพ (ดี - สูงมาก)</span>
-                        <span class="perf-card-badge-pill" title="คลิกเพื่อเปิด/ปิดการ์ดย่อย 5 ระดับ">
+                        <span class="perf-card-badge-pill" title="คลิกเพื่อเปิด/ปิด">
                             <span class="material-symbols-outlined expand-arrow" id="perfToggleIcon">{{ $perfCount > 0 ? 'expand_less' : 'expand_more' }}</span>
-                            <span id="perfToggleHint">{{ $perfCount > 0 ? 'ซ่อนการ์ดย่อย' : 'การ์ดย่อย 5 ระดับ' }}</span>
                         </span>
                     </p>
                     <h2>{{ number_format($stats['good_perf_count']) }} <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">เครื่อง</span></h2>
@@ -1655,7 +1653,7 @@
                     <div class="perf-subcards-title">
                         <span class="material-symbols-outlined" style="color: #7E22CE; font-size: 21px;">layers</span>
                         <span>ระดับประสิทธิภาพคอมพิวเตอร์รายกลุ่ม (5 ระดับ)</span>
-                        <span class="perf-subcards-guide">• คลิกการ์ดย่อยเพื่อกรองข้อมูลเฉพาะกลุ่มนั้น</span>
+                        <span class="perf-subcards-guide">• คลิกเพื่อกรองข้อมูลเฉพาะระดับนั้น</span>
                     </div>
                     <div class="perf-subcards-actions">
                         @if($perfCount > 0)
@@ -1664,7 +1662,7 @@
                                 <span>แสดงทั้งหมด ({{ $stats['total_devices'] }})</span>
                             </button>
                         @endif
-                        <button type="button" class="btn-subcard-close" onclick="togglePerfSubCards(false)" title="ปิดการ์ดย่อย">
+                        <button type="button" class="btn-subcard-close" onclick="togglePerfSubCards(false)" title="ปิด">
                             <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
                         </button>
                     </div>
@@ -2527,7 +2525,6 @@
             const panel = document.getElementById('perfSubCardsPanel');
             const mainCard = document.getElementById('perfMainCard');
             const icon = document.getElementById('perfToggleIcon');
-            const hint = document.getElementById('perfToggleHint');
             if (!panel) return;
 
             let shouldOpen;
@@ -2541,13 +2538,11 @@
                 panel.style.display = 'block';
                 if (mainCard) mainCard.classList.add('is-expanded');
                 if (icon) icon.textContent = 'expand_less';
-                if (hint) hint.textContent = 'ซ่อนการ์ดย่อย';
                 sessionStorage.setItem('cshos_perf_subcards_open', '1');
             } else {
                 panel.style.display = 'none';
                 if (mainCard) mainCard.classList.remove('is-expanded');
                 if (icon) icon.textContent = 'expand_more';
-                if (hint) hint.textContent = 'การ์ดย่อย 5 ระดับ';
                 sessionStorage.setItem('cshos_perf_subcards_open', '0');
             }
         }
