@@ -1238,16 +1238,19 @@
             }
         }
 
-        /* Clickable Performance Stat Card & Sub-Cards Grid */
-        .stat-card-perf {
+        /* Clickable Performance, Storage, RAM & Windows Stat Cards */
+        .stat-card-clickable {
             cursor: pointer;
             position: relative;
             user-select: none;
             transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
         }
+        .stat-card-clickable:hover {
+            transform: translateY(-2px);
+        }
+
         .stat-card-perf:hover {
             border-color: #C084FC !important;
-            transform: translateY(-2px);
             box-shadow: 0 8px 24px rgba(168, 85, 247, 0.12);
         }
         .stat-card-perf.is-expanded {
@@ -1255,29 +1258,96 @@
             box-shadow: 0 0 0 1px #A855F7, 0 8px 25px rgba(168, 85, 247, 0.16) !important;
             background: linear-gradient(135deg, #FAF5FF 0%, #FFFFFF 100%) !important;
         }
-        .perf-card-badge-pill {
+
+        .stat-card-storage:hover {
+            border-color: #34D399 !important;
+            box-shadow: 0 8px 24px rgba(5, 150, 105, 0.12);
+        }
+        .stat-card-storage.is-expanded {
+            border-color: #059669 !important;
+            box-shadow: 0 0 0 1px #059669, 0 8px 25px rgba(5, 150, 105, 0.16) !important;
+            background: linear-gradient(135deg, #ECFDF5 0%, #FFFFFF 100%) !important;
+        }
+
+        .stat-card-ram:hover {
+            border-color: #818CF8 !important;
+            box-shadow: 0 8px 24px rgba(79, 70, 229, 0.12);
+        }
+        .stat-card-ram.is-expanded {
+            border-color: #4F46E5 !important;
+            box-shadow: 0 0 0 1px #4F46E5, 0 8px 25px rgba(79, 70, 229, 0.16) !important;
+            background: linear-gradient(135deg, #EEF2FF 0%, #FFFFFF 100%) !important;
+        }
+
+        .stat-card-windows:hover {
+            border-color: #38BDF8 !important;
+            box-shadow: 0 8px 24px rgba(2, 132, 199, 0.12);
+        }
+        .stat-card-windows.is-expanded {
+            border-color: #0284C7 !important;
+            box-shadow: 0 0 0 1px #0284C7, 0 8px 25px rgba(2, 132, 199, 0.16) !important;
+            background: linear-gradient(135deg, #F0F9FF 0%, #FFFFFF 100%) !important;
+        }
+
+        .stat-card-toggle-pill {
             display: inline-flex;
             align-items: center;
             justify-content: center;
             width: 24px;
             height: 24px;
-            color: #7E22CE;
-            background: #F3E8FF;
-            border: 1px solid #E9D5FF;
             border-radius: 50%;
             transition: all 0.2s;
         }
-        .perf-card-badge-pill .expand-arrow {
+        .stat-card-toggle-pill .expand-arrow {
             font-size: 16px;
             transition: transform 0.25s ease;
         }
-        .stat-card-perf.is-expanded .perf-card-badge-pill {
+        .stat-card-clickable.is-expanded .stat-card-toggle-pill .expand-arrow {
+            transform: rotate(180deg);
+        }
+
+        .stat-card-toggle-pill.pill-purple {
+            color: #7E22CE;
+            background: #F3E8FF;
+            border: 1px solid #E9D5FF;
+        }
+        .stat-card-clickable.is-expanded .stat-card-toggle-pill.pill-purple {
             background: #7E22CE;
             color: #FFFFFF;
             border-color: #7E22CE;
         }
-        .stat-card-perf.is-expanded .perf-card-badge-pill .expand-arrow {
-            transform: rotate(180deg);
+
+        .stat-card-toggle-pill.pill-emerald {
+            color: #059669;
+            background: #ECFDF5;
+            border: 1px solid #A7F3D0;
+        }
+        .stat-card-clickable.is-expanded .stat-card-toggle-pill.pill-emerald {
+            background: #059669;
+            color: #FFFFFF;
+            border-color: #059669;
+        }
+
+        .stat-card-toggle-pill.pill-indigo {
+            color: #4F46E5;
+            background: #EEF2FF;
+            border: 1px solid #C7D2FE;
+        }
+        .stat-card-clickable.is-expanded .stat-card-toggle-pill.pill-indigo {
+            background: #4F46E5;
+            color: #FFFFFF;
+            border-color: #4F46E5;
+        }
+
+        .stat-card-toggle-pill.pill-sky {
+            color: #0284C7;
+            background: #F0F9FF;
+            border: 1px solid #BAE6FD;
+        }
+        .stat-card-clickable.is-expanded .stat-card-toggle-pill.pill-sky {
+            background: #0284C7;
+            color: #FFFFFF;
+            border-color: #0284C7;
         }
 
         /* Sub-cards Container */
@@ -1557,6 +1627,17 @@
             $rawPerf = request('perf', []);
             $selectedPerfs = is_array($rawPerf) ? $rawPerf : ($rawPerf ? explode(',', (string)$rawPerf) : []);
             $perfCount = count($selectedPerfs);
+
+            $rawRam = request('ram', []);
+            $selectedRams = is_array($rawRam) ? $rawRam : ($rawRam ? explode(',', (string)$rawRam) : []);
+            $ramCount = count($selectedRams);
+
+            $rawRamType = request('ram_type', []);
+            $selectedRamTypes = is_array($rawRamType) ? $rawRamType : ($rawRamType ? explode(',', (string)$rawRamType) : []);
+            $ramTypeCount = count($selectedRamTypes);
+
+            $hasStorageFilter = (bool) request('disk_type');
+            $hasWindowsFilter = (bool) request('os');
         @endphp
 
         <!-- Summary KPI Cards -->
@@ -1576,14 +1657,14 @@
             </div>
 
             <!-- Performance Overview Card (Clickable to Expand Sub-Cards) -->
-            <div class="stat-card stat-card-perf {{ $perfCount > 0 ? 'is-expanded' : '' }}" 
+            <div class="stat-card stat-card-clickable stat-card-perf {{ $perfCount > 0 ? 'is-expanded' : '' }}" 
                  id="perfMainCard" 
-                 onclick="togglePerfSubCards()" 
+                 onclick="toggleSubCardPanel('perf')" 
                  title="คลิกเพื่อเปิด/ปิดรายละเอียดระดับประสิทธิภาพ">
                 <div class="stat-info">
                     <p style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                         <span>ประสิทธิภาพ (ดี - สูงมาก)</span>
-                        <span class="perf-card-badge-pill" title="คลิกเพื่อเปิด/ปิด">
+                        <span class="stat-card-toggle-pill pill-purple" title="คลิกเพื่อเปิด/ปิด">
                             <span class="material-symbols-outlined expand-arrow" id="perfToggleIcon">{{ $perfCount > 0 ? 'expand_less' : 'expand_more' }}</span>
                         </span>
                     </p>
@@ -1598,11 +1679,20 @@
                 </div>
             </div>
 
-            <div class="stat-card">
+            <!-- Storage Overview Card (Clickable to Expand Sub-Cards) -->
+            <div class="stat-card stat-card-clickable stat-card-storage {{ $hasStorageFilter ? 'is-expanded' : '' }}" 
+                 id="storageMainCard" 
+                 onclick="toggleSubCardPanel('storage')" 
+                 title="คลิกเพื่อเปิด/ปิดรายละเอียดสัดส่วน Storage">
                 <div class="stat-info">
-                    <p>สัดส่วน Storage (SSD vs HDD)</p>
+                    <p style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <span>สัดส่วน Storage (SSD vs HDD)</span>
+                        <span class="stat-card-toggle-pill pill-emerald" title="คลิกเพื่อเปิด/ปิด">
+                            <span class="material-symbols-outlined expand-arrow" id="storageToggleIcon">{{ $hasStorageFilter ? 'expand_less' : 'expand_more' }}</span>
+                        </span>
+                    </p>
                     <h2>{{ number_format($stats['ssd_count']) }} <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">SSD</span></h2>
-                    <div class="stat-subtext">
+                    <div class="stat-subtext" title="NVMe {{ $stats['nvme_count'] }} | SATA SSD {{ $stats['sata_ssd_count'] }} | HDD {{ $stats['hdd_only_count'] }}">
                         <span class="material-symbols-outlined" style="font-size: 15px; color: #059669;">hard_drive</span>
                         <span>ใช้ SSD {{ $stats['total_devices'] > 0 ? round(($stats['ssd_count'] / $stats['total_devices']) * 100) : 0 }}% (HDD {{ number_format($stats['hdd_only_count']) }} เครื่อง)</span>
                     </div>
@@ -1612,9 +1702,18 @@
                 </div>
             </div>
 
-            <div class="stat-card">
+            <!-- RAM Overview Card (Clickable to Expand Sub-Cards) -->
+            <div class="stat-card stat-card-clickable stat-card-ram {{ ($ramCount > 0 || $ramTypeCount > 0) ? 'is-expanded' : '' }}" 
+                 id="ramMainCard" 
+                 onclick="toggleSubCardPanel('ram')" 
+                 title="คลิกเพื่อเปิด/ปิดรายละเอียดหน่วยความจำ RAM">
                 <div class="stat-info">
-                    <p>หน่วยความจำ RAM (>= 8 GB)</p>
+                    <p style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <span>หน่วยความจำ RAM (>= 8 GB)</span>
+                        <span class="stat-card-toggle-pill pill-indigo" title="คลิกเพื่อเปิด/ปิด">
+                            <span class="material-symbols-outlined expand-arrow" id="ramToggleIcon">{{ ($ramCount > 0 || $ramTypeCount > 0) ? 'expand_less' : 'expand_more' }}</span>
+                        </span>
+                    </p>
                     <h2>{{ number_format($stats['ram_8plus_count']) }} <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">เครื่อง</span></h2>
                     <div class="stat-subtext">
                         @if($stats['ram_low_count'] > 0)
@@ -1631,11 +1730,20 @@
                 </div>
             </div>
 
-            <div class="stat-card">
+            <!-- Windows OS Overview Card (Clickable to Expand Sub-Cards) -->
+            <div class="stat-card stat-card-clickable stat-card-windows {{ $hasWindowsFilter ? 'is-expanded' : '' }}" 
+                 id="windowsMainCard" 
+                 onclick="toggleSubCardPanel('windows')" 
+                 title="คลิกเพื่อเปิด/ปิดรายละเอียดระบบปฏิบัติการ Windows">
                 <div class="stat-info">
-                    <p>ระบบปฏิบัติการ Windows 11</p>
+                    <p style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <span>ระบบปฏิบัติการ Windows 11</span>
+                        <span class="stat-card-toggle-pill pill-sky" title="คลิกเพื่อเปิด/ปิด">
+                            <span class="material-symbols-outlined expand-arrow" id="windowsToggleIcon">{{ $hasWindowsFilter ? 'expand_less' : 'expand_more' }}</span>
+                        </span>
+                    </p>
                     <h2>{{ number_format($stats['win11_count']) }} <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">เครื่อง</span></h2>
-                    <div class="stat-subtext">
+                    <div class="stat-subtext" title="Win 11 Pro: {{ $stats['win11_pro_count'] }} | Win 11 Home: {{ $stats['win11_home_count'] }}">
                         <span class="material-symbols-outlined" style="font-size: 15px; color: #0284C7;">grid_view</span>
                         <span>Win 11 ({{ $stats['win11_count'] }}) | Win 10 ({{ $stats['win10_count'] }})</span>
                     </div>
@@ -1750,6 +1858,383 @@
                             <div class="perf-subcard-body">
                                 <div class="perf-subcard-count" style="color: {{ $t['theme'] }};">
                                     {{ number_format($cnt) }}
+                                    <span class="perf-subcard-unit">เครื่อง</span>
+                                </div>
+                                <div class="perf-subcard-pct">
+                                    {{ $pct }}%
+                                </div>
+                            </div>
+
+                            <div class="perf-subcard-bar-wrapper">
+                                <div class="perf-subcard-bar-fill" style="width: {{ $pct }}%; background: {{ $t['theme'] }};"></div>
+                            </div>
+
+                            <div class="perf-subcard-spec" title="{{ $t['spec'] }}">
+                                {{ $t['spec'] }}
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </section>
+
+        <!-- Storage Sub-Cards (Expandable) -->
+        <section class="perf-subcards-wrapper" id="storageSubCardsPanel" style="display: {{ $hasStorageFilter ? 'block' : 'none' }};">
+            <div class="perf-subcards-box">
+                <div class="perf-subcards-header">
+                    <div class="perf-subcards-title">
+                        <span class="material-symbols-outlined" style="color: #059669; font-size: 21px;">hard_drive</span>
+                        <span>สัดส่วนพื้นที่จัดเก็บข้อมูล (Storage Breakdown)</span>
+                        <span class="perf-subcards-guide">• คลิกเพื่อกรองข้อมูลเฉพาะประเภทดิสก์</span>
+                    </div>
+                    <div class="perf-subcards-actions">
+                        @if($hasStorageFilter)
+                            <button type="button" class="btn-subcard-clear" onclick="filterByStorage('clear')" title="ล้างการกรอง Storage">
+                                <span class="material-symbols-outlined" style="font-size: 15px;">filter_alt_off</span>
+                                <span>แสดงทั้งหมด ({{ $stats['total_devices'] }})</span>
+                            </button>
+                        @endif
+                        <button type="button" class="btn-subcard-close" onclick="toggleSubCardPanel('storage', false)" title="ปิด">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="perf-subcards-grid" style="grid-template-columns: repeat(4, 1fr);">
+                    @php
+                        $storageTiers = [
+                            [
+                                'key' => 'nvme',
+                                'label' => 'M.2 NVMe SSD',
+                                'icon' => 'bolt',
+                                'theme' => '#4F46E5',
+                                'bg' => '#EEF2FF',
+                                'border' => '#C7D2FE',
+                                'cnt' => $stats['nvme_count'],
+                                'spec' => 'ความเร็วสูงสุด PCIe Gen 3/4/5 (2,000 - 7,500+ MB/s)',
+                            ],
+                            [
+                                'key' => 'sata_ssd',
+                                'label' => 'SATA SSD (2.5" / M.2)',
+                                'icon' => 'hard_drive',
+                                'theme' => '#059669',
+                                'bg' => '#ECFDF5',
+                                'border' => '#A7F3D0',
+                                'cnt' => $stats['sata_ssd_count'],
+                                'spec' => 'Solid State Drive มาตรฐาน SATA III (~500 MB/s)',
+                            ],
+                            [
+                                'key' => 'hdd',
+                                'label' => 'HDD จานหมุน',
+                                'icon' => 'disc_full',
+                                'theme' => '#D97706',
+                                'bg' => '#FFFBEB',
+                                'border' => '#FDE68A',
+                                'cnt' => $stats['hdd_only_count'],
+                                'spec' => 'ฮาร์ดดิสก์แม่เหล็กจานหมุน (~100-150 MB/s ควรพิจารณาอัปเกรด)',
+                            ],
+                            [
+                                'key' => 'other',
+                                'label' => 'SCSI / อื่นๆ',
+                                'icon' => 'dns',
+                                'theme' => '#64748B',
+                                'bg' => '#F8FAFC',
+                                'border' => '#E2E8F0',
+                                'cnt' => $stats['disk_other_count'],
+                                'spec' => 'ดิสก์เครื่องแม่ข่าย Server SCSI หรือไม่ระบุชนิดดิสก์',
+                            ],
+                        ];
+                    @endphp
+
+                    @foreach($storageTiers as $t)
+                        @php
+                            $pct = $stats['total_devices'] > 0 ? round(($t['cnt'] / $stats['total_devices']) * 100, 1) : 0;
+                            $isSelected = request('disk_type') === $t['key'];
+                        @endphp
+                        <div class="perf-subcard {{ $isSelected ? 'is-selected' : '' }}" 
+                             style="--tier-theme: {{ $t['theme'] }}; --tier-bg: {{ $t['bg'] }};"
+                             onclick="filterByStorage('{{ $t['key'] }}')"
+                             title="คลิกเพื่อกรองเฉพาะ {{ $t['label'] }}{{ $isSelected ? ' (คลิกซ้ำเพื่อยกเลิก)' : '' }}">
+                             
+                            <div class="perf-subcard-top">
+                                <div class="perf-subcard-badge" style="background: {{ $t['bg'] }}; color: {{ $t['theme'] }}; border-color: {{ $t['border'] }};">
+                                    <span class="material-symbols-outlined">{{ $t['icon'] }}</span>
+                                    <span>{{ $t['label'] }}</span>
+                                </div>
+                                @if($isSelected)
+                                    <span class="perf-active-indicator" title="กำลังกรองกลุ่มนี้">
+                                        <span class="material-symbols-outlined" style="font-size: 17px;">check_circle</span>
+                                    </span>
+                                @endif
+                            </div>
+
+                            <div class="perf-subcard-body">
+                                <div class="perf-subcard-count" style="color: {{ $t['theme'] }};">
+                                    {{ number_format($t['cnt']) }}
+                                    <span class="perf-subcard-unit">เครื่อง</span>
+                                </div>
+                                <div class="perf-subcard-pct">
+                                    {{ $pct }}%
+                                </div>
+                            </div>
+
+                            <div class="perf-subcard-bar-wrapper">
+                                <div class="perf-subcard-bar-fill" style="width: {{ $pct }}%; background: {{ $t['theme'] }};"></div>
+                            </div>
+
+                            <div class="perf-subcard-spec" title="{{ $t['spec'] }}">
+                                {{ $t['spec'] }}
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </section>
+
+        <!-- RAM Sub-Cards (Expandable) -->
+        <section class="perf-subcards-wrapper" id="ramSubCardsPanel" style="display: {{ ($ramCount > 0 || $ramTypeCount > 0) ? 'block' : 'none' }};">
+            <div class="perf-subcards-box">
+                <div class="perf-subcards-header">
+                    <div class="perf-subcards-title">
+                        <span class="material-symbols-outlined" style="color: #4F46E5; font-size: 21px;">memory</span>
+                        <span>สัดส่วนหน่วยความจำ RAM (ความจุ & เทคโนโลยี DDR)</span>
+                        <span class="perf-subcards-guide">• คลิกเพื่อกรองข้อมูลตามความจุหรือชนิด RAM</span>
+                    </div>
+                    <div class="perf-subcards-actions">
+                        @if($ramCount > 0 || $ramTypeCount > 0)
+                            <button type="button" class="btn-subcard-clear" onclick="filterByRam('clear')" title="ล้างการกรอง RAM">
+                                <span class="material-symbols-outlined" style="font-size: 15px;">filter_alt_off</span>
+                                <span>แสดงทั้งหมด ({{ $stats['total_devices'] }})</span>
+                            </button>
+                        @endif
+                        <button type="button" class="btn-subcard-close" onclick="toggleSubCardPanel('ram', false)" title="ปิด">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="perf-subcards-grid" style="grid-template-columns: repeat(6, 1fr);">
+                    @php
+                        $ramTiers = [
+                            [
+                                'type' => 'size',
+                                'val' => '16',
+                                'label' => 'RAM 16 GB+',
+                                'icon' => 'memory',
+                                'theme' => '#7E22CE',
+                                'bg' => '#FAF5FF',
+                                'border' => '#E9D5FF',
+                                'cnt' => $stats['ram_16plus_count'],
+                                'spec' => 'ความจุสูง 16GB-32GB+ รองรับงานประมวลผลหนักและเปิดหลายแอป',
+                            ],
+                            [
+                                'type' => 'size',
+                                'val' => '8',
+                                'label' => 'RAM 8 GB',
+                                'icon' => 'check_circle',
+                                'theme' => '#4F46E5',
+                                'bg' => '#EEF2FF',
+                                'border' => '#C7D2FE',
+                                'cnt' => $stats['ram_8_count'],
+                                'spec' => 'ขนาดมาตรฐานโรงพยาบาล 8 GB ทำงานทั่วไปได้อย่างราบรื่น',
+                            ],
+                            [
+                                'type' => 'size',
+                                'val' => 'low',
+                                'label' => 'ต่ำกว่า 8 GB (< 8GB)',
+                                'icon' => 'warning',
+                                'theme' => '#D97706',
+                                'bg' => '#FFFBEB',
+                                'border' => '#FDE68A',
+                                'cnt' => $stats['ram_low_count'],
+                                'spec' => 'RAM 4 GB หรือน้อยกว่า ควรพิจารณาอัปเกรดเพื่อประสิทธิภาพที่ดี',
+                            ],
+                            [
+                                'type' => 'type',
+                                'val' => 'DDR5',
+                                'label' => 'DDR5 (บัสใหม่)',
+                                'icon' => 'rocket_launch',
+                                'theme' => '#059669',
+                                'bg' => '#ECFDF5',
+                                'border' => '#A7F3D0',
+                                'cnt' => $stats['ram_ddr5_count'],
+                                'spec' => 'แรมมาตรฐาน DDR5 บัสความเร็วสูง 4800 - 5600+ MHz',
+                            ],
+                            [
+                                'type' => 'type',
+                                'val' => 'DDR4',
+                                'label' => 'DDR4 (มาตรฐาน)',
+                                'icon' => 'speed',
+                                'theme' => '#0284C7',
+                                'bg' => '#F0F9FF',
+                                'border' => '#BAE6FD',
+                                'cnt' => $stats['ram_ddr4_count'],
+                                'spec' => 'แรมมาตรฐาน DDR4 บัสความเร็ว 2400 - 3200 MHz',
+                            ],
+                            [
+                                'type' => 'type',
+                                'val' => 'DDR3',
+                                'label' => 'DDR3 (รุ่นเก่า)',
+                                'icon' => 'history',
+                                'theme' => '#DC2626',
+                                'bg' => '#FEF2F2',
+                                'border' => '#FECACA',
+                                'cnt' => $stats['ram_ddr3_count'],
+                                'spec' => 'แรมเทคโนโลยีเดิม DDR3 บัส 1333 - 1600 MHz เครื่องรุ่นเก่า',
+                            ],
+                        ];
+                    @endphp
+
+                    @foreach($ramTiers as $t)
+                        @php
+                            $pct = $stats['total_devices'] > 0 ? round(($t['cnt'] / $stats['total_devices']) * 100, 1) : 0;
+                            $isSelected = ($t['type'] === 'size') 
+                                ? in_array($t['val'], $selectedRams)
+                                : in_array($t['val'], $selectedRamTypes);
+                        @endphp
+                        <div class="perf-subcard {{ $isSelected ? 'is-selected' : '' }}" 
+                             style="--tier-theme: {{ $t['theme'] }}; --tier-bg: {{ $t['bg'] }};"
+                             onclick="filterByRam('{{ $t['type'] }}', '{{ $t['val'] }}')"
+                             title="คลิกเพื่อกรองเฉพาะ {{ $t['label'] }}{{ $isSelected ? ' (คลิกซ้ำเพื่อยกเลิก)' : '' }}">
+                             
+                            <div class="perf-subcard-top">
+                                <div class="perf-subcard-badge" style="background: {{ $t['bg'] }}; color: {{ $t['theme'] }}; border-color: {{ $t['border'] }};">
+                                    <span class="material-symbols-outlined">{{ $t['icon'] }}</span>
+                                    <span>{{ $t['label'] }}</span>
+                                </div>
+                                @if($isSelected)
+                                    <span class="perf-active-indicator" title="กำลังกรองกลุ่มนี้">
+                                        <span class="material-symbols-outlined" style="font-size: 17px;">check_circle</span>
+                                    </span>
+                                @endif
+                            </div>
+
+                            <div class="perf-subcard-body">
+                                <div class="perf-subcard-count" style="color: {{ $t['theme'] }};">
+                                    {{ number_format($t['cnt']) }}
+                                    <span class="perf-subcard-unit">เครื่อง</span>
+                                </div>
+                                <div class="perf-subcard-pct">
+                                    {{ $pct }}%
+                                </div>
+                            </div>
+
+                            <div class="perf-subcard-bar-wrapper">
+                                <div class="perf-subcard-bar-fill" style="width: {{ $pct }}%; background: {{ $t['theme'] }};"></div>
+                            </div>
+
+                            <div class="perf-subcard-spec" title="{{ $t['spec'] }}">
+                                {{ $t['spec'] }}
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        </section>
+
+        <!-- Windows OS Sub-Cards (Expandable) -->
+        <section class="perf-subcards-wrapper" id="windowsSubCardsPanel" style="display: {{ $hasWindowsFilter ? 'block' : 'none' }};">
+            <div class="perf-subcards-box">
+                <div class="perf-subcards-header">
+                    <div class="perf-subcards-title">
+                        <span class="material-symbols-outlined" style="color: #0284C7; font-size: 21px;">desktop_windows</span>
+                        <span>สัดส่วนระบบปฏิบัติการ Windows (OS Editions Breakdown)</span>
+                        <span class="perf-subcards-guide">• คลิกเพื่อกรองข้อมูลเฉพาะรุ่นระบบปฏิบัติการ</span>
+                    </div>
+                    <div class="perf-subcards-actions">
+                        @if($hasWindowsFilter)
+                            <button type="button" class="btn-subcard-clear" onclick="filterByWindows('clear')" title="ล้างการกรอง OS">
+                                <span class="material-symbols-outlined" style="font-size: 15px;">filter_alt_off</span>
+                                <span>แสดงทั้งหมด ({{ $stats['total_devices'] }})</span>
+                            </button>
+                        @endif
+                        <button type="button" class="btn-subcard-close" onclick="toggleSubCardPanel('windows', false)" title="ปิด">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="perf-subcards-grid" style="grid-template-columns: repeat(5, 1fr);">
+                    @php
+                        $winTiers = [
+                            [
+                                'key' => 'win11_pro',
+                                'label' => 'Windows 11 Pro',
+                                'icon' => 'desktop_windows',
+                                'theme' => '#0284C7',
+                                'bg' => '#F0F9FF',
+                                'border' => '#BAE6FD',
+                                'cnt' => $stats['win11_pro_count'],
+                                'spec' => 'ระบบปฏิบัติการระดับองค์กรรุ่นใหม่ รองรับ BitLocker, Domain, Remote',
+                            ],
+                            [
+                                'key' => 'win11_home',
+                                'label' => 'Windows 11 Home',
+                                'icon' => 'grid_view',
+                                'theme' => '#2563EB',
+                                'bg' => '#EFF6FF',
+                                'border' => '#BFDBFE',
+                                'cnt' => $stats['win11_home_count'],
+                                'spec' => 'ระบบปฏิบัติการ Windows 11 รุ่นสำหรับงานทั่วไป',
+                            ],
+                            [
+                                'key' => 'win10_pro',
+                                'label' => 'Windows 10 Pro',
+                                'icon' => 'computer',
+                                'theme' => '#0D9488',
+                                'bg' => '#F0FDFA',
+                                'border' => '#99F6E4',
+                                'cnt' => $stats['win10_pro_count'],
+                                'spec' => 'ระบบปฏิบัติการ Windows 10 Pro เสถียรภาพสูง ประจำจุดบริการและแผนก',
+                            ],
+                            [
+                                'key' => 'win10_other',
+                                'label' => 'Windows 10 อื่นๆ',
+                                'icon' => 'devices',
+                                'theme' => '#D97706',
+                                'bg' => '#FFFBEB',
+                                'border' => '#FDE68A',
+                                'cnt' => $stats['win10_other_count'],
+                                'spec' => 'Windows 10 Home, Enterprise หรือรุ่นอื่นๆ',
+                            ],
+                            [
+                                'key' => 'server',
+                                'label' => 'Windows Server',
+                                'icon' => 'dns',
+                                'theme' => '#7E22CE',
+                                'bg' => '#FAF5FF',
+                                'border' => '#E9D5FF',
+                                'cnt' => $stats['server_count'],
+                                'spec' => 'ระบบปฏิบัติการสำหรับเครื่องแม่ข่ายเซิร์ฟเวอร์ (CSH-API, Gateway)',
+                            ],
+                        ];
+                    @endphp
+
+                    @foreach($winTiers as $t)
+                        @php
+                            $pct = $stats['total_devices'] > 0 ? round(($t['cnt'] / $stats['total_devices']) * 100, 1) : 0;
+                            $isSelected = request('os') === $t['key'];
+                        @endphp
+                        <div class="perf-subcard {{ $isSelected ? 'is-selected' : '' }}" 
+                             style="--tier-theme: {{ $t['theme'] }}; --tier-bg: {{ $t['bg'] }};"
+                             onclick="filterByWindows('{{ $t['key'] }}')"
+                             title="คลิกเพื่อกรองเฉพาะ {{ $t['label'] }}{{ $isSelected ? ' (คลิกซ้ำเพื่อยกเลิก)' : '' }}">
+                             
+                            <div class="perf-subcard-top">
+                                <div class="perf-subcard-badge" style="background: {{ $t['bg'] }}; color: {{ $t['theme'] }}; border-color: {{ $t['border'] }};">
+                                    <span class="material-symbols-outlined">{{ $t['icon'] }}</span>
+                                    <span>{{ $t['label'] }}</span>
+                                </div>
+                                @if($isSelected)
+                                    <span class="perf-active-indicator" title="กำลังกรองกลุ่มนี้">
+                                        <span class="material-symbols-outlined" style="font-size: 17px;">check_circle</span>
+                                    </span>
+                                @endif
+                            </div>
+
+                            <div class="perf-subcard-body">
+                                <div class="perf-subcard-count" style="color: {{ $t['theme'] }};">
+                                    {{ number_format($t['cnt']) }}
                                     <span class="perf-subcard-unit">เครื่อง</span>
                                 </div>
                                 <div class="perf-subcard-pct">
@@ -1949,16 +2434,23 @@
                 <!-- Disk Type Filter -->
                 <select name="disk_type" class="filter-select">
                     <option value="">ประเภทดิสก์ทั้งหมด</option>
-                    <option value="nvme" {{ request('disk_type') == 'nvme' ? 'selected' : '' }}>SSD NVMe</option>
+                    <option value="nvme" {{ request('disk_type') == 'nvme' ? 'selected' : '' }}>M.2 NVMe SSD</option>
+                    <option value="sata_ssd" {{ request('disk_type') == 'sata_ssd' ? 'selected' : '' }}>SATA SSD</option>
                     <option value="ssd" {{ request('disk_type') == 'ssd' ? 'selected' : '' }}>SSD ทั้งหมด</option>
                     <option value="hdd" {{ request('disk_type') == 'hdd' ? 'selected' : '' }}>HDD จานหมุน</option>
+                    <option value="other" {{ request('disk_type') == 'other' ? 'selected' : '' }}>SCSI / อื่นๆ</option>
                 </select>
 
                 <!-- OS Filter -->
                 <select name="os" class="filter-select">
                     <option value="">ระบบปฏิบัติการทั้งหมด</option>
-                    <option value="win11" {{ request('os') == 'win11' ? 'selected' : '' }}>Windows 11</option>
-                    <option value="win10" {{ request('os') == 'win10' ? 'selected' : '' }}>Windows 10</option>
+                    <option value="win11" {{ request('os') == 'win11' ? 'selected' : '' }}>Windows 11 (ทั้งหมด)</option>
+                    <option value="win11_pro" {{ request('os') == 'win11_pro' ? 'selected' : '' }}>Windows 11 Pro</option>
+                    <option value="win11_home" {{ request('os') == 'win11_home' ? 'selected' : '' }}>Windows 11 Home</option>
+                    <option value="win10" {{ request('os') == 'win10' ? 'selected' : '' }}>Windows 10 (ทั้งหมด)</option>
+                    <option value="win10_pro" {{ request('os') == 'win10_pro' ? 'selected' : '' }}>Windows 10 Pro</option>
+                    <option value="win10_other" {{ request('os') == 'win10_other' ? 'selected' : '' }}>Windows 10 อื่นๆ</option>
+                    <option value="server" {{ request('os') == 'server' ? 'selected' : '' }}>Windows Server</option>
                     <option value="other" {{ request('os') == 'other' ? 'selected' : '' }}>รุ่นอื่นๆ</option>
                 </select>
 
@@ -2520,67 +3012,178 @@
 
     <!-- JavaScript -->
     <script>
-        // --- Performance Sub-Cards Toggle & Filter ---
-        function togglePerfSubCards(forceState) {
-            const panel = document.getElementById('perfSubCardsPanel');
-            const mainCard = document.getElementById('perfMainCard');
-            const icon = document.getElementById('perfToggleIcon');
-            if (!panel) return;
+        // --- Multi-Panel Toggle (Performance, Storage, RAM, Windows) ---
+        function toggleSubCardPanel(panelType, forceState) {
+            const panels = {
+                perf: document.getElementById('perfSubCardsPanel'),
+                storage: document.getElementById('storageSubCardsPanel'),
+                ram: document.getElementById('ramSubCardsPanel'),
+                windows: document.getElementById('windowsSubCardsPanel')
+            };
+            const cards = {
+                perf: document.getElementById('perfMainCard'),
+                storage: document.getElementById('storageMainCard'),
+                ram: document.getElementById('ramMainCard'),
+                windows: document.getElementById('windowsMainCard')
+            };
+            const icons = {
+                perf: document.getElementById('perfToggleIcon'),
+                storage: document.getElementById('storageToggleIcon'),
+                ram: document.getElementById('ramToggleIcon'),
+                windows: document.getElementById('windowsToggleIcon')
+            };
+
+            const targetPanel = panels[panelType];
+            if (!targetPanel) return;
 
             let shouldOpen;
             if (typeof forceState === 'boolean') {
                 shouldOpen = forceState;
             } else {
-                shouldOpen = (panel.style.display === 'none' || panel.style.display === '');
+                shouldOpen = (targetPanel.style.display === 'none' || targetPanel.style.display === '');
             }
 
+            // Close all other panels
+            Object.keys(panels).forEach(key => {
+                if (panels[key]) panels[key].style.display = 'none';
+                if (cards[key]) cards[key].classList.remove('is-expanded');
+                if (icons[key]) icons[key].textContent = 'expand_more';
+            });
+
             if (shouldOpen) {
-                panel.style.display = 'block';
-                if (mainCard) mainCard.classList.add('is-expanded');
-                if (icon) icon.textContent = 'expand_less';
-                sessionStorage.setItem('cshos_perf_subcards_open', '1');
+                targetPanel.style.display = 'block';
+                if (cards[panelType]) cards[panelType].classList.add('is-expanded');
+                if (icons[panelType]) icons[panelType].textContent = 'expand_less';
+                sessionStorage.setItem('cshos_active_subpanel', panelType);
             } else {
-                panel.style.display = 'none';
-                if (mainCard) mainCard.classList.remove('is-expanded');
-                if (icon) icon.textContent = 'expand_more';
-                sessionStorage.setItem('cshos_perf_subcards_open', '0');
+                sessionStorage.setItem('cshos_active_subpanel', 'none');
             }
         }
 
+        // Backward compatibility
+        function togglePerfSubCards(forceState) {
+            toggleSubCardPanel('perf', forceState);
+        }
+
         function filterByPerfTier(tierKey) {
-            sessionStorage.setItem('cshos_perf_subcards_open', '1');
+            sessionStorage.setItem('cshos_active_subpanel', 'perf');
             const form = document.querySelector('.filter-form');
             if (!form) return;
 
             if (tierKey === 'clear') {
-                const perfInputs = form.querySelectorAll('input[name="perf[]"]');
-                perfInputs.forEach(i => i.checked = false);
+                form.querySelectorAll('input[name="perf[]"]').forEach(i => i.checked = false);
                 form.submit();
                 return;
             }
 
-            const targetInput = form.querySelector(`input[name="perf[]"][value="${tierKey}"]`);
-            const allPerfInputs = form.querySelectorAll('input[name="perf[]"]');
-
-            if (targetInput) {
-                const wasChecked = targetInput.checked;
-                const checkedCount = Array.from(allPerfInputs).filter(i => i.checked).length;
-
+            const target = form.querySelector(`input[name="perf[]"][value="${tierKey}"]`);
+            const all = form.querySelectorAll('input[name="perf[]"]');
+            if (target) {
+                const wasChecked = target.checked;
+                const checkedCount = Array.from(all).filter(i => i.checked).length;
                 if (wasChecked && checkedCount === 1) {
-                    targetInput.checked = false;
+                    target.checked = false;
                 } else {
-                    allPerfInputs.forEach(i => i.checked = false);
-                    targetInput.checked = true;
+                    all.forEach(i => i.checked = false);
+                    target.checked = true;
+                }
+                form.submit();
+            }
+        }
+
+        function filterByStorage(diskKey) {
+            sessionStorage.setItem('cshos_active_subpanel', 'storage');
+            const form = document.querySelector('.filter-form');
+            if (!form) return;
+
+            const select = form.querySelector('select[name="disk_type"]');
+            if (select) {
+                if (diskKey === 'clear' || select.value === diskKey) {
+                    select.value = '';
+                } else {
+                    select.value = diskKey;
+                }
+                form.submit();
+            }
+        }
+
+        function filterByRam(type, val) {
+            sessionStorage.setItem('cshos_active_subpanel', 'ram');
+            const form = document.querySelector('.filter-form');
+            if (!form) return;
+
+            if (type === 'clear') {
+                form.querySelectorAll('input[name="ram[]"]').forEach(i => i.checked = false);
+                form.querySelectorAll('input[name="ram_type[]"]').forEach(i => i.checked = false);
+                form.submit();
+                return;
+            }
+
+            if (type === 'size') {
+                const target = form.querySelector(`input[name="ram[]"][value="${val}"]`);
+                const all = form.querySelectorAll('input[name="ram[]"]');
+                if (target) {
+                    const wasChecked = target.checked;
+                    const checkedCount = Array.from(all).filter(i => i.checked).length;
+                    if (wasChecked && checkedCount === 1) {
+                        target.checked = false;
+                    } else {
+                        all.forEach(i => i.checked = false);
+                        target.checked = true;
+                    }
+                    form.submit();
+                }
+            } else if (type === 'type') {
+                const target = form.querySelector(`input[name="ram_type[]"][value="${val}"]`);
+                const all = form.querySelectorAll('input[name="ram_type[]"]');
+                if (target) {
+                    const wasChecked = target.checked;
+                    const checkedCount = Array.from(all).filter(i => i.checked).length;
+                    if (wasChecked && checkedCount === 1) {
+                        target.checked = false;
+                    } else {
+                        all.forEach(i => i.checked = false);
+                        target.checked = true;
+                    }
+                    form.submit();
+                }
+            }
+        }
+
+        function filterByWindows(osKey) {
+            sessionStorage.setItem('cshos_active_subpanel', 'windows');
+            const form = document.querySelector('.filter-form');
+            if (!form) return;
+
+            const select = form.querySelector('select[name="os"]');
+            if (select) {
+                if (osKey === 'clear' || select.value === osKey) {
+                    select.value = '';
+                } else {
+                    select.value = osKey;
                 }
                 form.submit();
             }
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            const hasPerfFilter = {{ $perfCount > 0 ? 'true' : 'false' }};
-            const savedState = sessionStorage.getItem('cshos_perf_subcards_open');
-            if (hasPerfFilter || savedState === '1') {
-                togglePerfSubCards(true);
+            const hasPerf = {{ $perfCount > 0 ? 'true' : 'false' }};
+            const hasStorage = {{ $hasStorageFilter ? 'true' : 'false' }};
+            const hasRam = {{ ($ramCount > 0 || $ramTypeCount > 0) ? 'true' : 'false' }};
+            const hasWindows = {{ $hasWindowsFilter ? 'true' : 'false' }};
+
+            const saved = sessionStorage.getItem('cshos_active_subpanel');
+
+            if (hasPerf) {
+                toggleSubCardPanel('perf', true);
+            } else if (hasStorage) {
+                toggleSubCardPanel('storage', true);
+            } else if (hasRam) {
+                toggleSubCardPanel('ram', true);
+            } else if (hasWindows) {
+                toggleSubCardPanel('windows', true);
+            } else if (saved && saved !== 'none') {
+                toggleSubCardPanel(saved, true);
             }
         });
 

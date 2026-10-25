@@ -694,10 +694,14 @@ class AppInstallationController extends Controller
             $dt = $request->input('disk_type');
             if ($dt === 'nvme') {
                 $query->where('disk', 'like', '%NVMe%');
+            } elseif ($dt === 'sata_ssd') {
+                $query->where('disk', 'like', '%SSD%')->where('disk', 'not like', '%NVMe%');
             } elseif ($dt === 'ssd') {
                 $query->where('disk', 'like', '%SSD%');
             } elseif ($dt === 'hdd') {
                 $query->where('disk', 'like', '%HDD%')->where('disk', 'not like', '%SSD%');
+            } elseif ($dt === 'other') {
+                $query->where('disk', 'not like', '%SSD%')->where('disk', 'not like', '%HDD%');
             }
         }
 
@@ -708,13 +712,51 @@ class AppInstallationController extends Controller
                 $query->where(function ($q) {
                     $q->where('os', 'like', '%Windows 11%')->orWhere('os_version', 'like', '%Windows 11%');
                 });
+            } elseif ($osFilter === 'win11_pro') {
+                $query->where(function ($q) {
+                    $q->where(function ($sub) {
+                        $sub->where('os', 'like', '%Windows 11%')->orWhere('os_version', 'like', '%Windows 11%');
+                    })->where(function ($sub) {
+                        $sub->where('os', 'like', '%Pro%')->orWhere('os_version', 'like', '%Pro%');
+                    });
+                });
+            } elseif ($osFilter === 'win11_home') {
+                $query->where(function ($q) {
+                    $q->where(function ($sub) {
+                        $sub->where('os', 'like', '%Windows 11%')->orWhere('os_version', 'like', '%Windows 11%');
+                    })->where(function ($sub) {
+                        $sub->where('os', 'like', '%Home%')->orWhere('os_version', 'like', '%Home%');
+                    });
+                });
             } elseif ($osFilter === 'win10') {
                 $query->where(function ($q) {
                     $q->where('os', 'like', '%Windows 10%')->orWhere('os_version', 'like', '%Windows 10%');
                 });
+            } elseif ($osFilter === 'win10_pro') {
+                $query->where(function ($q) {
+                    $q->where(function ($sub) {
+                        $sub->where('os', 'like', '%Windows 10%')->orWhere('os_version', 'like', '%Windows 10%');
+                    })->where(function ($sub) {
+                        $sub->where('os', 'like', '%Pro%')->orWhere('os_version', 'like', '%Pro%');
+                    });
+                });
+            } elseif ($osFilter === 'win10_other') {
+                $query->where(function ($q) {
+                    $q->where(function ($sub) {
+                        $sub->where('os', 'like', '%Windows 10%')->orWhere('os_version', 'like', '%Windows 10%');
+                    })->where(function ($sub) {
+                        $sub->where('os', 'not like', '%Pro%')->where('os_version', 'not like', '%Pro%');
+                    });
+                });
+            } elseif ($osFilter === 'server') {
+                $query->where(function ($q) {
+                    $q->where('os', 'like', '%Server%')->orWhere('os_version', 'like', '%Server%');
+                });
             } elseif ($osFilter === 'other') {
                 $query->where('os', 'not like', '%Windows 10%')
-                      ->where('os', 'not like', '%Windows 11%');
+                      ->where('os', 'not like', '%Windows 11%')
+                      ->where('os_version', 'not like', '%Windows 10%')
+                      ->where('os_version', 'not like', '%Windows 11%');
             }
         }
 
@@ -779,25 +821,60 @@ class AppInstallationController extends Controller
 
         // Hardware Summary Statistics
         $totalDevices = AppInstallation::count();
+
+        // 1. Storage Distribution
         $ssdCount = AppInstallation::where('disk', 'like', '%SSD%')->count();
+        $nvmeCount = AppInstallation::where('disk', 'like', '%NVMe%')->count();
+        $sataSsdCount = AppInstallation::where('disk', 'like', '%SSD%')->where('disk', 'not like', '%NVMe%')->count();
         $hddOnlyCount = AppInstallation::where('disk', 'like', '%HDD%')->where('disk', 'not like', '%SSD%')->count();
+        $diskOtherCount = max(0, $totalDevices - ($ssdCount + $hddOnlyCount));
+
+        // 2. Windows OS Distribution
         $win11Count = AppInstallation::where(function($q) {
             $q->where('os', 'like', '%Windows 11%')->orWhere('os_version', 'like', '%Windows 11%');
         })->count();
+        $win11ProCount = AppInstallation::where(function($q) {
+            $q->where(function($s) {
+                $s->where('os', 'like', '%Windows 11%')->orWhere('os_version', 'like', '%Windows 11%');
+            })->where(function($s) {
+                $s->where('os', 'like', '%Pro%')->orWhere('os_version', 'like', '%Pro%');
+            });
+        })->count();
+        $win11HomeCount = max(0, $win11Count - $win11ProCount);
+
         $win10Count = AppInstallation::where(function($q) {
             $q->where('os', 'like', '%Windows 10%')->orWhere('os_version', 'like', '%Windows 10%');
         })->count();
-        $ram8PlusCount = AppInstallation::where(function($q) {
-            $q->where('ram', 'like', '8 GB%')
-              ->orWhere('ram', 'like', '16 GB%')
-              ->orWhere('ram', 'like', '32 GB%')
-              ->orWhere('ram', 'like', '64 GB%');
+        $win10ProCount = AppInstallation::where(function($q) {
+            $q->where(function($s) {
+                $s->where('os', 'like', '%Windows 10%')->orWhere('os_version', 'like', '%Windows 10%');
+            })->where(function($s) {
+                $s->where('os', 'like', '%Pro%')->orWhere('os_version', 'like', '%Pro%');
+            });
         })->count();
-        $ramLowCount = AppInstallation::where(function($q) {
-            $q->where('ram', 'like', '4 GB%')
-              ->orWhere('ram', 'like', '2 GB%')
-              ->orWhere('ram', 'like', '3.%GB%');
+        $win10OtherCount = max(0, $win10Count - $win10ProCount);
+
+        $serverCount = AppInstallation::where(function($q) {
+            $q->where('os', 'like', '%Server%')->orWhere('os_version', 'like', '%Server%');
         })->count();
+        $osOtherCount = max(0, $totalDevices - ($win11Count + $win10Count));
+
+        // 3. RAM Size & Generation Distribution
+        $ram16PlusCount = AppInstallation::where(function($q) {
+            $q->where('ram', 'like', '16 GB%')->orWhere('ram', 'like', '15.%GB%')
+              ->orWhere('ram', 'like', '12 GB%')->orWhere('ram', 'like', '11.%GB%')
+              ->orWhere('ram', 'like', '32 GB%')->orWhere('ram', 'like', '64 GB%');
+        })->count();
+        $ram8Count = AppInstallation::where(function($q) {
+            $q->where('ram', 'like', '8 GB%')->orWhere('ram', 'like', '7.%GB%');
+        })->count();
+        $ram8PlusCount = $ram16PlusCount + $ram8Count;
+        $ramLowCount = max(0, $totalDevices - $ram8PlusCount);
+
+        $ramDdr5Count = AppInstallation::where('ram', 'like', '%DDR5%')->count();
+        $ramDdr4Count = AppInstallation::where('ram', 'like', '%DDR4%')->count();
+        $ramDdr3Count = AppInstallation::where('ram', 'like', '%DDR3%')->count();
+
         $officeInstalledCount = AppInstallation::whereNotNull('office_version')
             ->where('office_version', '!=', '')
             ->where('office_version', 'not like', '%Not Installed%')
@@ -826,11 +903,25 @@ class AppInstallationController extends Controller
         $stats = [
             'total_devices'          => $totalDevices,
             'ssd_count'              => $ssdCount,
+            'nvme_count'             => $nvmeCount,
+            'sata_ssd_count'         => $sataSsdCount,
             'hdd_only_count'         => $hddOnlyCount,
+            'disk_other_count'       => $diskOtherCount,
             'win11_count'            => $win11Count,
+            'win11_pro_count'        => $win11ProCount,
+            'win11_home_count'       => $win11HomeCount,
             'win10_count'            => $win10Count,
+            'win10_pro_count'        => $win10ProCount,
+            'win10_other_count'      => $win10OtherCount,
+            'server_count'           => $serverCount,
+            'os_other_count'         => $osOtherCount,
             'ram_8plus_count'        => $ram8PlusCount,
+            'ram_16plus_count'       => $ram16PlusCount,
+            'ram_8_count'            => $ram8Count,
             'ram_low_count'          => $ramLowCount,
+            'ram_ddr5_count'         => $ramDdr5Count,
+            'ram_ddr4_count'         => $ramDdr4Count,
+            'ram_ddr3_count'         => $ramDdr3Count,
             'office_installed_count' => $officeInstalledCount,
             'perf_counts'            => $perfCounts,
             'good_perf_count'        => $goodPerfCount,
