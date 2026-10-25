@@ -1237,6 +1237,237 @@
                 justify-content: flex-start;
             }
         }
+
+        /* Clickable Performance Stat Card & Sub-Cards Grid */
+        .stat-card-perf {
+            cursor: pointer;
+            position: relative;
+            user-select: none;
+            transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .stat-card-perf:hover {
+            border-color: #C084FC !important;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(168, 85, 247, 0.12);
+        }
+        .stat-card-perf.is-expanded {
+            border-color: #A855F7 !important;
+            box-shadow: 0 0 0 1px #A855F7, 0 8px 25px rgba(168, 85, 247, 0.16) !important;
+            background: linear-gradient(135deg, #FAF5FF 0%, #FFFFFF 100%) !important;
+        }
+        .perf-card-badge-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 0.72rem;
+            color: #7E22CE;
+            background: #F3E8FF;
+            border: 1px solid #E9D5FF;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .perf-card-badge-pill .expand-arrow {
+            font-size: 15px;
+            transition: transform 0.25s ease;
+        }
+        .stat-card-perf.is-expanded .perf-card-badge-pill {
+            background: #7E22CE;
+            color: #FFFFFF;
+            border-color: #7E22CE;
+        }
+        .stat-card-perf.is-expanded .perf-card-badge-pill .expand-arrow {
+            transform: rotate(180deg);
+        }
+
+        /* Sub-cards Container */
+        .perf-subcards-wrapper {
+            margin-bottom: 1.25rem;
+            animation: perfSlideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes perfSlideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .perf-subcards-box {
+            background: var(--surface);
+            border: 1px solid #E9D5FF;
+            border-radius: var(--radius-lg);
+            padding: 1.15rem 1.3rem;
+            box-shadow: 0 4px 20px rgba(126, 34, 206, 0.06);
+            background: linear-gradient(180deg, #FAF5FF 0%, #FFFFFF 65px);
+        }
+        .perf-subcards-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.95rem;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+        }
+        .perf-subcards-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+        .perf-subcards-guide {
+            font-size: 0.78rem;
+            font-weight: 400;
+            color: var(--text-muted);
+            margin-left: 4px;
+        }
+        .perf-subcards-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-subcard-clear {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: #7E22CE;
+            background: #F3E8FF;
+            border: 1px solid #E9D5FF;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-subcard-clear:hover {
+            background: #E9D5FF;
+            color: #6B21A8;
+        }
+        .btn-subcard-close {
+            width: 28px;
+            height: 28px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #F1F5F9;
+            border: 1px solid #E2E8F0;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 50%;
+            transition: all 0.2s;
+        }
+        .btn-subcard-close:hover {
+            background: #E2E8F0;
+            color: var(--text-main);
+        }
+        .perf-subcards-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.85rem;
+        }
+        @media (max-width: 1200px) {
+            .perf-subcards-grid {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            }
+        }
+        .perf-subcard {
+            background: #FFFFFF;
+            border: 1.5px solid var(--border);
+            border-radius: 14px;
+            padding: 0.9rem 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+            user-select: none;
+        }
+        .perf-subcard:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+            border-color: var(--tier-theme, #7E22CE);
+        }
+        .perf-subcard.is-selected {
+            border-color: var(--tier-theme, #7E22CE) !important;
+            background: var(--tier-bg, #FAF5FF) !important;
+            box-shadow: 0 0 0 2px var(--tier-theme, #7E22CE), 0 6px 18px rgba(0, 0, 0, 0.08) !important;
+        }
+        .perf-subcard-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.55rem;
+        }
+        .perf-subcard-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-size: 0.76rem;
+            font-weight: 700;
+            border: 1px solid transparent;
+        }
+        .perf-subcard-badge .material-symbols-outlined {
+            font-size: 15px;
+        }
+        .perf-active-indicator {
+            display: inline-flex;
+            align-items: center;
+            color: var(--tier-theme, #059669);
+        }
+        .perf-subcard-body {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            margin-bottom: 0.45rem;
+        }
+        .perf-subcard-count {
+            font-size: 1.55rem;
+            font-weight: 800;
+            line-height: 1;
+        }
+        .perf-subcard-unit {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-left: 2px;
+        }
+        .perf-subcard-pct {
+            font-size: 0.74rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+        .perf-subcard-bar-wrapper {
+            width: 100%;
+            height: 5px;
+            background: #F1F5F9;
+            border-radius: 3px;
+            overflow: hidden;
+            margin-bottom: 0.55rem;
+        }
+        .perf-subcard-bar-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.4s ease;
+        }
+        .perf-subcard-spec {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            line-height: 1.35;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
     </style>
 </head>
 <body>
@@ -1323,6 +1554,12 @@
             </div>
         @endif
 
+        @php
+            $rawPerf = request('perf', []);
+            $selectedPerfs = is_array($rawPerf) ? $rawPerf : ($rawPerf ? explode(',', (string)$rawPerf) : []);
+            $perfCount = count($selectedPerfs);
+        @endphp
+
         <!-- Summary KPI Cards -->
         <section class="stats-grid">
             <div class="stat-card">
@@ -1339,10 +1576,19 @@
                 </div>
             </div>
 
-            <!-- Performance Overview Card -->
-            <div class="stat-card">
+            <!-- Performance Overview Card (Clickable to Expand Sub-Cards) -->
+            <div class="stat-card stat-card-perf {{ $perfCount > 0 ? 'is-expanded' : '' }}" 
+                 id="perfMainCard" 
+                 onclick="togglePerfSubCards()" 
+                 title="คลิกเพื่อเปิด/ปิดการ์ดย่อยประสิทธิภาพ 5 ระดับ">
                 <div class="stat-info">
-                    <p>ประสิทธิภาพ (ดี - สูงมาก)</p>
+                    <p style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                        <span>ประสิทธิภาพ (ดี - สูงมาก)</span>
+                        <span class="perf-card-badge-pill" title="คลิกเพื่อเปิด/ปิดการ์ดย่อย 5 ระดับ">
+                            <span class="material-symbols-outlined expand-arrow" id="perfToggleIcon">{{ $perfCount > 0 ? 'expand_less' : 'expand_more' }}</span>
+                            <span id="perfToggleHint">{{ $perfCount > 0 ? 'ซ่อนการ์ดย่อย' : 'การ์ดย่อย 5 ระดับ' }}</span>
+                        </span>
+                    </p>
                     <h2>{{ number_format($stats['good_perf_count']) }} <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">เครื่อง</span></h2>
                     <div class="stat-subtext" title="สูงมาก {{ $stats['perf_counts']['highest'] }} | สูง {{ $stats['perf_counts']['high'] }} | พอใช้ {{ $stats['perf_counts']['fair'] }} | ต่ำ {{ $stats['perf_counts']['low'] }} | ต่ำมาก {{ $stats['perf_counts']['lowest'] }}">
                         <span class="material-symbols-outlined" style="font-size: 15px; color: #7E22CE;">rocket_launch</span>
@@ -1398,6 +1644,130 @@
                 </div>
                 <div class="stat-icon amber">
                     <span class="material-symbols-outlined">desktop_windows</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Performance Sub-Cards (5 Tiers Expandable) -->
+        <section class="perf-subcards-wrapper" id="perfSubCardsPanel" style="display: {{ $perfCount > 0 ? 'block' : 'none' }};">
+            <div class="perf-subcards-box">
+                <div class="perf-subcards-header">
+                    <div class="perf-subcards-title">
+                        <span class="material-symbols-outlined" style="color: #7E22CE; font-size: 21px;">layers</span>
+                        <span>ระดับประสิทธิภาพคอมพิวเตอร์รายกลุ่ม (5 ระดับ)</span>
+                        <span class="perf-subcards-guide">• คลิกการ์ดย่อยเพื่อกรองข้อมูลเฉพาะกลุ่มนั้น</span>
+                    </div>
+                    <div class="perf-subcards-actions">
+                        @if($perfCount > 0)
+                            <button type="button" class="btn-subcard-clear" onclick="filterByPerfTier('clear')" title="ล้างการกรองประสิทธิภาพ">
+                                <span class="material-symbols-outlined" style="font-size: 15px;">filter_alt_off</span>
+                                <span>แสดงทั้งหมด ({{ $stats['total_devices'] }})</span>
+                            </button>
+                        @endif
+                        <button type="button" class="btn-subcard-close" onclick="togglePerfSubCards(false)" title="ปิดการ์ดย่อย">
+                            <span class="material-symbols-outlined" style="font-size: 16px;">close</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="perf-subcards-grid">
+                    @php
+                        $perfTiersList = [
+                            [
+                                'key' => 'highest',
+                                'num' => 5,
+                                'label' => 'สูงมาก',
+                                'icon' => 'rocket_launch',
+                                'theme' => '#059669',
+                                'bg' => '#ECFDF5',
+                                'border' => '#A7F3D0',
+                                'spec' => 'CPU 16C+ (Core i9/Ryzen 9), RAM 64GB+, NVMe Gen 5/4',
+                            ],
+                            [
+                                'key' => 'high',
+                                'num' => 4,
+                                'label' => 'สูง',
+                                'icon' => 'verified',
+                                'theme' => '#0284C7',
+                                'bg' => '#F0F9FF',
+                                'border' => '#BAE6FD',
+                                'spec' => 'CPU 8-14C (Core i7/Ryzen 7), RAM 32GB, NVMe Gen 4',
+                            ],
+                            [
+                                'key' => 'fair',
+                                'num' => 3,
+                                'label' => 'พอใช้',
+                                'icon' => 'speed',
+                                'theme' => '#0D9488',
+                                'bg' => '#F0FDFA',
+                                'border' => '#99F6E4',
+                                'spec' => 'CPU 6C (Core i5/Ryzen 5), RAM 16GB, NVMe Gen 3',
+                            ],
+                            [
+                                'key' => 'low',
+                                'num' => 2,
+                                'label' => 'ต่ำ',
+                                'icon' => 'warning',
+                                'theme' => '#D97706',
+                                'bg' => '#FFFBEB',
+                                'border' => '#FDE68A',
+                                'spec' => 'CPU 4C (Core i3/Ryzen 3), RAM 8GB, SATA SSD',
+                            ],
+                            [
+                                'key' => 'lowest',
+                                'num' => 1,
+                                'label' => 'ต่ำมาก',
+                                'icon' => 'error',
+                                'theme' => '#DC2626',
+                                'bg' => '#FEF2F2',
+                                'border' => '#FECACA',
+                                'spec' => 'CPU <= 2C (Pentium), RAM 4GB, HDD จานหมุน',
+                            ],
+                        ];
+                    @endphp
+
+                    @foreach($perfTiersList as $t)
+                        @php
+                            $cnt = $stats['perf_counts'][$t['key']] ?? 0;
+                            $pct = $stats['total_devices'] > 0 ? round(($cnt / $stats['total_devices']) * 100, 1) : 0;
+                            $isSelected = in_array($t['key'], $selectedPerfs);
+                        @endphp
+                        <div class="perf-subcard {{ $isSelected ? 'is-selected' : '' }}" 
+                             style="--tier-theme: {{ $t['theme'] }}; --tier-bg: {{ $t['bg'] }};"
+                             onclick="filterByPerfTier('{{ $t['key'] }}')"
+                             title="คลิกเพื่อกรองเฉพาะระดับ {{ $t['num'] }}. {{ $t['label'] }}{{ $isSelected ? ' (คลิกซ้ำเพื่อยกเลิก)' : '' }}">
+                             
+                            <div class="perf-subcard-top">
+                                <div class="perf-subcard-badge" style="background: {{ $t['bg'] }}; color: {{ $t['theme'] }}; border-color: {{ $t['border'] }};">
+                                    <span class="material-symbols-outlined">{{ $t['icon'] }}</span>
+                                    <span>ระดับ {{ $t['num'] }}. {{ $t['label'] }}</span>
+                                </div>
+                                @if($isSelected)
+                                    <span class="perf-active-indicator" title="กำลังกรองระดับนี้">
+                                        <span class="material-symbols-outlined" style="font-size: 17px;">check_circle</span>
+                                    </span>
+                                @endif
+                            </div>
+
+                            <div class="perf-subcard-body">
+                                <div class="perf-subcard-count" style="color: {{ $t['theme'] }};">
+                                    {{ number_format($cnt) }}
+                                    <span class="perf-subcard-unit">เครื่อง</span>
+                                </div>
+                                <div class="perf-subcard-pct">
+                                    {{ $pct }}%
+                                </div>
+                            </div>
+
+                            <div class="perf-subcard-bar-wrapper">
+                                <div class="perf-subcard-bar-fill" style="width: {{ $pct }}%; background: {{ $t['theme'] }};"></div>
+                            </div>
+
+                            <div class="perf-subcard-spec" title="{{ $t['spec'] }}">
+                                {{ $t['spec'] }}
+                            </div>
+                        </div>
+                    @endforeach
                 </div>
             </div>
         </section>
@@ -2152,6 +2522,73 @@
 
     <!-- JavaScript -->
     <script>
+        // --- Performance Sub-Cards Toggle & Filter ---
+        function togglePerfSubCards(forceState) {
+            const panel = document.getElementById('perfSubCardsPanel');
+            const mainCard = document.getElementById('perfMainCard');
+            const icon = document.getElementById('perfToggleIcon');
+            const hint = document.getElementById('perfToggleHint');
+            if (!panel) return;
+
+            let shouldOpen;
+            if (typeof forceState === 'boolean') {
+                shouldOpen = forceState;
+            } else {
+                shouldOpen = (panel.style.display === 'none' || panel.style.display === '');
+            }
+
+            if (shouldOpen) {
+                panel.style.display = 'block';
+                if (mainCard) mainCard.classList.add('is-expanded');
+                if (icon) icon.textContent = 'expand_less';
+                if (hint) hint.textContent = 'ซ่อนการ์ดย่อย';
+                sessionStorage.setItem('cshos_perf_subcards_open', '1');
+            } else {
+                panel.style.display = 'none';
+                if (mainCard) mainCard.classList.remove('is-expanded');
+                if (icon) icon.textContent = 'expand_more';
+                if (hint) hint.textContent = 'การ์ดย่อย 5 ระดับ';
+                sessionStorage.setItem('cshos_perf_subcards_open', '0');
+            }
+        }
+
+        function filterByPerfTier(tierKey) {
+            sessionStorage.setItem('cshos_perf_subcards_open', '1');
+            const form = document.querySelector('.filter-form');
+            if (!form) return;
+
+            if (tierKey === 'clear') {
+                const perfInputs = form.querySelectorAll('input[name="perf[]"]');
+                perfInputs.forEach(i => i.checked = false);
+                form.submit();
+                return;
+            }
+
+            const targetInput = form.querySelector(`input[name="perf[]"][value="${tierKey}"]`);
+            const allPerfInputs = form.querySelectorAll('input[name="perf[]"]');
+
+            if (targetInput) {
+                const wasChecked = targetInput.checked;
+                const checkedCount = Array.from(allPerfInputs).filter(i => i.checked).length;
+
+                if (wasChecked && checkedCount === 1) {
+                    targetInput.checked = false;
+                } else {
+                    allPerfInputs.forEach(i => i.checked = false);
+                    targetInput.checked = true;
+                }
+                form.submit();
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const hasPerfFilter = {{ $perfCount > 0 ? 'true' : 'false' }};
+            const savedState = sessionStorage.getItem('cshos_perf_subcards_open');
+            if (hasPerfFilter || savedState === '1') {
+                togglePerfSubCards(true);
+            }
+        });
+
         // --- Server-side Sorting for all records across all pages ---
         function sortByServer(column) {
             const url = new URL(window.location.href);
