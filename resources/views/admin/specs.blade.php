@@ -1249,6 +1249,14 @@
             transform: translateY(-2px);
         }
 
+        .stat-card-total:hover {
+            border-color: #38BDF8 !important;
+            box-shadow: 0 8px 24px rgba(2, 132, 199, 0.12);
+        }
+        .stat-card-total:active {
+            transform: scale(0.98);
+        }
+
         .stat-card-perf:hover {
             border-color: #C084FC !important;
             box-shadow: 0 8px 24px rgba(168, 85, 247, 0.12);
@@ -1642,9 +1650,19 @@
 
         <!-- Summary KPI Cards -->
         <section class="stats-grid">
-            <div class="stat-card">
+            <!-- Total Devices Registered Card (Click to Reset & Show All) -->
+            <div class="stat-card stat-card-clickable stat-card-total" 
+                 onclick="resetAllFiltersAndShowAll()" 
+                 title="คลิกเพื่อล้างตัวกรองและแสดงเครื่องทั้งหมด ({{ number_format($stats['total_devices']) }} เครื่อง)">
                 <div class="stat-info">
-                    <p>เครื่องที่ลงทะเบียนสเปก</p>
+                    <p style="display: flex; align-items: center; justify-content: space-between;">
+                        <span>เครื่องที่ลงทะเบียนสเปก</span>
+                        @if(request()->hasAny(['search', 'department', 'perf', 'ram', 'ram_type', 'disk_type', 'os', 'office', 'status']))
+                            <span style="font-size: 0.72rem; color: #0284C7; font-weight: 600; display: inline-flex; align-items: center; gap: 2px;">
+                                <span class="material-symbols-outlined" style="font-size: 13px;">restart_alt</span> แสดงทั้งหมด
+                            </span>
+                        @endif
+                    </p>
                     <h2>{{ number_format($stats['total_devices']) }} <span style="font-size: 0.9rem; font-weight: 500; color: var(--text-muted);">เครื่อง</span></h2>
                     <div class="stat-subtext">
                         <span class="material-symbols-outlined" style="font-size: 15px; color: #0284C7;">devices</span>
@@ -3012,6 +3030,12 @@
 
     <!-- JavaScript -->
     <script>
+        // --- Show All / Reset All Filters ---
+        function resetAllFiltersAndShowAll() {
+            sessionStorage.setItem('cshos_active_subpanel', 'none');
+            window.location.href = "{{ route('admin.specs') }}";
+        }
+
         // --- Multi-Panel Toggle (Performance, Storage, RAM, Windows) ---
         function toggleSubCardPanel(panelType, forceState) {
             const panels = {
