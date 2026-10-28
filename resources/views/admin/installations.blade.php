@@ -2650,13 +2650,13 @@
                                 @elseif($statusCount === 1)
                                     @php
                                         $stTitles = [
-                                            'online' => '🟢 ออนไลน์',
-                                            'offline' => '⚪ ออฟไลน์',
-                                            'missing_asset' => '🏷️ ไม่มีรหัส COM',
-                                            'risk_only' => '⚠️ พบโปรแกรมเสี่ยง',
-                                            'today' => '📅 เปิดใช้วันนี้',
-                                            'week' => '🕒 7 วันล่าสุด',
-                                            'installed_only' => '💻 ติดตั้งไอคอนแล้ว',
+                                            'online' => 'ออนไลน์',
+                                            'offline' => 'ออฟไลน์',
+                                            'missing_asset' => 'ไม่มีรหัส COM',
+                                            'risk_only' => 'พบโปรแกรมเสี่ยง',
+                                            'today' => 'เปิดใช้วันนี้',
+                                            'week' => '7 วันล่าสุด',
+                                            'installed_only' => 'ติดตั้งไอคอนแล้ว',
                                         ];
                                     @endphp
                                     {{ $stTitles[$selectedStatuses[0]] ?? $selectedStatuses[0] }}
@@ -2673,33 +2673,33 @@
                             </div>
                             <label class="multi-item">
                                 <input type="checkbox" name="status[]" value="online" onchange="updateMultiLabel('instStatusDropdown', 'สถานะ / เงื่อนไข')" {{ in_array('online', $selectedStatuses) ? 'checked' : '' }}>
-                                <span>🟢 ออนไลน์ ({{ $stats['online_count'] ?? 0 }})</span>
+                                <span>ออนไลน์ ({{ $stats['online_count'] ?? 0 }})</span>
                             </label>
                             <label class="multi-item">
                                 <input type="checkbox" name="status[]" value="offline" onchange="updateMultiLabel('instStatusDropdown', 'สถานะ / เงื่อนไข')" {{ in_array('offline', $selectedStatuses) ? 'checked' : '' }}>
-                                <span>⚪ ออฟไลน์ ({{ $stats['offline_count'] ?? 0 }})</span>
+                                <span>ออฟไลน์ ({{ $stats['offline_count'] ?? 0 }})</span>
                             </label>
                             <label class="multi-item">
                                 <input type="checkbox" name="status[]" value="missing_asset" onchange="updateMultiLabel('instStatusDropdown', 'สถานะ / เงื่อนไข')" {{ in_array('missing_asset', $selectedStatuses) ? 'checked' : '' }}>
-                                <span>🏷️ ไม่พบรหัสครุภัณฑ์ ({{ $stats['missing_asset_code_count'] ?? 0 }})</span>
+                                <span>ไม่พบรหัสครุภัณฑ์ ({{ $stats['missing_asset_code_count'] ?? 0 }})</span>
                             </label>
                             @if(Auth::user()->isAdmin())
                                 <label class="multi-item">
                                     <input type="checkbox" name="status[]" value="risk_only" onchange="updateMultiLabel('instStatusDropdown', 'สถานะ / เงื่อนไข')" {{ in_array('risk_only', $selectedStatuses) ? 'checked' : '' }}>
-                                    <span>⚠️ ตรวจพบโปรแกรมเสี่ยง ({{ $stats['risk_count'] ?? 0 }})</span>
+                                    <span>ตรวจพบโปรแกรมเสี่ยง ({{ $stats['risk_count'] ?? 0 }})</span>
                                 </label>
                             @endif
                             <label class="multi-item">
                                 <input type="checkbox" name="status[]" value="today" onchange="updateMultiLabel('instStatusDropdown', 'สถานะ / เงื่อนไข')" {{ in_array('today', $selectedStatuses) ? 'checked' : '' }}>
-                                <span>📅 เปิดใช้งานวันนี้</span>
+                                <span>เปิดใช้งานวันนี้</span>
                             </label>
                             <label class="multi-item">
                                 <input type="checkbox" name="status[]" value="week" onchange="updateMultiLabel('instStatusDropdown', 'สถานะ / เงื่อนไข')" {{ in_array('week', $selectedStatuses) ? 'checked' : '' }}>
-                                <span>🕒 7 วันล่าสุด</span>
+                                <span>7 วันล่าสุด</span>
                             </label>
                             <label class="multi-item">
                                 <input type="checkbox" name="status[]" value="installed_only" onchange="updateMultiLabel('instStatusDropdown', 'สถานะ / เงื่อนไข')" {{ in_array('installed_only', $selectedStatuses) ? 'checked' : '' }}>
-                                <span>💻 ติดตั้งไอคอนแล้ว</span>
+                                <span>ติดตั้งไอคอนแล้ว</span>
                             </label>
                             <div class="filter-dropdown-footer">
                                 <button type="submit" class="btn-multi-apply">ตกลง</button>
@@ -2714,7 +2714,7 @@
                                 @if($anydeskCount === 0)
                                     AnyDesk
                                 @elseif($anydeskCount === 1)
-                                    {{ $selectedAnydesks[0] === 'installed' ? '🔴 มี AnyDesk' : '⚪ ไม่มี AnyDesk' }}
+                                    {{ $selectedAnydesks[0] === 'installed' ? 'มี AnyDesk' : 'ไม่มี AnyDesk' }}
                                 @else
                                     AnyDesk ({{ $anydeskCount }})
                                 @endif
@@ -2728,11 +2728,11 @@
                             </div>
                             <label class="multi-item">
                                 <input type="checkbox" name="anydesk[]" value="installed" onchange="updateMultiLabel('instAdDropdown', 'AnyDesk')" {{ in_array('installed', $selectedAnydesks) ? 'checked' : '' }}>
-                                <span>🔴 มี AnyDesk ในเครื่อง</span>
+                                <span>มี AnyDesk ในเครื่อง</span>
                             </label>
                             <label class="multi-item">
                                 <input type="checkbox" name="anydesk[]" value="not_installed" onchange="updateMultiLabel('instAdDropdown', 'AnyDesk')" {{ in_array('not_installed', $selectedAnydesks) ? 'checked' : '' }}>
-                                <span>⚪ ไม่มี AnyDesk</span>
+                                <span>ไม่มี AnyDesk</span>
                             </label>
                             <div class="filter-dropdown-footer">
                                 <button type="submit" class="btn-multi-apply">ตกลง</button>
@@ -2747,7 +2747,7 @@
                                 @if($hosxpCount === 0)
                                     โปรแกรม HOSxP
                                 @elseif($hosxpCount === 1)
-                                    {{ $selectedHosxps[0] === 'installed' ? '🏥 มี HOSxP' : '⚪ ไม่มี HOSxP' }}
+                                    {{ $selectedHosxps[0] === 'installed' ? 'มี HOSxP' : 'ไม่มี HOSxP' }}
                                 @else
                                     HOSxP ({{ $hosxpCount }})
                                 @endif
@@ -2761,11 +2761,11 @@
                             </div>
                             <label class="multi-item">
                                 <input type="checkbox" name="hosxp[]" value="installed" onchange="updateMultiLabel('instHosxpDropdown', 'โปรแกรม HOSxP')" {{ in_array('installed', $selectedHosxps) ? 'checked' : '' }}>
-                                <span>🏥 มีโปรแกรม HOSxP ในเครื่อง</span>
+                                <span>มีโปรแกรม HOSxP ในเครื่อง</span>
                             </label>
                             <label class="multi-item">
                                 <input type="checkbox" name="hosxp[]" value="not_installed" onchange="updateMultiLabel('instHosxpDropdown', 'โปรแกรม HOSxP')" {{ in_array('not_installed', $selectedHosxps) ? 'checked' : '' }}>
-                                <span>⚪ ไม่มีโปรแกรม HOSxP</span>
+                                <span>ไม่มีโปรแกรม HOSxP</span>
                             </label>
                             <div class="filter-dropdown-footer">
                                 <button type="submit" class="btn-multi-apply">ตกลง</button>
@@ -3253,7 +3253,6 @@
                 <div class="modal-form-group" style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 12px; padding: 0.75rem 0.95rem;">
                     <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; color: #065F46; margin-bottom: 0;">
                         <input type="checkbox" name="hosxp_installed" value="1" id="modalHosxpInstalled" onchange="document.getElementById('modalHosxpVerGroup').style.display = this.checked ? 'block' : 'none';" style="width: 17px; height: 17px; accent-color: #059669;">
-                        <span class="material-symbols-Outlined" style="font-size: 19px; color: #059669;">local_hospital</span>
                         <span>มีโปรแกรม HOSxP ในเครื่องนี้</span>
                     </label>
                     <div id="modalHosxpVerGroup" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #A7F3D0;">

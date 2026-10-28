@@ -2410,23 +2410,23 @@
                         </div>
                         <label class="multi-item">
                             <input type="checkbox" name="perf[]" value="highest" onchange="updateMultiLabel('perfDropdown', 'ประสิทธิภาพ')" {{ in_array('highest', $selectedPerfs) ? 'checked' : '' }}>
-                            <span>🚀 5. สูงมาก</span>
+                            <span>5. สูงมาก</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="perf[]" value="high" onchange="updateMultiLabel('perfDropdown', 'ประสิทธิภาพ')" {{ in_array('high', $selectedPerfs) ? 'checked' : '' }}>
-                            <span>✨ 4. สูง</span>
+                            <span>4. สูง</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="perf[]" value="fair" onchange="updateMultiLabel('perfDropdown', 'ประสิทธิภาพ')" {{ in_array('fair', $selectedPerfs) ? 'checked' : '' }}>
-                            <span>⚡ 3. พอใช้</span>
+                            <span>3. พอใช้</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="perf[]" value="low" onchange="updateMultiLabel('perfDropdown', 'ประสิทธิภาพ')" {{ in_array('low', $selectedPerfs) ? 'checked' : '' }}>
-                            <span>⚠️ 2. ต่ำ</span>
+                            <span>2. ต่ำ</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="perf[]" value="lowest" onchange="updateMultiLabel('perfDropdown', 'ประสิทธิภาพ')" {{ in_array('lowest', $selectedPerfs) ? 'checked' : '' }}>
-                            <span>🛑 1. ต่ำมาก</span>
+                            <span>1. ต่ำมาก</span>
                         </label>
                         <div class="filter-dropdown-footer">
                             <button type="submit" class="btn-multi-apply">ตกลง</button>
@@ -2475,7 +2475,7 @@
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="ram[]" value="low" onchange="updateMultiLabel('ramDropdown', 'ความจุ RAM')" {{ in_array('low', $selectedRams) ? 'checked' : '' }}>
-                            <span>⚠️ ต่ำกว่า 8 GB</span>
+                            <span>ต่ำกว่า 8 GB</span>
                         </label>
                         <div class="filter-dropdown-footer">
                             <button type="submit" class="btn-multi-apply">ตกลง</button>
@@ -2504,19 +2504,19 @@
                         </div>
                         <label class="multi-item">
                             <input type="checkbox" name="ram_type[]" value="DDR5" onchange="updateMultiLabel('ramTypeDropdown', 'ประเภท RAM')" {{ in_array('DDR5', $selectedRamTypes) ? 'checked' : '' }}>
-                            <span>🚀 DDR5</span>
+                            <span>DDR5</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="ram_type[]" value="DDR4" onchange="updateMultiLabel('ramTypeDropdown', 'ประเภท RAM')" {{ in_array('DDR4', $selectedRamTypes) ? 'checked' : '' }}>
-                            <span>⚡ DDR4</span>
+                            <span>DDR4</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="ram_type[]" value="DDR3" onchange="updateMultiLabel('ramTypeDropdown', 'ประเภท RAM')" {{ in_array('DDR3', $selectedRamTypes) ? 'checked' : '' }}>
-                            <span>⏳ DDR3</span>
+                            <span>DDR3</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="ram_type[]" value="other" onchange="updateMultiLabel('ramTypeDropdown', 'ประเภท RAM')" {{ in_array('other', $selectedRamTypes) ? 'checked' : '' }}>
-                            <span>❓ อื่นๆ / ไม่ระบุ</span>
+                            <span>อื่นๆ / ไม่ระบุ</span>
                         </label>
                         <div class="filter-dropdown-footer">
                             <button type="submit" class="btn-multi-apply">ตกลง</button>
@@ -2548,23 +2548,23 @@
                         </div>
                         <label class="multi-item">
                             <input type="checkbox" name="disk_type[]" value="nvme" onchange="updateMultiLabel('diskDropdown', 'ประเภท Storage')" {{ in_array('nvme', $selectedDisks) ? 'checked' : '' }}>
-                            <span>⚡ M.2 NVMe SSD</span>
+                            <span>M.2 NVMe SSD</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="disk_type[]" value="sata_ssd" onchange="updateMultiLabel('diskDropdown', 'ประเภท Storage')" {{ in_array('sata_ssd', $selectedDisks) ? 'checked' : '' }}>
-                            <span>💾 2.5" SATA SSD</span>
+                            <span>2.5" SATA SSD</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="disk_type[]" value="ssd" onchange="updateMultiLabel('diskDropdown', 'ประเภท Storage')" {{ in_array('ssd', $selectedDisks) ? 'checked' : '' }}>
-                            <span>🚀 SSD ทั้งหมด</span>
+                            <span>SSD ทั้งหมด</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="disk_type[]" value="hdd" onchange="updateMultiLabel('diskDropdown', 'ประเภท Storage')" {{ in_array('hdd', $selectedDisks) ? 'checked' : '' }}>
-                            <span>💿 HDD จานหมุน</span>
+                            <span>HDD จานหมุน</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="disk_type[]" value="other" onchange="updateMultiLabel('diskDropdown', 'ประเภท Storage')" {{ in_array('other', $selectedDisks) ? 'checked' : '' }}>
-                            <span>❓ SCSI / อื่นๆ</span>
+                            <span>SCSI / อื่นๆ</span>
                         </label>
                         <div class="filter-dropdown-footer">
                             <button type="submit" class="btn-multi-apply">ตกลง</button>
@@ -2596,35 +2596,35 @@
                         </div>
                         <label class="multi-item">
                             <input type="checkbox" name="os[]" value="win11" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('win11', $selectedOs) ? 'checked' : '' }}>
-                            <span>🟦 Windows 11 (ทั้งหมด)</span>
+                            <span>Windows 11 (ทั้งหมด)</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="os[]" value="win11_pro" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('win11_pro', $selectedOs) ? 'checked' : '' }}>
-                            <span>💼 Windows 11 Pro</span>
+                            <span>Windows 11 Pro</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="os[]" value="win11_home" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('win11_home', $selectedOs) ? 'checked' : '' }}>
-                            <span>🏠 Windows 11 Home</span>
+                            <span>Windows 11 Home</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="os[]" value="win10" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('win10', $selectedOs) ? 'checked' : '' }}>
-                            <span>🪟 Windows 10 (ทั้งหมด)</span>
+                            <span>Windows 10 (ทั้งหมด)</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="os[]" value="win10_pro" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('win10_pro', $selectedOs) ? 'checked' : '' }}>
-                            <span>💼 Windows 10 Pro</span>
+                            <span>Windows 10 Pro</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="os[]" value="win10_other" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('win10_other', $selectedOs) ? 'checked' : '' }}>
-                            <span>⚙️ Windows 10 อื่นๆ</span>
+                            <span>Windows 10 อื่นๆ</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="os[]" value="server" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('server', $selectedOs) ? 'checked' : '' }}>
-                            <span>🖥️ Windows Server</span>
+                            <span>Windows Server</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="os[]" value="other" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('other', $selectedOs) ? 'checked' : '' }}>
-                            <span>❓ รุ่นอื่นๆ</span>
+                            <span>รุ่นอื่นๆ</span>
                         </label>
                         <div class="filter-dropdown-footer">
                             <button type="submit" class="btn-multi-apply">ตกลง</button>
@@ -2656,35 +2656,35 @@
                         </div>
                         <label class="multi-item">
                             <input type="checkbox" name="office[]" value="installed" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('installed', $selectedOffices) ? 'checked' : '' }}>
-                            <span>✅ มี Office ติดตั้ง</span>
+                            <span>มี Office ติดตั้ง</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="office[]" value="not_installed" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('not_installed', $selectedOffices) ? 'checked' : '' }}>
-                            <span>❌ ไม่มี Office</span>
+                            <span>ไม่มี Office</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="office[]" value="2024" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('2024', $selectedOffices) ? 'checked' : '' }}>
-                            <span>📄 Office 2024</span>
+                            <span>Office 2024</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="office[]" value="2021" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('2021', $selectedOffices) ? 'checked' : '' }}>
-                            <span>📄 Office 2021</span>
+                            <span>Office 2021</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="office[]" value="2019" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('2019', $selectedOffices) ? 'checked' : '' }}>
-                            <span>📄 Office 2019</span>
+                            <span>Office 2019</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="office[]" value="2016" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('2016', $selectedOffices) ? 'checked' : '' }}>
-                            <span>📄 Office 2016</span>
+                            <span>Office 2016</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="office[]" value="2013" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('2013', $selectedOffices) ? 'checked' : '' }}>
-                            <span>📄 Office 2013</span>
+                            <span>Office 2013</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="office[]" value="2010" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('2010', $selectedOffices) ? 'checked' : '' }}>
-                            <span>📄 Office 2010</span>
+                            <span>Office 2010</span>
                         </label>
                         <div class="filter-dropdown-footer">
                             <button type="submit" class="btn-multi-apply">ตกลง</button>
@@ -2699,7 +2699,7 @@
                             @if($statusCount === 0)
                                 สถานะออนไลน์
                             @elseif($statusCount === 1)
-                                {{ $selectedStatuses[0] === 'online' ? '🟢 ออนไลน์' : '⚪ ออฟไลน์' }}
+                                {{ $selectedStatuses[0] === 'online' ? 'ออนไลน์' : 'ออฟไลน์' }}
                             @else
                                 สถานะ ({{ $statusCount }})
                             @endif
@@ -2713,11 +2713,11 @@
                         </div>
                         <label class="multi-item">
                             <input type="checkbox" name="status[]" value="online" onchange="updateMultiLabel('statusDropdown', 'สถานะออนไลน์')" {{ in_array('online', $selectedStatuses) ? 'checked' : '' }}>
-                            <span>🟢 ออนไลน์ (เชื่อมต่ออยู่)</span>
+                            <span>ออนไลน์ (เชื่อมต่ออยู่)</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="status[]" value="offline" onchange="updateMultiLabel('statusDropdown', 'สถานะออนไลน์')" {{ in_array('offline', $selectedStatuses) ? 'checked' : '' }}>
-                            <span>⚪ ออฟไลน์ (เกิน 15 น.)</span>
+                            <span>ออฟไลน์ (เกิน 15 น.)</span>
                         </label>
                         <div class="filter-dropdown-footer">
                             <button type="submit" class="btn-multi-apply">ตกลง</button>
@@ -2749,19 +2749,19 @@
                         </div>
                         <label class="multi-item">
                             <input type="checkbox" name="remote[]" value="vnc_ready" onchange="updateMultiLabel('remoteDropdown', 'รีโมท & AnyDesk')" {{ in_array('vnc_ready', $selectedRemotes) ? 'checked' : '' }}>
-                            <span>🟢 VNC พร้อมรีโมท</span>
+                            <span>VNC พร้อมรีโมท</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="remote[]" value="vnc_not_ready" onchange="updateMultiLabel('remoteDropdown', 'รีโมท & AnyDesk')" {{ in_array('vnc_not_ready', $selectedRemotes) ? 'checked' : '' }}>
-                            <span>⚪ VNC ยังไม่พร้อม</span>
+                            <span>VNC ยังไม่พร้อม</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="remote[]" value="anydesk" onchange="updateMultiLabel('remoteDropdown', 'รีโมท & AnyDesk')" {{ in_array('anydesk', $selectedRemotes) ? 'checked' : '' }}>
-                            <span>🔴 มี AnyDesk</span>
+                            <span>มี AnyDesk</span>
                         </label>
                         <label class="multi-item">
                             <input type="checkbox" name="remote[]" value="no_anydesk" onchange="updateMultiLabel('remoteDropdown', 'รีโมท & AnyDesk')" {{ in_array('no_anydesk', $selectedRemotes) ? 'checked' : '' }}>
-                            <span>⚪ ไม่มี AnyDesk</span>
+                            <span>ไม่มี AnyDesk</span>
                         </label>
                         <div class="filter-dropdown-footer">
                             <button type="submit" class="btn-multi-apply">ตกลง</button>
