@@ -3299,25 +3299,70 @@ $hosxpFound = $false
 $hosxpVersion = $null
 try {
     $hosxpCandidates = @(
+        "C:\Hosxp\HOSxPXE4.exe",
+        "C:\Hosxp\HOSxPXE.exe",
+        "C:\Hosxp\HOSxP.exe",
+        "C:\Hosxp\HOSxP_PCU.exe",
+        "C:\HOSxP\HOSxPXE4.exe",
+        "C:\HOSxP\HOSxPXE.exe",
         "C:\HOSxP\HOSxP.exe",
         "C:\HOSxP_PCU\HOSxP_PCU.exe",
-        "C:\Program Files\HOSxP\HOSxP.exe",
-        "C:\Program Files (x86)\HOSxP\HOSxP.exe",
-        "C:\Program Files\BMS-HOSxP\HOSxP.exe",
-        "C:\Program Files (x86)\BMS-HOSxP\HOSxP.exe",
+        "C:\HOSxP_PCU\HOSxPXE4.exe",
+        "C:\BMS-HOSxP\HOSxPXE4.exe",
         "C:\BMS-HOSxP\HOSxP.exe",
+        "C:\Program Files\HOSxP\HOSxP.exe",
+        "C:\Program Files\HOSxP\HOSxPXE4.exe",
+        "C:\Program Files (x86)\HOSxP\HOSxP.exe",
+        "C:\Program Files (x86)\HOSxP\HOSxPXE4.exe",
+        "C:\Program Files\BMS-HOSxP\HOSxP.exe",
+        "C:\Program Files\BMS-HOSxP\HOSxPXE4.exe",
+        "C:\Program Files (x86)\BMS-HOSxP\HOSxP.exe",
+        "C:\Program Files (x86)\BMS-HOSxP\HOSxPXE4.exe",
+        "D:\Hosxp\HOSxPXE4.exe",
+        "D:\Hosxp\HOSxP.exe",
+        "D:\HOSxP\HOSxPXE4.exe",
         "D:\HOSxP\HOSxP.exe",
-        "D:\HOSxP_PCU\HOSxP_PCU.exe"
+        "D:\HOSxP_PCU\HOSxP_PCU.exe",
+        "D:\BMS-HOSxP\HOSxP.exe"
     )
     foreach ($hp in $hosxpCandidates) {
         if (Test-Path $hp) {
             $hosxpFound = $true
             try {
                 $vi = (Get-Item $hp -ErrorAction SilentlyContinue).VersionInfo
-                if ($vi.ProductVersion) { $hosxpVersion = "$($vi.ProductVersion)".Trim() }
-                elseif ($vi.FileVersion) { $hosxpVersion = "$($vi.FileVersion)".Trim() }
+                $rawVer = $null
+                if ($vi.FileVersion -and $vi.FileVersion -ne '1.0.0.0' -and $vi.FileVersion -ne '0.0.0.0') { $rawVer = "$($vi.FileVersion)".Trim() }
+                elseif ($vi.ProductVersion -and $vi.ProductVersion -ne '1.0.0.0' -and $vi.ProductVersion -ne '0.0.0.0') { $rawVer = "$($vi.ProductVersion)".Trim() }
+                $base = [System.IO.Path]::GetFileNameWithoutExtension($hp)
+                if ($base -match 'XE4') { $hosxpVersion = if ($rawVer) { "HOSxP XE4 v$rawVer" } else { "HOSxP XE 4" } }
+                elseif ($base -match 'PCU') { $hosxpVersion = if ($rawVer) { "HOSxP PCU v$rawVer" } else { "HOSxP PCU" } }
+                elseif ($base -match 'XE') { $hosxpVersion = if ($rawVer) { "HOSxP XE v$rawVer" } else { "HOSxP XE" } }
+                else { $hosxpVersion = if ($rawVer) { "HOSxP v$rawVer" } else { "HOSxP" } }
             } catch {}
             break
+        }
+    }
+    if (-not $hosxpFound) {
+        $searchRoots = @("C:\Hosxp*", "C:\HOSxP*", "C:\BMS*", "D:\Hosxp*", "D:\HOSxP*", "D:\BMS*")
+        foreach ($sr in $searchRoots) {
+            $matchedExes = Get-ChildItem -Path $sr -Filter "*hosxp*.exe" -File -Recurse -Depth 2 -ErrorAction SilentlyContinue
+            if ($matchedExes) {
+                $chosen = $matchedExes | Select-Object -First 1
+                $hp = $chosen.FullName
+                $hosxpFound = $true
+                try {
+                    $vi = $chosen.VersionInfo
+                    $rawVer = $null
+                    if ($vi.FileVersion -and $vi.FileVersion -ne '1.0.0.0' -and $vi.FileVersion -ne '0.0.0.0') { $rawVer = "$($vi.FileVersion)".Trim() }
+                    elseif ($vi.ProductVersion -and $vi.ProductVersion -ne '1.0.0.0' -and $vi.ProductVersion -ne '0.0.0.0') { $rawVer = "$($vi.ProductVersion)".Trim() }
+                    $base = [System.IO.Path]::GetFileNameWithoutExtension($hp)
+                    if ($base -match 'XE4') { $hosxpVersion = if ($rawVer) { "HOSxP XE4 v$rawVer" } else { "HOSxP XE 4" } }
+                    elseif ($base -match 'PCU') { $hosxpVersion = if ($rawVer) { "HOSxP PCU v$rawVer" } else { "HOSxP PCU" } }
+                    elseif ($base -match 'XE') { $hosxpVersion = if ($rawVer) { "HOSxP XE v$rawVer" } else { "HOSxP XE" } }
+                    else { $hosxpVersion = if ($rawVer) { "HOSxP v$rawVer" } else { "HOSxP" } }
+                } catch {}
+                break
+            }
         }
     }
     if (-not $hosxpFound) {
@@ -3332,11 +3377,19 @@ try {
         }
     }
     if (-not $hosxpFound) {
-        $hProc = Get-Process -Name "HOSxP", "HOSxP_PCU" -ErrorAction SilentlyContinue | Select-Object -First 1
+        $hProc = Get-Process -Name "*HOSxP*" -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($hProc) {
             $hosxpFound = $true
             try {
-                $hosxpVersion = "$($hProc.MainModule.FileVersionInfo.ProductVersion)".Trim()
+                $vi = $hProc.MainModule.FileVersionInfo
+                $rawVer = $null
+                if ($vi.FileVersion -and $vi.FileVersion -ne '1.0.0.0' -and $vi.FileVersion -ne '0.0.0.0') { $rawVer = "$($vi.FileVersion)".Trim() }
+                elseif ($vi.ProductVersion -and $vi.ProductVersion -ne '1.0.0.0' -and $vi.ProductVersion -ne '0.0.0.0') { $rawVer = "$($vi.ProductVersion)".Trim() }
+                $base = $hProc.ProcessName
+                if ($base -match 'XE4') { $hosxpVersion = if ($rawVer) { "HOSxP XE4 v$rawVer" } else { "HOSxP XE 4" } }
+                elseif ($base -match 'PCU') { $hosxpVersion = if ($rawVer) { "HOSxP PCU v$rawVer" } else { "HOSxP PCU" } }
+                elseif ($base -match 'XE') { $hosxpVersion = if ($rawVer) { "HOSxP XE v$rawVer" } else { "HOSxP XE" } }
+                else { $hosxpVersion = if ($rawVer) { "HOSxP v$rawVer" } else { "HOSxP" } }
             } catch {}
         }
     }
@@ -3550,9 +3603,6 @@ if ($res) {
             $scStart.Save()
         } catch {}
     }
-} catch {
-    $logMsg = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') - Err: $($_.Exception.Message)"
-    Add-Content -Path (Join-Path $sysDir "sync.log") -Value $logMsg -ErrorAction SilentlyContinue
 }
 SYNC_SCRIPT;
 
@@ -4616,25 +4666,70 @@ $hosxpFound = $false
 $hosxpVersion = $null
 try {
     $hosxpCandidates = @(
+        "C:\Hosxp\HOSxPXE4.exe",
+        "C:\Hosxp\HOSxPXE.exe",
+        "C:\Hosxp\HOSxP.exe",
+        "C:\Hosxp\HOSxP_PCU.exe",
+        "C:\HOSxP\HOSxPXE4.exe",
+        "C:\HOSxP\HOSxPXE.exe",
         "C:\HOSxP\HOSxP.exe",
         "C:\HOSxP_PCU\HOSxP_PCU.exe",
-        "C:\Program Files\HOSxP\HOSxP.exe",
-        "C:\Program Files (x86)\HOSxP\HOSxP.exe",
-        "C:\Program Files\BMS-HOSxP\HOSxP.exe",
-        "C:\Program Files (x86)\BMS-HOSxP\HOSxP.exe",
+        "C:\HOSxP_PCU\HOSxPXE4.exe",
+        "C:\BMS-HOSxP\HOSxPXE4.exe",
         "C:\BMS-HOSxP\HOSxP.exe",
+        "C:\Program Files\HOSxP\HOSxP.exe",
+        "C:\Program Files\HOSxP\HOSxPXE4.exe",
+        "C:\Program Files (x86)\HOSxP\HOSxP.exe",
+        "C:\Program Files (x86)\HOSxP\HOSxPXE4.exe",
+        "C:\Program Files\BMS-HOSxP\HOSxP.exe",
+        "C:\Program Files\BMS-HOSxP\HOSxPXE4.exe",
+        "C:\Program Files (x86)\BMS-HOSxP\HOSxP.exe",
+        "C:\Program Files (x86)\BMS-HOSxP\HOSxPXE4.exe",
+        "D:\Hosxp\HOSxPXE4.exe",
+        "D:\Hosxp\HOSxP.exe",
+        "D:\HOSxP\HOSxPXE4.exe",
         "D:\HOSxP\HOSxP.exe",
-        "D:\HOSxP_PCU\HOSxP_PCU.exe"
+        "D:\HOSxP_PCU\HOSxP_PCU.exe",
+        "D:\BMS-HOSxP\HOSxP.exe"
     )
     foreach ($hp in $hosxpCandidates) {
         if (Test-Path $hp) {
             $hosxpFound = $true
             try {
                 $vi = (Get-Item $hp -ErrorAction SilentlyContinue).VersionInfo
-                if ($vi.ProductVersion) { $hosxpVersion = "$($vi.ProductVersion)".Trim() }
-                elseif ($vi.FileVersion) { $hosxpVersion = "$($vi.FileVersion)".Trim() }
+                $rawVer = $null
+                if ($vi.FileVersion -and $vi.FileVersion -ne '1.0.0.0' -and $vi.FileVersion -ne '0.0.0.0') { $rawVer = "$($vi.FileVersion)".Trim() }
+                elseif ($vi.ProductVersion -and $vi.ProductVersion -ne '1.0.0.0' -and $vi.ProductVersion -ne '0.0.0.0') { $rawVer = "$($vi.ProductVersion)".Trim() }
+                $base = [System.IO.Path]::GetFileNameWithoutExtension($hp)
+                if ($base -match 'XE4') { $hosxpVersion = if ($rawVer) { "HOSxP XE4 v$rawVer" } else { "HOSxP XE 4" } }
+                elseif ($base -match 'PCU') { $hosxpVersion = if ($rawVer) { "HOSxP PCU v$rawVer" } else { "HOSxP PCU" } }
+                elseif ($base -match 'XE') { $hosxpVersion = if ($rawVer) { "HOSxP XE v$rawVer" } else { "HOSxP XE" } }
+                else { $hosxpVersion = if ($rawVer) { "HOSxP v$rawVer" } else { "HOSxP" } }
             } catch {}
             break
+        }
+    }
+    if (-not $hosxpFound) {
+        $searchRoots = @("C:\Hosxp*", "C:\HOSxP*", "C:\BMS*", "D:\Hosxp*", "D:\HOSxP*", "D:\BMS*")
+        foreach ($sr in $searchRoots) {
+            $matchedExes = Get-ChildItem -Path $sr -Filter "*hosxp*.exe" -File -Recurse -Depth 2 -ErrorAction SilentlyContinue
+            if ($matchedExes) {
+                $chosen = $matchedExes | Select-Object -First 1
+                $hp = $chosen.FullName
+                $hosxpFound = $true
+                try {
+                    $vi = $chosen.VersionInfo
+                    $rawVer = $null
+                    if ($vi.FileVersion -and $vi.FileVersion -ne '1.0.0.0' -and $vi.FileVersion -ne '0.0.0.0') { $rawVer = "$($vi.FileVersion)".Trim() }
+                    elseif ($vi.ProductVersion -and $vi.ProductVersion -ne '1.0.0.0' -and $vi.ProductVersion -ne '0.0.0.0') { $rawVer = "$($vi.ProductVersion)".Trim() }
+                    $base = [System.IO.Path]::GetFileNameWithoutExtension($hp)
+                    if ($base -match 'XE4') { $hosxpVersion = if ($rawVer) { "HOSxP XE4 v$rawVer" } else { "HOSxP XE 4" } }
+                    elseif ($base -match 'PCU') { $hosxpVersion = if ($rawVer) { "HOSxP PCU v$rawVer" } else { "HOSxP PCU" } }
+                    elseif ($base -match 'XE') { $hosxpVersion = if ($rawVer) { "HOSxP XE v$rawVer" } else { "HOSxP XE" } }
+                    else { $hosxpVersion = if ($rawVer) { "HOSxP v$rawVer" } else { "HOSxP" } }
+                } catch {}
+                break
+            }
         }
     }
     if (-not $hosxpFound) {
@@ -4649,11 +4744,19 @@ try {
         }
     }
     if (-not $hosxpFound) {
-        $hProc = Get-Process -Name "HOSxP", "HOSxP_PCU" -ErrorAction SilentlyContinue | Select-Object -First 1
+        $hProc = Get-Process -Name "*HOSxP*" -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($hProc) {
             $hosxpFound = $true
             try {
-                $hosxpVersion = "$($hProc.MainModule.FileVersionInfo.ProductVersion)".Trim()
+                $vi = $hProc.MainModule.FileVersionInfo
+                $rawVer = $null
+                if ($vi.FileVersion -and $vi.FileVersion -ne '1.0.0.0' -and $vi.FileVersion -ne '0.0.0.0') { $rawVer = "$($vi.FileVersion)".Trim() }
+                elseif ($vi.ProductVersion -and $vi.ProductVersion -ne '1.0.0.0' -and $vi.ProductVersion -ne '0.0.0.0') { $rawVer = "$($vi.ProductVersion)".Trim() }
+                $base = $hProc.ProcessName
+                if ($base -match 'XE4') { $hosxpVersion = if ($rawVer) { "HOSxP XE4 v$rawVer" } else { "HOSxP XE 4" } }
+                elseif ($base -match 'PCU') { $hosxpVersion = if ($rawVer) { "HOSxP PCU v$rawVer" } else { "HOSxP PCU" } }
+                elseif ($base -match 'XE') { $hosxpVersion = if ($rawVer) { "HOSxP XE v$rawVer" } else { "HOSxP XE" } }
+                else { $hosxpVersion = if ($rawVer) { "HOSxP v$rawVer" } else { "HOSxP" } }
             } catch {}
         }
     }
