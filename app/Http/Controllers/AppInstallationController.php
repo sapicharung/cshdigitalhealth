@@ -193,7 +193,10 @@ class AppInstallationController extends Controller
                 ->when($cleanIncomingHost, function ($q) use ($cleanIncomingHost) {
                     $q->whereRaw("LOWER(TRIM(SUBSTRING_INDEX(hostname, '.', 1))) != ?", [$cleanIncomingHost]);
                 })
-                ->update(['is_online' => false]);
+                ->update([
+                    'is_online'  => false,
+                    'ip_address' => null,
+                ]);
         }
 
         if (!$installation) {
@@ -1628,6 +1631,20 @@ class AppInstallationController extends Controller
                 }
             }
 
+            // If probe responded, verify that this IP actually belongs to THIS machine
+            if ($isOnline && strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' && !empty($installation->mac_address)) {
+                $escaped = escapeshellarg($ip);
+                $arpOut = shell_exec("arp -a {$escaped} 2>&1") ?: '';
+                if (preg_match('/([0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2})/i', $arpOut, $mArp)) {
+                    $detectedMac = strtoupper(str_replace(':', '-', $mArp[1]));
+                    if (!in_array($detectedMac, ['FF-FF-FF-FF-FF-FF', '00-00-00-00-00-00']) && $detectedMac !== strtoupper($installation->mac_address)) {
+                        $isOnline = false;
+                        $vncReady = false;
+                        $installation->ip_address = null;
+                    }
+                }
+            }
+
             $installation->is_online = $isOnline;
             $installation->last_probed_at = now();
 
@@ -1942,10 +1959,24 @@ class AppInstallationController extends Controller
                 }
             }
 
+            // If probe responded, verify that this IP actually belongs to THIS machine
+            if ($isOnline && strtoupper(substr(PHP_OS, 0, 3)) === 'WIN' && !empty($item->mac_address)) {
+                $escaped = escapeshellarg($ip);
+                $arpOut = shell_exec("arp -a {$escaped} 2>&1") ?: '';
+                if (preg_match('/([0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2})/i', $arpOut, $mArp)) {
+                    $detectedMac = strtoupper(str_replace(':', '-', $mArp[1]));
+                    if (!in_array($detectedMac, ['FF-FF-FF-FF-FF-FF', '00-00-00-00-00-00']) && $detectedMac !== strtoupper($item->mac_address)) {
+                        // Responding machine has a different MAC address! IP was reassigned by DHCP
+                        $isOnline = false;
+                        $vncReady = false;
+                        $item->ip_address = null; // Release IP from stale machine
+                    }
+                }
+            }
+
             $item->is_online = $isOnline;
             $item->last_probed_at = now();
             if ($isOnline) {
-                $item->last_active_at = now();
                 if ($vncReady) {
                     $item->remote_ready = true;
                 }
@@ -5969,6 +6000,36 @@ POWERSHELL;
                 }) ?: $group->first());
 
                 $this->deduplicateSingleRecord($master);
+
+                // If distinct physical machines still share this IP address (e.g. DHCP reassignment):
+                $remaining = AppInstallation::where('ip_address', $dupIp)->orderByDesc('last_active_at')->get();
+                if ($remaining->count() > 1) {
+                    $activeOwner = null;
+                    if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+                        $escaped = escapeshellarg($dupIp);
+                        $arpOut = shell_exec("arp -a {$escaped} 2>&1") ?: '';
+                        if (preg_match('/([0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2}[:-][0-9a-f]{2})/i', $arpOut, $mArp)) {
+                            $detectedMac = strtoupper(str_replace(':', '-', $mArp[1]));
+                            if (!in_array($detectedMac, ['FF-FF-FF-FF-FF-FF', '00-00-00-00-00-00'])) {
+                                $activeOwner = $remaining->first(function ($r) use ($detectedMac) {
+                                    return $r->mac_address && strtoupper($r->mac_address) === $detectedMac;
+                                });
+                            }
+                        }
+                    }
+
+                    if (!$activeOwner) {
+                        $activeOwner = $remaining->first();
+                    }
+
+                    foreach ($remaining as $r) {
+                        if ($r->id !== $activeOwner->id) {
+                            $r->ip_address = null;
+                            $r->is_online = false;
+                            $r->save();
+                        }
+                    }
+                }
             }
         } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::warning('Deduplication failed: ' . $e->getMessage());
