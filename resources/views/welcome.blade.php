@@ -908,7 +908,7 @@
                     <a href="https://cshos.moph.go.th/csherp/repairs/create?category=it" target="_blank" class="service-card card-purple" data-network="cloud" data-keywords="ระบบแจ้งซ่อมไอที แจ้งซ่อม แจ้งซ่อมคอม ซ่อมไอที คอมพิวเตอร์ it repair csherp">
                         <span class="badge-network badge-cloud">Cloud</span>
                         <div class="icon-box ic-purple"><span class="material-symbols-outlined">home_repair_service</span></div>
-                        <h4>ระบบแจ้งซ่อมไอที</h4>
+                        <h4>แจ้งซ่อมไอที</h4>
                     </a>
                     <a href="https://cshos.moph.go.th/csherp/repairs/create?category=maintenance" target="_blank" class="service-card card-green" data-network="cloud" data-keywords="แจ้งซ่อมช่าง ซ่อมช่าง แจ้งซ่อม ซ่อมบำรุง ช่าง ซ่อมอาคาร ประปา ไฟฟ้า maintenance csherp repair">
                         <span class="badge-network badge-cloud">Cloud</span>

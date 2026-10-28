@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AppInstallationController extends Controller
 {
-    public const CLIENT_APP_VERSION = '2.3.0';
+    public const CLIENT_APP_VERSION = '2.3.1';
 
     /**
      * Get the latest client application version.
@@ -2183,7 +2183,7 @@ if (Test-Path $commonStartup) {
             $scStart.TargetPath = $appUrl
         }
         $scStart.WorkingDirectory = $sysDir
-        $scStart.Description = "$appName - เปิดโปรแกรมอัตโนมัติเมื่อเปิดเครื่อง (Auto-Start on Boot)"
+        $scStart.Description = "$appName - Auto-Start on Boot"
         if (Test-Path $icoPath) { $scStart.IconLocation = "$icoPath,0" }
         $scStart.Save()
     } catch {}
@@ -2316,6 +2316,11 @@ try {
     $regCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "CSHOS_AutoSync" -Value $regCmd -Force -ErrorAction SilentlyContinue
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "CSHOS_AutoSync" -Value $regCmd -Force -ErrorAction SilentlyContinue
+} catch {}
+
+# Disable Windows Fast Startup (Hiberboot) to ensure clean shutdown and accurate boot tracking
+try {
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
 } catch {}
 
 # 7. Update version.txt to the new version if script was replaced
@@ -2793,14 +2798,54 @@ try {
     }
 } catch {}
 
-# Detect OS Last Boot Up Time & System Uptime
+# Disable Windows Fast Startup (Hiberboot) to ensure clean shutdown and accurate boot tracking
+try {
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+} catch {}
+
+# Detect OS Last Boot Up Time & System Uptime (Supports Normal Boot, Cold Boot, and Fast Startup / Hybrid Boot)
 $lastBootStr = ""
 $uptimeFormatted = ""
 try {
-    $osCim = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
-    if ($osCim -and $osCim.LastBootUpTime) {
-        $lastBootStr = $osCim.LastBootUpTime.ToString('yyyy-MM-dd HH:mm:ss')
-        $upSpan = (Get-Date) - $osCim.LastBootUpTime
+    $candidates = @()
+    $now = Get-Date
+
+    # 1. Kernel-Boot Event 27 (Boot type 0x0 normal, 0x1 fast startup, 0x2 resume hibernate)
+    try {
+        $ev27 = Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-Kernel-Boot'; ID=27} -MaxEvents 1 -ErrorAction SilentlyContinue
+        if ($ev27 -and $ev27.TimeCreated -and $ev27.TimeCreated -le $now) {
+            $candidates += $ev27.TimeCreated
+        }
+    } catch {}
+
+    # 2. Kernel-General Event 12 (Operating system started)
+    try {
+        $ev12 = Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-Kernel-General'; ID=12} -MaxEvents 1 -ErrorAction SilentlyContinue
+        if ($ev12 -and $ev12.TimeCreated -and $ev12.TimeCreated -le $now) {
+            $candidates += $ev12.TimeCreated
+        }
+    } catch {}
+
+    # 3. Kernel-Boot Event 30 (Firmware boot metrics)
+    try {
+        $ev30 = Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-Kernel-Boot'; ID=30} -MaxEvents 1 -ErrorAction SilentlyContinue
+        if ($ev30 -and $ev30.TimeCreated -and $ev30.TimeCreated -le $now) {
+            $candidates += $ev30.TimeCreated
+        }
+    } catch {}
+
+    # 4. Fallback to Win32_OperatingSystem LastBootUpTime
+    try {
+        $osCim = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+        if ($osCim -and $osCim.LastBootUpTime -and $osCim.LastBootUpTime -le $now) {
+            $candidates += $osCim.LastBootUpTime
+        }
+    } catch {}
+
+    if ($candidates.Count -gt 0) {
+        $bestBootTime = ($candidates | Sort-Object -Descending)[0]
+        $lastBootStr = $bestBootTime.ToString('yyyy-MM-dd HH:mm:ss')
+        $upSpan = $now - $bestBootTime
         $d = [math]::Floor($upSpan.TotalDays)
         $h = $upSpan.Hours
         $m = $upSpan.Minutes
@@ -4020,14 +4065,54 @@ Write-Host "       -> Remote vnc:// protocol launcher registered." -ForegroundCo
 # --- Report Hardware Specs & Remote Status to CSHOS Server ---
 Write-Host " [Step 6/6] Synchronizing machine status with CSHOS Server..." -ForegroundColor Yellow
 
-# Detect OS Last Boot Up Time & System Uptime
+# Disable Windows Fast Startup (Hiberboot) to ensure clean shutdown and accurate boot tracking
+try {
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
+} catch {}
+
+# Detect OS Last Boot Up Time & System Uptime (Supports Normal Boot, Cold Boot, and Fast Startup / Hybrid Boot)
 $lastBootStr = ""
 $uptimeFormatted = ""
 try {
-    $osCim = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
-    if ($osCim -and $osCim.LastBootUpTime) {
-        $lastBootStr = $osCim.LastBootUpTime.ToString('yyyy-MM-dd HH:mm:ss')
-        $upSpan = (Get-Date) - $osCim.LastBootUpTime
+    $candidates = @()
+    $now = Get-Date
+
+    # 1. Kernel-Boot Event 27 (Boot type 0x0 normal, 0x1 fast startup, 0x2 resume hibernate)
+    try {
+        $ev27 = Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-Kernel-Boot'; ID=27} -MaxEvents 1 -ErrorAction SilentlyContinue
+        if ($ev27 -and $ev27.TimeCreated -and $ev27.TimeCreated -le $now) {
+            $candidates += $ev27.TimeCreated
+        }
+    } catch {}
+
+    # 2. Kernel-General Event 12 (Operating system started)
+    try {
+        $ev12 = Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-Kernel-General'; ID=12} -MaxEvents 1 -ErrorAction SilentlyContinue
+        if ($ev12 -and $ev12.TimeCreated -and $ev12.TimeCreated -le $now) {
+            $candidates += $ev12.TimeCreated
+        }
+    } catch {}
+
+    # 3. Kernel-Boot Event 30 (Firmware boot metrics)
+    try {
+        $ev30 = Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-Kernel-Boot'; ID=30} -MaxEvents 1 -ErrorAction SilentlyContinue
+        if ($ev30 -and $ev30.TimeCreated -and $ev30.TimeCreated -le $now) {
+            $candidates += $ev30.TimeCreated
+        }
+    } catch {}
+
+    # 4. Fallback to Win32_OperatingSystem LastBootUpTime
+    try {
+        $osCim = Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+        if ($osCim -and $osCim.LastBootUpTime -and $osCim.LastBootUpTime -le $now) {
+            $candidates += $osCim.LastBootUpTime
+        }
+    } catch {}
+
+    if ($candidates.Count -gt 0) {
+        $bestBootTime = ($candidates | Sort-Object -Descending)[0]
+        $lastBootStr = $bestBootTime.ToString('yyyy-MM-dd HH:mm:ss')
+        $upSpan = $now - $bestBootTime
         $d = [math]::Floor($upSpan.TotalDays)
         $h = $upSpan.Hours
         $m = $upSpan.Minutes
@@ -4622,6 +4707,11 @@ try {
     $regCmd = "powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$syncScriptPath`""
     Set-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run" -Name "CSHOS_AutoSync" -Value $regCmd -Force -ErrorAction SilentlyContinue
     Set-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "CSHOS_AutoSync" -Value $regCmd -Force -ErrorAction SilentlyContinue
+} catch {}
+
+# Disable Windows Fast Startup (Hiberboot) to ensure clean shutdown and accurate boot tracking
+try {
+    Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Power" -Name "HiberbootEnabled" -Value 0 -Type DWord -Force -ErrorAction SilentlyContinue
 } catch {}
 
 # Execute immediate sync test
