@@ -12,7 +12,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AppInstallationController extends Controller
 {
-    public const CLIENT_APP_VERSION = '2.3.1';
+    public const CLIENT_APP_VERSION = '2.3.2';
 
     /**
      * Get the latest client application version.
@@ -295,7 +295,11 @@ class AppInstallationController extends Controller
             $installation->hosxp_installed = filter_var($data['hosxp_installed'], FILTER_VALIDATE_BOOLEAN);
         }
         if (isset($data['hosxp_version'])) {
-            $installation->hosxp_version = !empty($data['hosxp_version']) ? mb_substr($data['hosxp_version'], 0, 100) : null;
+            $hVer = !empty($data['hosxp_version']) ? mb_substr(trim($data['hosxp_version']), 0, 100) : null;
+            if ($hVer && preg_match('/^(hosxp\s*(v)?\s*0+(\.0+)*|0+(\.0+)*)$/i', $hVer)) {
+                $hVer = 'HOSxP';
+            }
+            $installation->hosxp_version = $hVer;
         }
         if (isset($data['has_risk_software']) || isset($data['risk_software_list'])) {
             $rawRisk = $data['risk_software_list'] ?? '';
@@ -1570,7 +1574,7 @@ class AppInstallationController extends Controller
                 foreach ($todayIps as $ip) {
                     if (!in_array($ip, ['127.0.0.1', '::1'])) {
                         $escapedIp = escapeshellarg($ip);
-                        $cmd = "start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Startup >nul 2>&1";
+                        $cmd = "start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Periodic >nul 2>&1 & start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Startup >nul 2>&1 & start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Daily >nul 2>&1";
                         pclose(popen($cmd, "r"));
                     }
                 }
@@ -1655,7 +1659,7 @@ class AppInstallationController extends Controller
                 if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
                     try {
                         $escapedIp = escapeshellarg($ip);
-                        $cmd = "start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Startup >nul 2>&1";
+                        $cmd = "start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Periodic >nul 2>&1 & start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Startup >nul 2>&1 & start /b schtasks /run /s {$escapedIp} /tn CSHOS-AutoSync-Daily >nul 2>&1";
                         pclose(popen($cmd, "r"));
                     } catch (\Throwable $e) {}
                 }
@@ -3303,27 +3307,49 @@ try {
         "C:\Hosxp\HOSxPXE.exe",
         "C:\Hosxp\HOSxP.exe",
         "C:\Hosxp\HOSxP_PCU.exe",
+        "C:\Hosxp\HOSxP_PCU_XE.exe",
+        "C:\Hosxp\HOSxP_PCU_XE4.exe",
+        "C:\Hosxp\HOSxP4.exe",
         "C:\HOSxP\HOSxPXE4.exe",
         "C:\HOSxP\HOSxPXE.exe",
         "C:\HOSxP\HOSxP.exe",
+        "C:\HOSxP\HOSxP_PCU.exe",
+        "C:\HOSxP\HOSxP_PCU_XE.exe",
+        "C:\HOSxP\HOSxP_PCU_XE4.exe",
+        "C:\HOSxP\HOSxP4.exe",
         "C:\HOSxP_PCU\HOSxP_PCU.exe",
         "C:\HOSxP_PCU\HOSxPXE4.exe",
+        "C:\HOSxP_PCU\HOSxPXE.exe",
+        "C:\HOSxP_PCU\HOSxP.exe",
         "C:\BMS-HOSxP\HOSxPXE4.exe",
         "C:\BMS-HOSxP\HOSxP.exe",
+        "C:\BMS-HOSxP\HOSxPXE.exe",
+        "C:\BMS\HOSxPXE4.exe",
+        "C:\BMS\HOSxP.exe",
         "C:\Program Files\HOSxP\HOSxP.exe",
         "C:\Program Files\HOSxP\HOSxPXE4.exe",
+        "C:\Program Files\HOSxP\HOSxPXE.exe",
         "C:\Program Files (x86)\HOSxP\HOSxP.exe",
         "C:\Program Files (x86)\HOSxP\HOSxPXE4.exe",
+        "C:\Program Files (x86)\HOSxP\HOSxPXE.exe",
         "C:\Program Files\BMS-HOSxP\HOSxP.exe",
         "C:\Program Files\BMS-HOSxP\HOSxPXE4.exe",
         "C:\Program Files (x86)\BMS-HOSxP\HOSxP.exe",
         "C:\Program Files (x86)\BMS-HOSxP\HOSxPXE4.exe",
         "D:\Hosxp\HOSxPXE4.exe",
+        "D:\Hosxp\HOSxPXE.exe",
         "D:\Hosxp\HOSxP.exe",
+        "D:\Hosxp\HOSxP_PCU.exe",
         "D:\HOSxP\HOSxPXE4.exe",
+        "D:\HOSxP\HOSxPXE.exe",
         "D:\HOSxP\HOSxP.exe",
         "D:\HOSxP_PCU\HOSxP_PCU.exe",
-        "D:\BMS-HOSxP\HOSxP.exe"
+        "D:\BMS-HOSxP\HOSxP.exe",
+        "D:\BMS-HOSxP\HOSxPXE4.exe",
+        "E:\Hosxp\HOSxPXE4.exe",
+        "E:\Hosxp\HOSxP.exe",
+        "E:\HOSxP\HOSxPXE4.exe",
+        "E:\HOSxP\HOSxP.exe"
     )
     foreach ($hp in $hosxpCandidates) {
         if (Test-Path $hp) {
@@ -3343,7 +3369,51 @@ try {
         }
     }
     if (-not $hosxpFound) {
-        $searchRoots = @("C:\Hosxp*", "C:\HOSxP*", "C:\BMS*", "D:\Hosxp*", "D:\HOSxP*", "D:\BMS*")
+        try {
+            $scDirs = @(
+                [Environment]::GetFolderPath('CommonDesktopDirectory'),
+                [Environment]::GetFolderPath('Desktop'),
+                "$env:PUBLIC\Desktop",
+                "$env:USERPROFILE\Desktop",
+                "C:\ProgramData\Microsoft\Windows\Start Menu\Programs",
+                "$env:APPDATA\Microsoft\Windows\Start Menu\Programs"
+            )
+            $wsh = $null
+            foreach ($sd in $scDirs) {
+                if ($sd -and (Test-Path $sd)) {
+                    $scList = Get-ChildItem -Path $sd -Filter "*hosxp*.lnk" -Recurse -Depth 2 -ErrorAction SilentlyContinue
+                    if (-not $scList) {
+                        $scList = Get-ChildItem -Path $sd -Filter "*bms*.lnk" -Recurse -Depth 2 -ErrorAction SilentlyContinue
+                    }
+                    if ($scList) {
+                        if (-not $wsh) { $wsh = New-Object -ComObject WScript.Shell }
+                        foreach ($sc in $scList) {
+                            try {
+                                $target = $wsh.CreateShortcut($sc.FullName).TargetPath
+                                if ($target -and (Test-Path $target) -and ($target -match '\.exe$')) {
+                                    $hosxpFound = $true
+                                    $hp = $target
+                                    $vi = (Get-Item $hp -ErrorAction SilentlyContinue).VersionInfo
+                                    $rawVer = $null
+                                    if ($vi.FileVersion -and $vi.FileVersion -ne '1.0.0.0' -and $vi.FileVersion -ne '0.0.0.0') { $rawVer = "$($vi.FileVersion)".Trim() }
+                                    elseif ($vi.ProductVersion -and $vi.ProductVersion -ne '1.0.0.0' -and $vi.ProductVersion -ne '0.0.0.0') { $rawVer = "$($vi.ProductVersion)".Trim() }
+                                    $base = [System.IO.Path]::GetFileNameWithoutExtension($hp)
+                                    if ($base -match 'XE4') { $hosxpVersion = if ($rawVer) { "HOSxP XE4 v$rawVer" } else { "HOSxP XE 4" } }
+                                    elseif ($base -match 'PCU') { $hosxpVersion = if ($rawVer) { "HOSxP PCU v$rawVer" } else { "HOSxP PCU" } }
+                                    elseif ($base -match 'XE') { $hosxpVersion = if ($rawVer) { "HOSxP XE v$rawVer" } else { "HOSxP XE" } }
+                                    else { $hosxpVersion = if ($rawVer) { "HOSxP v$rawVer" } else { "HOSxP" } }
+                                    break
+                                }
+                            } catch {}
+                        }
+                    }
+                }
+                if ($hosxpFound) { break }
+            }
+        } catch {}
+    }
+    if (-not $hosxpFound) {
+        $searchRoots = @("C:\Hosxp*", "C:\HOSxP*", "C:\BMS*", "D:\Hosxp*", "D:\HOSxP*", "D:\BMS*", "E:\Hosxp*", "E:\HOSxP*", "E:\BMS*")
         foreach ($sr in $searchRoots) {
             $matchedExes = Get-ChildItem -Path $sr -Filter "*hosxp*.exe" -File -Recurse -Depth 2 -ErrorAction SilentlyContinue
             if ($matchedExes) {
@@ -3366,9 +3436,9 @@ try {
         }
     }
     if (-not $hosxpFound) {
-        $regUninstall = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
+        $regUninstall = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*")
         $hReg = Get-ItemProperty $regUninstall -ErrorAction SilentlyContinue | Where-Object {
-            $_.DisplayName -match 'HOSxP'
+            $_.DisplayName -match 'HOSxP|BMS-HOSxP'
         } | Select-Object -First 1
         if ($hReg) {
             $hosxpFound = $true
@@ -4670,27 +4740,49 @@ try {
         "C:\Hosxp\HOSxPXE.exe",
         "C:\Hosxp\HOSxP.exe",
         "C:\Hosxp\HOSxP_PCU.exe",
+        "C:\Hosxp\HOSxP_PCU_XE.exe",
+        "C:\Hosxp\HOSxP_PCU_XE4.exe",
+        "C:\Hosxp\HOSxP4.exe",
         "C:\HOSxP\HOSxPXE4.exe",
         "C:\HOSxP\HOSxPXE.exe",
         "C:\HOSxP\HOSxP.exe",
+        "C:\HOSxP\HOSxP_PCU.exe",
+        "C:\HOSxP\HOSxP_PCU_XE.exe",
+        "C:\HOSxP\HOSxP_PCU_XE4.exe",
+        "C:\HOSxP\HOSxP4.exe",
         "C:\HOSxP_PCU\HOSxP_PCU.exe",
         "C:\HOSxP_PCU\HOSxPXE4.exe",
+        "C:\HOSxP_PCU\HOSxPXE.exe",
+        "C:\HOSxP_PCU\HOSxP.exe",
         "C:\BMS-HOSxP\HOSxPXE4.exe",
         "C:\BMS-HOSxP\HOSxP.exe",
+        "C:\BMS-HOSxP\HOSxPXE.exe",
+        "C:\BMS\HOSxPXE4.exe",
+        "C:\BMS\HOSxP.exe",
         "C:\Program Files\HOSxP\HOSxP.exe",
         "C:\Program Files\HOSxP\HOSxPXE4.exe",
+        "C:\Program Files\HOSxP\HOSxPXE.exe",
         "C:\Program Files (x86)\HOSxP\HOSxP.exe",
         "C:\Program Files (x86)\HOSxP\HOSxPXE4.exe",
+        "C:\Program Files (x86)\HOSxP\HOSxPXE.exe",
         "C:\Program Files\BMS-HOSxP\HOSxP.exe",
         "C:\Program Files\BMS-HOSxP\HOSxPXE4.exe",
         "C:\Program Files (x86)\BMS-HOSxP\HOSxP.exe",
         "C:\Program Files (x86)\BMS-HOSxP\HOSxPXE4.exe",
         "D:\Hosxp\HOSxPXE4.exe",
+        "D:\Hosxp\HOSxPXE.exe",
         "D:\Hosxp\HOSxP.exe",
+        "D:\Hosxp\HOSxP_PCU.exe",
         "D:\HOSxP\HOSxPXE4.exe",
+        "D:\HOSxP\HOSxPXE.exe",
         "D:\HOSxP\HOSxP.exe",
         "D:\HOSxP_PCU\HOSxP_PCU.exe",
-        "D:\BMS-HOSxP\HOSxP.exe"
+        "D:\BMS-HOSxP\HOSxP.exe",
+        "D:\BMS-HOSxP\HOSxPXE4.exe",
+        "E:\Hosxp\HOSxPXE4.exe",
+        "E:\Hosxp\HOSxP.exe",
+        "E:\HOSxP\HOSxPXE4.exe",
+        "E:\HOSxP\HOSxP.exe"
     )
     foreach ($hp in $hosxpCandidates) {
         if (Test-Path $hp) {
@@ -4710,7 +4802,51 @@ try {
         }
     }
     if (-not $hosxpFound) {
-        $searchRoots = @("C:\Hosxp*", "C:\HOSxP*", "C:\BMS*", "D:\Hosxp*", "D:\HOSxP*", "D:\BMS*")
+        try {
+            $scDirs = @(
+                [Environment]::GetFolderPath('CommonDesktopDirectory'),
+                [Environment]::GetFolderPath('Desktop'),
+                "$env:PUBLIC\Desktop",
+                "$env:USERPROFILE\Desktop",
+                "C:\ProgramData\Microsoft\Windows\Start Menu\Programs",
+                "$env:APPDATA\Microsoft\Windows\Start Menu\Programs"
+            )
+            $wsh = $null
+            foreach ($sd in $scDirs) {
+                if ($sd -and (Test-Path $sd)) {
+                    $scList = Get-ChildItem -Path $sd -Filter "*hosxp*.lnk" -Recurse -Depth 2 -ErrorAction SilentlyContinue
+                    if (-not $scList) {
+                        $scList = Get-ChildItem -Path $sd -Filter "*bms*.lnk" -Recurse -Depth 2 -ErrorAction SilentlyContinue
+                    }
+                    if ($scList) {
+                        if (-not $wsh) { $wsh = New-Object -ComObject WScript.Shell }
+                        foreach ($sc in $scList) {
+                            try {
+                                $target = $wsh.CreateShortcut($sc.FullName).TargetPath
+                                if ($target -and (Test-Path $target) -and ($target -match '\.exe$')) {
+                                    $hosxpFound = $true
+                                    $hp = $target
+                                    $vi = (Get-Item $hp -ErrorAction SilentlyContinue).VersionInfo
+                                    $rawVer = $null
+                                    if ($vi.FileVersion -and $vi.FileVersion -ne '1.0.0.0' -and $vi.FileVersion -ne '0.0.0.0') { $rawVer = "$($vi.FileVersion)".Trim() }
+                                    elseif ($vi.ProductVersion -and $vi.ProductVersion -ne '1.0.0.0' -and $vi.ProductVersion -ne '0.0.0.0') { $rawVer = "$($vi.ProductVersion)".Trim() }
+                                    $base = [System.IO.Path]::GetFileNameWithoutExtension($hp)
+                                    if ($base -match 'XE4') { $hosxpVersion = if ($rawVer) { "HOSxP XE4 v$rawVer" } else { "HOSxP XE 4" } }
+                                    elseif ($base -match 'PCU') { $hosxpVersion = if ($rawVer) { "HOSxP PCU v$rawVer" } else { "HOSxP PCU" } }
+                                    elseif ($base -match 'XE') { $hosxpVersion = if ($rawVer) { "HOSxP XE v$rawVer" } else { "HOSxP XE" } }
+                                    else { $hosxpVersion = if ($rawVer) { "HOSxP v$rawVer" } else { "HOSxP" } }
+                                    break
+                                }
+                            } catch {}
+                        }
+                    }
+                }
+                if ($hosxpFound) { break }
+            }
+        } catch {}
+    }
+    if (-not $hosxpFound) {
+        $searchRoots = @("C:\Hosxp*", "C:\HOSxP*", "C:\BMS*", "D:\Hosxp*", "D:\HOSxP*", "D:\BMS*", "E:\Hosxp*", "E:\HOSxP*", "E:\BMS*")
         foreach ($sr in $searchRoots) {
             $matchedExes = Get-ChildItem -Path $sr -Filter "*hosxp*.exe" -File -Recurse -Depth 2 -ErrorAction SilentlyContinue
             if ($matchedExes) {
@@ -4733,9 +4869,9 @@ try {
         }
     }
     if (-not $hosxpFound) {
-        $regUninstall = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
+        $regUninstall = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*")
         $hReg = Get-ItemProperty $regUninstall -ErrorAction SilentlyContinue | Where-Object {
-            $_.DisplayName -match 'HOSxP'
+            $_.DisplayName -match 'HOSxP|BMS-HOSxP'
         } | Select-Object -First 1
         if ($hReg) {
             $hosxpFound = $true
