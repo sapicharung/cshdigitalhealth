@@ -641,7 +641,7 @@ class AppInstallationController extends Controller
                 'uptime'     => (int) $item->uptime_seconds,
                 'staff'      => mb_strtolower((string) ($item->staff_name ?? ''), 'UTF-8'),
                 'department' => mb_strtolower((string) $item->department, 'UTF-8'),
-                'version'    => (string) $item->client_version,
+                'version'    => preg_replace_callback('/\d+/', fn($m) => sprintf('%05d', $m[0]), (string) ($item->client_version ?? '0.0.0')),
                 'notes'      => mb_strtolower((string) $item->notes, 'UTF-8'),
                 'active'     => $item->last_active_at ? $item->last_active_at->timestamp : 0,
                 default      => $item->last_active_at ? $item->last_active_at->timestamp : 0,

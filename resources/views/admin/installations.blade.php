@@ -2922,6 +2922,15 @@
                                 </div>
                             </th>
 
+                            <th class="th-sortable {{ $currSort === 'version' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('version')" style="width: 85px; text-align: center;" title="คลิกเพื่อเรียงตามเวอร์ชัน (ข้อมูลทั้งหมด)">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">เวอร์ชัน</span>
+                                    <span class="material-symbols-Outlined sort-icon">
+                                        {{ $currSort === 'version' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
+                                </div>
+                            </th>
+
                             <th class="th-sortable {{ $currSort === 'notes' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('notes')" style="min-width: 85px;" title="คลิกเพื่อเรียงตามหมายเหตุ (ข้อมูลทั้งหมด)">
                                 <div class="th-content">
                                     <span class="th-label">หมายเหตุ</span>
@@ -3085,6 +3094,24 @@
                                     @endif
                                 </td>
 
+                                <td style="text-align: center;" data-sort-value="{{ $item->client_version ?: '0.0.0' }}">
+                                    @if($item->pending_update)
+                                        <span class="ver-tag-pending" onclick="openPendingUpdateModal({{ json_encode($item) }})" title="คลิกเพื่อจัดการสถานะรออัพเดท (ตรวจสอบ / ยืนยัน / ยกเลิก)" style="cursor: pointer;">
+                                            <span class="material-symbols-Outlined spin-mini" style="font-size: 12px;">sync</span>
+                                            <span>รออัพเดท</span>
+                                        </span>
+                                    @elseif($item->client_version && $item->client_version === $serverVersion)
+                                        <span class="ver-tag-current font-mono" title="เวอร์ชันล่าสุด v{{ $serverVersion }}" style="display: inline-flex; align-items: center; gap: 3px;">
+                                            <span class="material-symbols-Outlined" style="font-size: 11px;">check_circle</span>
+                                            <span>v{{ $item->client_version }}</span>
+                                        </span>
+                                    @else
+                                        <span class="ver-tag-old font-mono" title="เวอร์ชัน v{{ $item->client_version ?: '1.0.0' }} (เซิร์ฟเวอร์ v{{ $serverVersion }})" style="display: inline-flex; align-items: center; gap: 2px;">
+                                            <span>v{{ $item->client_version ?: '1.0.0' }}</span>
+                                        </span>
+                                    @endif
+                                </td>
+
                                 <td data-sort-value="{{ strtolower($item->notes ?: '') }}">
                                     <div class="note-compact-cell" onclick="openEditModal({{ json_encode($item) }})" style="cursor: pointer;" title="{{ $item->notes ? $item->notes . ' (คลิกเพื่อแก้ไข)' : 'คลิกเพื่อระบุหมายเหตุ' }}">
                                         @if($item->notes)
@@ -3138,7 +3165,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ Auth::user()->isAdmin() ? '14' : (Auth::user()->isIt() ? '13' : '12') }}">
+                                <td colspan="{{ Auth::user()->isAdmin() ? '15' : (Auth::user()->isIt() ? '14' : '13') }}">
                                     <div class="empty-state">
                                         <span class="material-symbols-Outlined">devices_off</span>
                                         <h3>ยังไม่มีข้อมูลการติดตั้งในระบบ</h3>
