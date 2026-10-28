@@ -634,7 +634,7 @@ class AppInstallationController extends Controller
                 'hostname'   => mb_strtolower((string) $item->hostname, 'UTF-8'),
                 'asset_code' => mb_strtolower((string) $item->asset_code, 'UTF-8'),
                 'ip'         => sprintf('%03d.%03d.%03d.%03d', ...array_pad(explode('.', (string) $item->ip_address), 4, 0)),
-                'vnc'        => (int) $item->remote_ready,
+                'vnc', 'remote' => (int) $item->remote_ready,
                 'anydesk'    => (int) $item->anydesk_installed,
                 'hosxp'      => (int) $item->hosxp_installed,
                 'risk'       => (int) $item->has_risk_software,

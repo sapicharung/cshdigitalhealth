@@ -2863,11 +2863,11 @@
                                     </span>
                                 </div>
                             </th>
-                            <th class="th-sortable {{ $currSort === 'hosxp' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('hosxp')" style="width: 110px; text-align: center;" title="คลิกเพื่อเรียงตามโปรแกรม HOSxP (ข้อมูลทั้งหมด)">
+                            <th class="th-sortable {{ in_array($currSort, ['vnc', 'remote']) ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('remote')" style="width: 85px; text-align: center;" title="คลิกเพื่อเรียงตามสถานะ Remote VNC (ข้อมูลทั้งหมด)">
                                 <div class="th-content" style="justify-content: center;">
-                                    <span class="th-label">โปรแกรม HOSxP</span>
+                                    <span class="th-label">Remote</span>
                                     <span class="material-symbols-Outlined sort-icon">
-                                        {{ $currSort === 'hosxp' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                        {{ in_array($currSort, ['vnc', 'remote']) ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
                                     </span>
                                 </div>
                             </th>
@@ -2876,6 +2876,14 @@
                                     <span class="th-label">AnyDesk</span>
                                     <span class="material-symbols-Outlined sort-icon">
                                         {{ $currSort === 'anydesk' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                    </span>
+                                </div>
+                            </th>
+                            <th class="th-sortable {{ $currSort === 'hosxp' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('hosxp')" style="width: 110px; text-align: center;" title="คลิกเพื่อเรียงตามโปรแกรม HOSxP (ข้อมูลทั้งหมด)">
+                                <div class="th-content" style="justify-content: center;">
+                                    <span class="th-label">โปรแกรม HOSxP</span>
+                                    <span class="material-symbols-Outlined sort-icon">
+                                        {{ $currSort === 'hosxp' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
                                     </span>
                                 </div>
                             </th>
@@ -2970,17 +2978,23 @@
                                         <span class="spec-empty-compact">ไม่พบ IP</span>
                                     @endif
                                 </td>
-                                <td style="text-align: center;" data-sort-value="{{ $item->hosxp_installed ? 1 : 0 }}">
-                                    @if($item->hosxp_installed)
-                                        <span class="badge-hosxp-yes" title="ติดตั้งโปรแกรม HOSxP{{ $item->hosxp_version ? ' (' . $item->hosxp_version . ')' : '' }}">
-                                            <span class="material-symbols-Outlined" style="font-size: 13px;">local_hospital</span>
-                                            <span>{{ $item->hosxp_version ?: 'มี HOSxP' }}</span>
-                                        </span>
+                                <td style="text-align: center;" data-sort-value="{{ $item->remote_ready ? 1 : 0 }}">
+                                    @if($item->ip_address)
+                                        <div class="remote-compact-cell" style="justify-content: center;">
+                                            <button type="button" 
+                                                    id="btn-remote-{{ $item->id }}"
+                                                    class="btn-remote-pill {{ !$item->remote_ready ? 'vnc-unready' : '' }}" 
+                                                    onclick="launchVnc('{{ $item->ip_address }}', {{ $item->remote_ready ? 'true' : 'false' }}, '{{ addslashes($item->hostname ?: ($item->device_name ?: $item->ip_address)) }}')"
+                                                    title="{{ $item->remote_ready ? 'Remote VNC (พร้อมเชื่อมต่อ)' : 'พอร์ต VNC (5900) ยังไม่ตอบสนอง' }}">
+                                                <span class="material-symbols-Outlined" style="font-size: 13px;">screen_share</span>
+                                                <span>Remote</span>
+                                                @if(!$item->remote_ready)
+                                                    <span class="material-symbols-Outlined remote-warn-icon" style="font-size: 12px; margin-left: 1px;" title="พอร์ต 5900 ปิดอยู่">warning</span>
+                                                @endif
+                                            </button>
+                                        </div>
                                     @else
-                                        <span class="badge-hosxp-no" title="ไม่มีโปรแกรม HOSxP">
-                                            <span class="material-symbols-Outlined" style="font-size: 12px;">remove</span>
-                                            <span>ไม่มี</span>
-                                        </span>
+                                        <span class="spec-empty-compact">-</span>
                                     @endif
                                 </td>
                                 <td style="text-align: center;" data-sort-value="{{ $item->anydesk_installed ? ($item->anydesk_id ? 2 : 1) : 0 }}">
@@ -3004,6 +3018,19 @@
                                         </div>
                                     @else
                                         <span class="spec-empty-compact" style="color: #94A3B8;">-</span>
+                                    @endif
+                                </td>
+                                <td style="text-align: center;" data-sort-value="{{ $item->hosxp_installed ? 1 : 0 }}">
+                                    @if($item->hosxp_installed)
+                                        <span class="badge-hosxp-yes" title="ติดตั้งโปรแกรม HOSxP{{ $item->hosxp_version ? ' (' . $item->hosxp_version . ')' : '' }}">
+                                            <span class="material-symbols-Outlined" style="font-size: 13px;">local_hospital</span>
+                                            <span>{{ $item->hosxp_version ?: 'มี HOSxP' }}</span>
+                                        </span>
+                                    @else
+                                        <span class="badge-hosxp-no" title="ไม่มีโปรแกรม HOSxP">
+                                            <span class="material-symbols-Outlined" style="font-size: 12px;">remove</span>
+                                            <span>ไม่มี</span>
+                                        </span>
                                     @endif
                                 </td>
                                 @if(Auth::user()->isAdmin())
@@ -3111,7 +3138,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ Auth::user()->isAdmin() ? '13' : (Auth::user()->isIt() ? '12' : '11') }}">
+                                <td colspan="{{ Auth::user()->isAdmin() ? '14' : (Auth::user()->isIt() ? '13' : '12') }}">
                                     <div class="empty-state">
                                         <span class="material-symbols-Outlined">devices_off</span>
                                         <h3>ยังไม่มีข้อมูลการติดตั้งในระบบ</h3>
