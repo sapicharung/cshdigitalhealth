@@ -17,6 +17,8 @@ class AppInstallation extends Model
         'os',
         'os_version',
         'office_version',
+        'hosxp_installed',
+        'hosxp_version',
         'browser',
         'cpu',
         'ram',
@@ -51,6 +53,7 @@ class AppInstallation extends Model
         'is_online' => 'boolean',
         'pending_update' => 'boolean',
         'anydesk_installed' => 'boolean',
+        'hosxp_installed' => 'boolean',
         'has_risk_software' => 'boolean',
     ];
 

@@ -1106,6 +1106,34 @@
             white-space: nowrap;
         }
 
+        .badge-hosxp-yes {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 3px 9px;
+            border-radius: 9999px;
+            background: #ECFDF5;
+            color: #065F46;
+            border: 1px solid #A7F3D0;
+            font-size: 0.78rem;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .badge-hosxp-no {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            background: #F8FAFC;
+            color: #94A3B8;
+            border: 1px solid #E2E8F0;
+            font-size: 0.76rem;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
         .btn-copy-icon {
             display: inline-flex;
             align-items: center;
@@ -2548,17 +2576,13 @@
             $selectedStatuses = is_array($rawStatus) ? $rawStatus : ($rawStatus ? explode(',', (string)$rawStatus) : []);
             $statusCount = count($selectedStatuses);
 
-            $rawVnc = request('vnc', []);
-            $selectedVncs = is_array($rawVnc) ? $rawVnc : ($rawVnc ? explode(',', (string)$rawVnc) : []);
-            $vncCount = count($selectedVncs);
-
             $rawAnydesk = request('anydesk', []);
             $selectedAnydesks = is_array($rawAnydesk) ? $rawAnydesk : ($rawAnydesk ? explode(',', (string)$rawAnydesk) : []);
             $anydeskCount = count($selectedAnydesks);
 
-            $rawVersion = request('version', []);
-            $selectedVersions = is_array($rawVersion) ? $rawVersion : ($rawVersion ? explode(',', (string)$rawVersion) : []);
-            $versionCount = count($selectedVersions);
+            $rawHosxp = request('hosxp', []);
+            $selectedHosxps = is_array($rawHosxp) ? $rawHosxp : ($rawHosxp ? explode(',', (string)$rawHosxp) : []);
+            $hosxpCount = count($selectedHosxps);
         @endphp
 
         <!-- Search & Action Filters -->
@@ -2590,13 +2614,20 @@
                         <div class="filter-dropdown-menu" id="instDeptDropdownMenu" onclick="event.stopPropagation();">
                             <div class="filter-dropdown-header">
                                 <span>ติ๊กเลือกแผนก</span>
-                                <button type="button" class="btn-clear-multi" onclick="clearMulti('instDeptDropdown', 'แผนก/หน่วยงาน')">ล้าง</button>
+                                <div style="display: flex; gap: 8px;">
+                                    <button type="button" class="btn-clear-multi" onclick="toggleSelectAllMulti('instDeptDropdown', true, 'แผนก/หน่วยงาน')" style="color: #4F46E5; font-weight: 600;">เลือกทั้งหมด</button>
+                                    <button type="button" class="btn-clear-multi" onclick="clearMulti('instDeptDropdown', 'แผนก/หน่วยงาน')">ล้าง</button>
+                                </div>
                             </div>
                             <div class="multi-search-box">
                                 <span class="material-symbols-Outlined">search</span>
                                 <input type="text" class="multi-search-input" placeholder="พิมพ์ค้นหาแผนก..." oninput="filterDropdownOptions('instDeptDropdown', this.value)">
                             </div>
                             <div class="multi-items-scroll">
+                                <label class="multi-item multi-item-all" style="border-bottom: 1px dashed #E2E8F0; padding-bottom: 8px; margin-bottom: 6px; font-weight: 700; color: #4338CA;">
+                                    <input type="checkbox" id="instDeptSelectAll" onchange="toggleSelectAllCheckbox('instDeptDropdown', this, 'แผนก/หน่วยงาน')">
+                                    <span>เลือกทั้งหมด ({{ count($departments) }} แผนก)</span>
+                                </label>
                                 @foreach($departments as $dept)
                                     <label class="multi-item" data-text="{{ mb_strtolower($dept) }}">
                                         <input type="checkbox" name="department[]" value="{{ $dept }}" onchange="updateMultiLabel('instDeptDropdown', 'แผนก/หน่วยงาน')" {{ in_array($dept, $selectedDepts) ? 'checked' : '' }}>
@@ -2676,39 +2707,6 @@
                         </div>
                     </div>
 
-                    <!-- Remote VNC Filter (Multi-select Checkboxes) -->
-                    <div class="filter-dropdown-multiselect" id="instVncDropdown">
-                        <button type="button" class="filter-dropdown-btn {{ $vncCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'instVncDropdown')">
-                            <span>
-                                @if($vncCount === 0)
-                                    รีโมท (VNC)
-                                @elseif($vncCount === 1)
-                                    {{ $selectedVncs[0] === 'ready' ? '🟢 VNC พร้อม' : '⚪ VNC ไม่พร้อม' }}
-                                @else
-                                    VNC ({{ $vncCount }})
-                                @endif
-                            </span>
-                            <span class="material-symbols-Outlined dropdown-arrow">expand_more</span>
-                        </button>
-                        <div class="filter-dropdown-menu" id="instVncDropdownMenu" onclick="event.stopPropagation();">
-                            <div class="filter-dropdown-header">
-                                <span>ติ๊กเลือกรีโมท VNC</span>
-                                <button type="button" class="btn-clear-multi" onclick="clearMulti('instVncDropdown', 'รีโมท (VNC)')">ล้าง</button>
-                            </div>
-                            <label class="multi-item">
-                                <input type="checkbox" name="vnc[]" value="ready" onchange="updateMultiLabel('instVncDropdown', 'รีโมท (VNC)')" {{ in_array('ready', $selectedVncs) ? 'checked' : '' }}>
-                                <span>🟢 พร้อมรีโมท (Port 5900 เปิด)</span>
-                            </label>
-                            <label class="multi-item">
-                                <input type="checkbox" name="vnc[]" value="not_ready" onchange="updateMultiLabel('instVncDropdown', 'รีโมท (VNC)')" {{ in_array('not_ready', $selectedVncs) ? 'checked' : '' }}>
-                                <span>⚪ ยังไม่พร้อม (ปิดเครื่อง/ไม่มี VNC)</span>
-                            </label>
-                            <div class="filter-dropdown-footer">
-                                <button type="submit" class="btn-multi-apply">ตกลง</button>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- AnyDesk Filter (Multi-select Checkboxes) -->
                     <div class="filter-dropdown-multiselect" id="instAdDropdown">
                         <button type="button" class="filter-dropdown-btn {{ $anydeskCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'instAdDropdown')">
@@ -2742,36 +2740,32 @@
                         </div>
                     </div>
 
-                    <!-- Version Filter (Multi-select Checkboxes) -->
-                    <div class="filter-dropdown-multiselect" id="instVerDropdown">
-                        <button type="button" class="filter-dropdown-btn {{ $versionCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'instVerDropdown')">
+                    <!-- HOSxP Filter (Multi-select Checkboxes) -->
+                    <div class="filter-dropdown-multiselect" id="instHosxpDropdown">
+                        <button type="button" class="filter-dropdown-btn {{ $hosxpCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'instHosxpDropdown')">
                             <span>
-                                @if($versionCount === 0)
-                                    เวอร์ชัน
-                                @elseif($versionCount === 1)
-                                    {{ $selectedVersions[0] === 'current' ? '🚀 v' . $serverVersion : ($selectedVersions[0] === 'outdated' ? '⚠️ รุ่นเก่า' : '⏳ รออัปเดต') }}
+                                @if($hosxpCount === 0)
+                                    โปรแกรม HOSxP
+                                @elseif($hosxpCount === 1)
+                                    {{ $selectedHosxps[0] === 'installed' ? '🏥 มี HOSxP' : '⚪ ไม่มี HOSxP' }}
                                 @else
-                                    เวอร์ชัน ({{ $versionCount }})
+                                    HOSxP ({{ $hosxpCount }})
                                 @endif
                             </span>
                             <span class="material-symbols-Outlined dropdown-arrow">expand_more</span>
                         </button>
-                        <div class="filter-dropdown-menu" id="instVerDropdownMenu" onclick="event.stopPropagation();">
+                        <div class="filter-dropdown-menu" id="instHosxpDropdownMenu" onclick="event.stopPropagation();">
                             <div class="filter-dropdown-header">
-                                <span>ติ๊กเลือกเวอร์ชัน</span>
-                                <button type="button" class="btn-clear-multi" onclick="clearMulti('instVerDropdown', 'เวอร์ชัน')">ล้าง</button>
+                                <span>ติ๊กเลือกโปรแกรม HOSxP</span>
+                                <button type="button" class="btn-clear-multi" onclick="clearMulti('instHosxpDropdown', 'โปรแกรม HOSxP')">ล้าง</button>
                             </div>
                             <label class="multi-item">
-                                <input type="checkbox" name="version[]" value="current" onchange="updateMultiLabel('instVerDropdown', 'เวอร์ชัน')" {{ in_array('current', $selectedVersions) ? 'checked' : '' }}>
-                                <span>🚀 เวอร์ชันล่าสุด (v{{ $serverVersion }})</span>
+                                <input type="checkbox" name="hosxp[]" value="installed" onchange="updateMultiLabel('instHosxpDropdown', 'โปรแกรม HOSxP')" {{ in_array('installed', $selectedHosxps) ? 'checked' : '' }}>
+                                <span>🏥 มีโปรแกรม HOSxP ในเครื่อง</span>
                             </label>
                             <label class="multi-item">
-                                <input type="checkbox" name="version[]" value="outdated" onchange="updateMultiLabel('instVerDropdown', 'เวอร์ชัน')" {{ in_array('outdated', $selectedVersions) ? 'checked' : '' }}>
-                                <span>⚠️ รุ่นเดิม / ต้องอัปเดต</span>
-                            </label>
-                            <label class="multi-item">
-                                <input type="checkbox" name="version[]" value="pending" onchange="updateMultiLabel('instVerDropdown', 'เวอร์ชัน')" {{ in_array('pending', $selectedVersions) ? 'checked' : '' }}>
-                                <span>⏳ รอดำเนินการอัปเดต</span>
+                                <input type="checkbox" name="hosxp[]" value="not_installed" onchange="updateMultiLabel('instHosxpDropdown', 'โปรแกรม HOSxP')" {{ in_array('not_installed', $selectedHosxps) ? 'checked' : '' }}>
+                                <span>⚪ ไม่มีโปรแกรม HOSxP</span>
                             </label>
                             <div class="filter-dropdown-footer">
                                 <button type="submit" class="btn-multi-apply">ตกลง</button>
@@ -2784,7 +2778,7 @@
                         <span>กรองข้อมูล</span>
                     </button>
 
-                    @if(request()->hasAny(['search', 'department', 'status', 'vnc', 'anydesk', 'version', 'sort', 'direction']))
+                    @if(request()->hasAny(['search', 'department', 'status', 'anydesk', 'hosxp', 'sort', 'direction']))
                         <a href="{{ route('admin.installations') }}" class="btn-reset" title="ล้างการกรองและการเรียงลำดับทั้งหมด">
                             <span class="material-symbols-Outlined" style="font-size: 16px;">close</span>
                             <span>ล้างกรอง</span>
@@ -2869,11 +2863,11 @@
                                     </span>
                                 </div>
                             </th>
-                            <th class="th-sortable {{ $currSort === 'vnc' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('vnc')" style="width: 85px; text-align: center;" title="คลิกเพื่อเรียงตามสถานะรีโมท VNC (ข้อมูลทั้งหมด)">
+                            <th class="th-sortable {{ $currSort === 'hosxp' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('hosxp')" style="width: 110px; text-align: center;" title="คลิกเพื่อเรียงตามโปรแกรม HOSxP (ข้อมูลทั้งหมด)">
                                 <div class="th-content" style="justify-content: center;">
-                                    <span class="th-label">รีโมท (VNC)</span>
+                                    <span class="th-label">โปรแกรม HOSxP</span>
                                     <span class="material-symbols-Outlined sort-icon">
-                                        {{ $currSort === 'vnc' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
+                                        {{ $currSort === 'hosxp' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
                                     </span>
                                 </div>
                             </th>
@@ -2919,14 +2913,7 @@
                                     </span>
                                 </div>
                             </th>
-                            <th class="th-sortable {{ $currSort === 'version' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('version')" style="width: 80px; text-align: center;" title="คลิกเพื่อเรียงตามเวอร์ชัน (ข้อมูลทั้งหมด)">
-                                <div class="th-content" style="justify-content: center;">
-                                    <span class="th-label">เวอร์ชัน</span>
-                                    <span class="material-symbols-Outlined sort-icon">
-                                        {{ $currSort === 'version' ? ($currDir === 'desc' ? 'arrow_downward' : 'arrow_upward') : 'unfold_more' }}
-                                    </span>
-                                </div>
-                            </th>
+
                             <th class="th-sortable {{ $currSort === 'notes' ? ($currDir === 'desc' ? 'sorted-desc' : 'sorted-asc') : '' }}" onclick="sortByServer('notes')" style="min-width: 85px;" title="คลิกเพื่อเรียงตามหมายเหตุ (ข้อมูลทั้งหมด)">
                                 <div class="th-content">
                                     <span class="th-label">หมายเหตุ</span>
@@ -2983,23 +2970,17 @@
                                         <span class="spec-empty-compact">ไม่พบ IP</span>
                                     @endif
                                 </td>
-                                <td style="text-align: center;" data-sort-value="{{ $item->remote_ready ? 1 : 0 }}">
-                                    @if($item->ip_address)
-                                        <div class="remote-compact-cell" style="justify-content: center;">
-                                            <button type="button" 
-                                                    id="btn-remote-{{ $item->id }}"
-                                                    class="btn-remote-pill {{ !$item->remote_ready ? 'vnc-unready' : '' }}" 
-                                                    onclick="launchVnc('{{ $item->ip_address }}', {{ $item->remote_ready ? 'true' : 'false' }}, '{{ addslashes($item->hostname ?: ($item->device_name ?: $item->ip_address)) }}')"
-                                                    title="{{ $item->remote_ready ? 'Remote VNC (พร้อมเชื่อมต่อ)' : 'พอร์ต VNC (5900) ยังไม่ตอบสนอง' }}">
-                                                <span class="material-symbols-Outlined" style="font-size: 13px;">screen_share</span>
-                                                <span>Remote</span>
-                                                @if(!$item->remote_ready)
-                                                    <span class="material-symbols-Outlined remote-warn-icon" style="font-size: 12px; margin-left: 1px;" title="พอร์ต 5900 ปิดอยู่">warning</span>
-                                                @endif
-                                            </button>
-                                        </div>
+                                <td style="text-align: center;" data-sort-value="{{ $item->hosxp_installed ? 1 : 0 }}">
+                                    @if($item->hosxp_installed)
+                                        <span class="badge-hosxp-yes" title="ติดตั้งโปรแกรม HOSxP{{ $item->hosxp_version ? ' (' . $item->hosxp_version . ')' : '' }}">
+                                            <span class="material-symbols-Outlined" style="font-size: 13px;">local_hospital</span>
+                                            <span>{{ $item->hosxp_version ?: 'มี HOSxP' }}</span>
+                                        </span>
                                     @else
-                                        <span class="spec-empty-compact">ไม่พบ IP</span>
+                                        <span class="badge-hosxp-no" title="ไม่มีโปรแกรม HOSxP">
+                                            <span class="material-symbols-Outlined" style="font-size: 12px;">remove</span>
+                                            <span>ไม่มี</span>
+                                        </span>
                                     @endif
                                 </td>
                                 <td style="text-align: center;" data-sort-value="{{ $item->anydesk_installed ? ($item->anydesk_id ? 2 : 1) : 0 }}">
@@ -3076,23 +3057,7 @@
                                         <span class="dept-empty" onclick="openEditModal({{ json_encode($item) }})" style="cursor: pointer;" title="คลิกเพื่อระบุแผนก">-</span>
                                     @endif
                                 </td>
-                                <td style="text-align: center;" data-sort-value="{{ $item->client_version ?: '0.0.0' }}">
-                                    @if($item->pending_update)
-                                        <span class="ver-tag-pending" onclick="openPendingUpdateModal({{ json_encode($item) }})" title="คลิกเพื่อจัดการสถานะรออัพเดท (ตรวจสอบ / ยืนยัน / ยกเลิก)">
-                                            <span class="material-symbols-Outlined spin-mini" style="font-size: 12px;">sync</span>
-                                            <span>รออัพเดท</span>
-                                        </span>
-                                    @elseif($item->client_version && $item->client_version === $serverVersion)
-                                        <span class="ver-tag-current font-mono" title="เวอร์ชันล่าสุด v{{ $serverVersion }}" style="display: inline-flex; align-items: center; gap: 3px;">
-                                            <span class="material-symbols-Outlined" style="font-size: 11px;">check_circle</span>
-                                            <span>v{{ $item->client_version }}</span>
-                                        </span>
-                                    @else
-                                        <span class="ver-tag-old font-mono" title="เวอร์ชัน v{{ $item->client_version ?: '1.0.0' }} (เซิร์ฟเวอร์ v{{ $serverVersion }})" style="display: inline-flex; align-items: center; gap: 2px;">
-                                            <span>v{{ $item->client_version ?: '1.0.0' }}</span>
-                                        </span>
-                                    @endif
-                                </td>
+
                                 <td data-sort-value="{{ strtolower($item->notes ?: '') }}">
                                     <div class="note-compact-cell" onclick="openEditModal({{ json_encode($item) }})" style="cursor: pointer;" title="{{ $item->notes ? $item->notes . ' (คลิกเพื่อแก้ไข)' : 'คลิกเพื่อระบุหมายเหตุ' }}">
                                         @if($item->notes)
@@ -3146,7 +3111,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="{{ Auth::user()->isAdmin() ? '14' : (Auth::user()->isIt() ? '13' : '12') }}">
+                                <td colspan="{{ Auth::user()->isAdmin() ? '13' : (Auth::user()->isIt() ? '12' : '11') }}">
                                     <div class="empty-state">
                                         <span class="material-symbols-Outlined">devices_off</span>
                                         <h3>ยังไม่มีข้อมูลการติดตั้งในระบบ</h3>
@@ -3229,6 +3194,18 @@
                 <div class="modal-form-group">
                     <label for="modalDeviceName">ชื่อเครื่อง / ผู้ใช้งานประจำ</label>
                     <input type="text" id="modalDeviceName" name="device_name" class="modal-input" placeholder="เช่น PC-OPD-01, พยาบาลวิชาชีพสมศรี">
+                </div>
+
+                <div class="modal-form-group" style="background: #F0FDF4; border: 1.5px solid #BBF7D0; border-radius: 12px; padding: 0.75rem 0.95rem;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; color: #065F46; margin-bottom: 0;">
+                        <input type="checkbox" name="hosxp_installed" value="1" id="modalHosxpInstalled" onchange="document.getElementById('modalHosxpVerGroup').style.display = this.checked ? 'block' : 'none';" style="width: 17px; height: 17px; accent-color: #059669;">
+                        <span class="material-symbols-Outlined" style="font-size: 19px; color: #059669;">local_hospital</span>
+                        <span>มีโปรแกรม HOSxP ในเครื่องนี้</span>
+                    </label>
+                    <div id="modalHosxpVerGroup" style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #A7F3D0;">
+                        <label for="modalHosxpVersion" style="font-size: 0.78rem; font-weight: 600; color: #047857; margin-bottom: 4px; display: block;">เวอร์ชัน HOSxP (เช่น 3.65.12.1 หรือ HOSxP XE):</label>
+                        <input type="text" name="hosxp_version" id="modalHosxpVersion" class="modal-input" placeholder="เช่น 3.65.12.1 หรือ HOSxP PCU" style="background: #FFF;">
+                    </div>
                 </div>
 
                 <div class="modal-form-group">
@@ -4064,6 +4041,17 @@
             document.getElementById('modalDeviceName').value = item.device_name || '';
             document.getElementById('modalNotes').value = item.notes || '';
 
+            const hxCb = document.getElementById('modalHosxpInstalled');
+            const hxVer = document.getElementById('modalHosxpVersion');
+            const hxGroup = document.getElementById('modalHosxpVerGroup');
+            if (hxCb) {
+                hxCb.checked = !!item.hosxp_installed;
+                if (hxGroup) hxGroup.style.display = hxCb.checked ? 'block' : 'none';
+            }
+            if (hxVer) {
+                hxVer.value = item.hosxp_version || '';
+            }
+
             let specs = [];
             if (item.cpu) specs.push('<strong>CPU:</strong> ' + item.cpu);
             if (item.ram) specs.push('<strong>RAM:</strong> ' + item.ram);
@@ -4792,12 +4780,37 @@
             }
         }
 
+        function toggleSelectAllMulti(dropdownId, selectAll, defaultLabel) {
+            const dropdown = document.getElementById(dropdownId);
+            if (!dropdown) return;
+            const checkboxes = dropdown.querySelectorAll('.multi-items-scroll input[type="checkbox"][name$="[]"]');
+            checkboxes.forEach(cb => {
+                const parentItem = cb.closest('.multi-item');
+                if (!parentItem || parentItem.style.display !== 'none') {
+                    cb.checked = selectAll;
+                }
+            });
+            const selectAllCb = dropdown.querySelector('.multi-item-all input[type="checkbox"]');
+            if (selectAllCb) selectAllCb.checked = selectAll;
+            updateMultiLabel(dropdownId, defaultLabel);
+        }
+
+        function toggleSelectAllCheckbox(dropdownId, checkboxEl, defaultLabel) {
+            toggleSelectAllMulti(dropdownId, checkboxEl.checked, defaultLabel);
+        }
+
         function updateMultiLabel(dropdownId, defaultLabel) {
             const dropdown = document.getElementById(dropdownId);
             if (!dropdown) return;
-            const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]:checked');
+            const allCheckboxes = dropdown.querySelectorAll('.multi-items-scroll input[type="checkbox"][name$="[]"]');
+            const checkboxes = dropdown.querySelectorAll('.multi-items-scroll input[type="checkbox"][name$="[]"]:checked');
             const labelSpan = dropdown.querySelector('.filter-dropdown-btn span:first-child');
             const btn = dropdown.querySelector('.filter-dropdown-btn');
+
+            const selectAllCb = dropdown.querySelector('.multi-item-all input[type="checkbox"]');
+            if (selectAllCb) {
+                selectAllCb.checked = (allCheckboxes.length > 0 && allCheckboxes.length === checkboxes.length);
+            }
 
             if (checkboxes.length === 0) {
                 labelSpan.textContent = defaultLabel;
@@ -4805,6 +4818,9 @@
             } else if (checkboxes.length === 1) {
                 const labelText = checkboxes[0].parentElement.querySelector('span').textContent.trim();
                 labelSpan.textContent = labelText;
+                btn.classList.add('has-value');
+            } else if (allCheckboxes.length > 0 && checkboxes.length === allCheckboxes.length) {
+                labelSpan.textContent = `${defaultLabel} (เลือกทั้งหมด)`;
                 btn.classList.add('has-value');
             } else {
                 labelSpan.textContent = `${defaultLabel} (${checkboxes.length} รายการ)`;

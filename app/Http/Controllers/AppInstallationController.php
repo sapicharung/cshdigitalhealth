@@ -288,6 +288,12 @@ class AppInstallationController extends Controller
         if (!empty($data['anydesk_id'])) {
             $installation->anydesk_id = mb_substr($data['anydesk_id'], 0, 50);
         }
+        if (isset($data['hosxp_installed'])) {
+            $installation->hosxp_installed = filter_var($data['hosxp_installed'], FILTER_VALIDATE_BOOLEAN);
+        }
+        if (isset($data['hosxp_version'])) {
+            $installation->hosxp_version = !empty($data['hosxp_version']) ? mb_substr($data['hosxp_version'], 0, 100) : null;
+        }
         if (isset($data['has_risk_software']) || isset($data['risk_software_list'])) {
             $rawRisk = $data['risk_software_list'] ?? '';
             $cleanRisk = \App\Models\RiskSoftwareRule::sanitizeRiskString($rawRisk);
@@ -504,6 +510,22 @@ class AppInstallationController extends Controller
             }
         }
 
+        // HOSxP filter (supports multi-select array or single value)
+        if ($request->filled('hosxp')) {
+            $hxInput = $request->input('hosxp');
+            $hxList = is_array($hxInput) ? $hxInput : explode(',', (string)$hxInput);
+            $hxList = array_filter(array_map('trim', $hxList));
+            $hasHx = in_array('installed', $hxList);
+            $hasNoHx = in_array('not_installed', $hxList);
+            if ($hasHx && !$hasNoHx) {
+                $query->where('hosxp_installed', true);
+            } elseif ($hasNoHx && !$hasHx) {
+                $query->where(function ($q) {
+                    $q->where('hosxp_installed', false)->orWhereNull('hosxp_installed');
+                });
+            }
+        }
+
         // Version filter (supports multi-select array or single value)
         if ($request->filled('version')) {
             $verInput = $request->input('version');
@@ -607,6 +629,7 @@ class AppInstallationController extends Controller
                 'ip'         => sprintf('%03d.%03d.%03d.%03d', ...array_pad(explode('.', (string) $item->ip_address), 4, 0)),
                 'vnc'        => (int) $item->remote_ready,
                 'anydesk'    => (int) $item->anydesk_installed,
+                'hosxp'      => (int) $item->hosxp_installed,
                 'risk'       => (int) $item->has_risk_software,
                 'uptime'     => (int) $item->uptime_seconds,
                 'staff'      => mb_strtolower((string) ($item->staff_name ?? ''), 'UTF-8'),
@@ -976,6 +999,22 @@ class AppInstallationController extends Controller
             }
         }
 
+        // HOSxP filter (supports multi-select array or single value)
+        if ($request->filled('hosxp')) {
+            $hxInput = $request->input('hosxp');
+            $hxList = is_array($hxInput) ? $hxInput : explode(',', (string)$hxInput);
+            $hxList = array_filter(array_map('trim', $hxList));
+            $hasHx = in_array('installed', $hxList);
+            $hasNoHx = in_array('not_installed', $hxList);
+            if ($hasHx && !$hasNoHx) {
+                $query->where('hosxp_installed', true);
+            } elseif ($hasNoHx && !$hasHx) {
+                $query->where(function ($q) {
+                    $q->where('hosxp_installed', false)->orWhereNull('hosxp_installed');
+                });
+            }
+        }
+
         // Hardware Summary Statistics
         $totalDevices = AppInstallation::count();
 
@@ -1144,6 +1183,7 @@ class AppInstallationController extends Controller
                 })(),
                 'os'          => mb_strtolower((string) $item->short_os, 'UTF-8'),
                 'office'      => $item->short_office === 'ไม่มี' ? '' : mb_strtolower((string) $item->short_office, 'UTF-8'),
+                'hosxp'       => (int) $item->hosxp_installed,
                 'last_active' => $item->last_active_at ? $item->last_active_at->timestamp : 0,
                 default       => $item->last_active_at ? $item->last_active_at->timestamp : 0,
             };
@@ -1303,10 +1343,12 @@ class AppInstallationController extends Controller
         $installation = AppInstallation::findOrFail($id);
 
         $validated = $request->validate([
-            'department'  => 'nullable|string|max:100',
-            'device_name' => 'nullable|string|max:100',
-            'asset_code'  => 'nullable|string|max:100',
-            'notes'       => 'nullable|string|max:500',
+            'department'      => 'nullable|string|max:100',
+            'device_name'     => 'nullable|string|max:100',
+            'asset_code'      => 'nullable|string|max:100',
+            'hosxp_installed' => 'nullable|boolean',
+            'hosxp_version'   => 'nullable|string|max:100',
+            'notes'           => 'nullable|string|max:500',
         ]);
 
         $installation->update($validated);
@@ -3221,6 +3263,54 @@ try {
     }
 } catch {}
 
+# Detect HOSxP Hospital System Installation & Version
+$hosxpFound = $false
+$hosxpVersion = $null
+try {
+    $hosxpCandidates = @(
+        "C:\HOSxP\HOSxP.exe",
+        "C:\HOSxP_PCU\HOSxP_PCU.exe",
+        "C:\Program Files\HOSxP\HOSxP.exe",
+        "C:\Program Files (x86)\HOSxP\HOSxP.exe",
+        "C:\Program Files\BMS-HOSxP\HOSxP.exe",
+        "C:\Program Files (x86)\BMS-HOSxP\HOSxP.exe",
+        "C:\BMS-HOSxP\HOSxP.exe",
+        "D:\HOSxP\HOSxP.exe",
+        "D:\HOSxP_PCU\HOSxP_PCU.exe"
+    )
+    foreach ($hp in $hosxpCandidates) {
+        if (Test-Path $hp) {
+            $hosxpFound = $true
+            try {
+                $vi = (Get-Item $hp -ErrorAction SilentlyContinue).VersionInfo
+                if ($vi.ProductVersion) { $hosxpVersion = "$($vi.ProductVersion)".Trim() }
+                elseif ($vi.FileVersion) { $hosxpVersion = "$($vi.FileVersion)".Trim() }
+            } catch {}
+            break
+        }
+    }
+    if (-not $hosxpFound) {
+        $regUninstall = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
+        $hReg = Get-ItemProperty $regUninstall -ErrorAction SilentlyContinue | Where-Object {
+            $_.DisplayName -match 'HOSxP'
+        } | Select-Object -First 1
+        if ($hReg) {
+            $hosxpFound = $true
+            if ($hReg.DisplayVersion) { $hosxpVersion = "$($hReg.DisplayVersion)".Trim() }
+            elseif ($hReg.DisplayName) { $hosxpVersion = "$($hReg.DisplayName)".Trim() }
+        }
+    }
+    if (-not $hosxpFound) {
+        $hProc = Get-Process -Name "HOSxP", "HOSxP_PCU" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($hProc) {
+            $hosxpFound = $true
+            try {
+                $hosxpVersion = "$($hProc.MainModule.FileVersionInfo.ProductVersion)".Trim()
+            } catch {}
+        }
+    }
+} catch {}
+
 # Detect Risky Software (Dynamic Server-Controlled Rules with Offline Fallback)
 $riskItems = New-Object System.Collections.Generic.List[string]
 $serverRulesLoaded = $false
@@ -3349,6 +3439,8 @@ $reportObj = @{
     uptime_text        = $uptimeFormatted
     anydesk_installed  = $anydeskFound
     anydesk_id         = $anydeskIdStr
+    hosxp_installed    = if ($hosxpFound) { 1 } else { 0 }
+    hosxp_version      = $hosxpVersion
     has_risk_software  = $hasRisk
     risk_software_list = $riskStr
     install_type       = 'installed'
@@ -4488,6 +4580,54 @@ try {
     }
 } catch {}
 
+# Detect HOSxP Hospital System Installation & Version
+$hosxpFound = $false
+$hosxpVersion = $null
+try {
+    $hosxpCandidates = @(
+        "C:\HOSxP\HOSxP.exe",
+        "C:\HOSxP_PCU\HOSxP_PCU.exe",
+        "C:\Program Files\HOSxP\HOSxP.exe",
+        "C:\Program Files (x86)\HOSxP\HOSxP.exe",
+        "C:\Program Files\BMS-HOSxP\HOSxP.exe",
+        "C:\Program Files (x86)\BMS-HOSxP\HOSxP.exe",
+        "C:\BMS-HOSxP\HOSxP.exe",
+        "D:\HOSxP\HOSxP.exe",
+        "D:\HOSxP_PCU\HOSxP_PCU.exe"
+    )
+    foreach ($hp in $hosxpCandidates) {
+        if (Test-Path $hp) {
+            $hosxpFound = $true
+            try {
+                $vi = (Get-Item $hp -ErrorAction SilentlyContinue).VersionInfo
+                if ($vi.ProductVersion) { $hosxpVersion = "$($vi.ProductVersion)".Trim() }
+                elseif ($vi.FileVersion) { $hosxpVersion = "$($vi.FileVersion)".Trim() }
+            } catch {}
+            break
+        }
+    }
+    if (-not $hosxpFound) {
+        $regUninstall = @("HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*", "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*")
+        $hReg = Get-ItemProperty $regUninstall -ErrorAction SilentlyContinue | Where-Object {
+            $_.DisplayName -match 'HOSxP'
+        } | Select-Object -First 1
+        if ($hReg) {
+            $hosxpFound = $true
+            if ($hReg.DisplayVersion) { $hosxpVersion = "$($hReg.DisplayVersion)".Trim() }
+            elseif ($hReg.DisplayName) { $hosxpVersion = "$($hReg.DisplayName)".Trim() }
+        }
+    }
+    if (-not $hosxpFound) {
+        $hProc = Get-Process -Name "HOSxP", "HOSxP_PCU" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($hProc) {
+            $hosxpFound = $true
+            try {
+                $hosxpVersion = "$($hProc.MainModule.FileVersionInfo.ProductVersion)".Trim()
+            } catch {}
+        }
+    }
+} catch {}
+
 # Detect Risky Software (Dynamic Server-Controlled Rules with Offline Fallback)
 $riskItems = New-Object System.Collections.Generic.List[string]
 $serverRulesLoaded = $false
@@ -4598,6 +4738,8 @@ $reportObj = @{
     uptime_text        = $uptimeFormatted
     anydesk_installed  = $anydeskFound
     anydesk_id         = $anydeskIdStr
+    hosxp_installed    = if ($hosxpFound) { 1 } else { 0 }
+    hosxp_version      = $hosxpVersion
     has_risk_software  = $hasRisk
     risk_software_list = $riskStr
     install_type       = 'installed'
@@ -5912,7 +6054,7 @@ POWERSHELL;
                 }
 
                 // Fill in hardware/OS specs if master is missing them
-                $fieldsToBackfill = ['mac_address', 'cpu', 'ram', 'disk', 'os_version', 'office_version', 'os', 'department', 'notes', 'device_name', 'hostname'];
+                $fieldsToBackfill = ['mac_address', 'cpu', 'ram', 'disk', 'os_version', 'office_version', 'hosxp_installed', 'hosxp_version', 'os', 'department', 'notes', 'device_name', 'hostname'];
                 foreach ($fieldsToBackfill as $field) {
                     if (empty($master->$field) && !empty($dup->$field)) {
                         $master->$field = $dup->$field;

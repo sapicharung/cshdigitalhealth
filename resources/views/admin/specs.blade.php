@@ -2359,13 +2359,20 @@
                     <div class="filter-dropdown-menu" id="deptDropdownMenu" onclick="event.stopPropagation();">
                         <div class="filter-dropdown-header">
                             <span>ติ๊กเลือกแผนก/หน่วยงาน</span>
-                            <button type="button" class="btn-clear-multi" onclick="clearMulti('deptDropdown', 'แผนก/หน่วยงาน')">ล้าง</button>
+                            <div style="display: flex; gap: 8px;">
+                                <button type="button" class="btn-clear-multi" onclick="toggleSelectAllMulti('deptDropdown', true, 'แผนก/หน่วยงาน')" style="color: #4F46E5; font-weight: 600;">เลือกทั้งหมด</button>
+                                <button type="button" class="btn-clear-multi" onclick="clearMulti('deptDropdown', 'แผนก/หน่วยงาน')">ล้าง</button>
+                            </div>
                         </div>
                         <div class="multi-search-box">
                             <span class="material-symbols-outlined">search</span>
                             <input type="text" class="multi-search-input" placeholder="พิมพ์ค้นหาแผนก..." oninput="filterDropdownOptions('deptDropdown', this.value)">
                         </div>
                         <div class="multi-items-scroll">
+                            <label class="multi-item multi-item-all" style="border-bottom: 1px dashed #E2E8F0; padding-bottom: 8px; margin-bottom: 6px; font-weight: 700; color: #4338CA;">
+                                <input type="checkbox" id="deptSelectAll" onchange="toggleSelectAllCheckbox('deptDropdown', this, 'แผนก/หน่วยงาน')">
+                                <span>เลือกทั้งหมด ({{ count($departments) }} แผนก)</span>
+                            </label>
                             @foreach($departments as $dept)
                                 <label class="multi-item" data-text="{{ mb_strtolower($dept) }}">
                                     <input type="checkbox" name="department[]" value="{{ $dept }}" onchange="updateMultiLabel('deptDropdown', 'แผนก/หน่วยงาน')" {{ in_array($dept, $selectedDepts) ? 'checked' : '' }}>
@@ -3631,12 +3638,37 @@
             }
         }
 
+        function toggleSelectAllMulti(dropdownId, selectAll, defaultLabel) {
+            const dropdown = document.getElementById(dropdownId);
+            if (!dropdown) return;
+            const checkboxes = dropdown.querySelectorAll('.multi-items-scroll input[type="checkbox"][name$="[]"]');
+            checkboxes.forEach(cb => {
+                const parentItem = cb.closest('.multi-item');
+                if (!parentItem || parentItem.style.display !== 'none') {
+                    cb.checked = selectAll;
+                }
+            });
+            const selectAllCb = dropdown.querySelector('.multi-item-all input[type="checkbox"]');
+            if (selectAllCb) selectAllCb.checked = selectAll;
+            updateMultiLabel(dropdownId, defaultLabel);
+        }
+
+        function toggleSelectAllCheckbox(dropdownId, checkboxEl, defaultLabel) {
+            toggleSelectAllMulti(dropdownId, checkboxEl.checked, defaultLabel);
+        }
+
         function updateMultiLabel(dropdownId, defaultLabel) {
             const dropdown = document.getElementById(dropdownId);
             if (!dropdown) return;
-            const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]:checked');
+            const allCheckboxes = dropdown.querySelectorAll('.multi-items-scroll input[type="checkbox"][name$="[]"]');
+            const checkboxes = dropdown.querySelectorAll('.multi-items-scroll input[type="checkbox"][name$="[]"]:checked');
             const labelSpan = dropdown.querySelector('.filter-dropdown-btn span:first-child');
             const btn = dropdown.querySelector('.filter-dropdown-btn');
+
+            const selectAllCb = dropdown.querySelector('.multi-item-all input[type="checkbox"]');
+            if (selectAllCb) {
+                selectAllCb.checked = (allCheckboxes.length > 0 && allCheckboxes.length === checkboxes.length);
+            }
 
             if (checkboxes.length === 0) {
                 labelSpan.textContent = defaultLabel;
@@ -3644,6 +3676,9 @@
             } else if (checkboxes.length === 1) {
                 const labelText = checkboxes[0].parentElement.querySelector('span').textContent.trim();
                 labelSpan.textContent = labelText;
+                btn.classList.add('has-value');
+            } else if (allCheckboxes.length > 0 && checkboxes.length === allCheckboxes.length) {
+                labelSpan.textContent = `${defaultLabel} (เลือกทั้งหมด)`;
                 btn.classList.add('has-value');
             } else {
                 labelSpan.textContent = `${defaultLabel} (${checkboxes.length} รายการ)`;
