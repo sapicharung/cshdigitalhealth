@@ -421,36 +421,116 @@ class AppInstallationController extends Controller
             });
         }
 
-        // Department filter
+        // Department filter (supports multi-select array or single value)
         if ($request->filled('department')) {
-            $query->where('department', $request->input('department'));
+            $deptInput = $request->input('department');
+            $deptList = is_array($deptInput) ? $deptInput : explode(',', (string)$deptInput);
+            $deptList = array_filter(array_map('trim', $deptList));
+            if (!empty($deptList)) {
+                $query->whereIn('department', $deptList);
+            }
         }
 
         $onlineThreshold = $this->getOnlineThresholdMinutes();
 
-        // Status filter
-        if ($request->input('status') === 'online') {
-            $query->where('is_online', true)->where('last_active_at', '>=', now()->subMinutes($onlineThreshold));
-        } elseif ($request->input('status') === 'offline') {
-            $query->where(function ($q) use ($onlineThreshold) {
-                $q->where('is_online', false)
-                  ->orWhereNull('is_online')
-                  ->orWhere('last_active_at', '<', now()->subMinutes($onlineThreshold))
-                  ->orWhereNull('last_active_at');
-            });
-        } elseif ($request->input('status') === 'missing_asset') {
-            $query->where(function ($q) {
-                $q->whereNull('asset_code')
-                  ->orWhere('asset_code', '');
-            });
-        } elseif ($request->input('status') === 'risk_only') {
-            $query->where('has_risk_software', true);
-        } elseif ($request->input('status') === 'today') {
-            $query->whereDate('last_active_at', today());
-        } elseif ($request->input('status') === 'week') {
-            $query->where('last_active_at', '>=', now()->subDays(7));
-        } elseif ($request->input('status') === 'installed_only') {
-            $query->where('install_type', 'installed');
+        // Status filter (supports multi-select array or single value)
+        if ($request->filled('status')) {
+            $stInput = $request->input('status');
+            $stList = is_array($stInput) ? $stInput : explode(',', (string)$stInput);
+            $stList = array_filter(array_map('trim', $stList));
+
+            if (!empty($stList)) {
+                $query->where(function ($q) use ($stList, $onlineThreshold) {
+                    foreach ($stList as $idx => $st) {
+                        $method = ($idx === 0) ? 'where' : 'orWhere';
+                        $q->$method(function ($sub) use ($st, $onlineThreshold) {
+                            if ($st === 'online') {
+                                $sub->where('is_online', true)->where('last_active_at', '>=', now()->subMinutes($onlineThreshold));
+                            } elseif ($st === 'offline') {
+                                $sub->where(function ($sq) use ($onlineThreshold) {
+                                    $sq->where('is_online', false)
+                                      ->orWhereNull('is_online')
+                                      ->orWhere('last_active_at', '<', now()->subMinutes($onlineThreshold))
+                                      ->orWhereNull('last_active_at');
+                                });
+                            } elseif ($st === 'missing_asset') {
+                                $sub->where(function ($sq) {
+                                    $sq->whereNull('asset_code')->orWhere('asset_code', '');
+                                });
+                            } elseif ($st === 'risk_only') {
+                                $sub->where('has_risk_software', true);
+                            } elseif ($st === 'today') {
+                                $sub->whereDate('last_active_at', today());
+                            } elseif ($st === 'week') {
+                                $sub->where('last_active_at', '>=', now()->subDays(7));
+                            } elseif ($st === 'installed_only') {
+                                $sub->where('install_type', 'installed');
+                            }
+                        });
+                    }
+                });
+            }
+        }
+
+        // Remote VNC filter (supports multi-select array or single value)
+        if ($request->filled('vnc')) {
+            $vncInput = $request->input('vnc');
+            $vncList = is_array($vncInput) ? $vncInput : explode(',', (string)$vncInput);
+            $vncList = array_filter(array_map('trim', $vncList));
+            $hasReady = in_array('ready', $vncList);
+            $hasNotReady = in_array('not_ready', $vncList);
+            if ($hasReady && !$hasNotReady) {
+                $query->where('remote_ready', true);
+            } elseif ($hasNotReady && !$hasReady) {
+                $query->where(function ($q) {
+                    $q->where('remote_ready', false)->orWhereNull('remote_ready');
+                });
+            }
+        }
+
+        // AnyDesk filter (supports multi-select array or single value)
+        if ($request->filled('anydesk')) {
+            $adInput = $request->input('anydesk');
+            $adList = is_array($adInput) ? $adInput : explode(',', (string)$adInput);
+            $adList = array_filter(array_map('trim', $adList));
+            $hasAd = in_array('installed', $adList);
+            $hasNoAd = in_array('not_installed', $adList);
+            if ($hasAd && !$hasNoAd) {
+                $query->where('anydesk_installed', true);
+            } elseif ($hasNoAd && !$hasAd) {
+                $query->where(function ($q) {
+                    $q->where('anydesk_installed', false)->orWhereNull('anydesk_installed');
+                });
+            }
+        }
+
+        // Version filter (supports multi-select array or single value)
+        if ($request->filled('version')) {
+            $verInput = $request->input('version');
+            $verList = is_array($verInput) ? $verInput : explode(',', (string)$verInput);
+            $verList = array_filter(array_map('trim', $verList));
+            $serverVer = $this->getClientAppVersion();
+            if (!empty($verList)) {
+                $query->where(function ($q) use ($verList, $serverVer) {
+                    foreach ($verList as $idx => $v) {
+                        $method = ($idx === 0) ? 'where' : 'orWhere';
+                        $q->$method(function ($sub) use ($v, $serverVer) {
+                            if ($v === 'current') {
+                                $sub->where('client_version', $serverVer)->where(function ($sq) {
+                                    $sq->whereNull('pending_update')->orWhere('pending_update', false);
+                                });
+                            } elseif ($v === 'outdated') {
+                                $sub->where(function ($sq) use ($serverVer) {
+                                    $sq->whereNull('client_version')
+                                       ->orWhere('client_version', '!=', $serverVer);
+                                });
+                            } elseif ($v === 'pending') {
+                                $sub->where('pending_update', true);
+                            }
+                        });
+                    }
+                });
+            }
         }
 
         // Summary statistics
@@ -629,9 +709,14 @@ class AppInstallationController extends Controller
             });
         }
 
-        // Filter by Department
+        // Filter by Department (Multi-select)
         if ($request->filled('department')) {
-            $query->where('department', $request->input('department'));
+            $deptInput = $request->input('department');
+            $deptList = is_array($deptInput) ? $deptInput : explode(',', (string)$deptInput);
+            $deptList = array_filter(array_map('trim', $deptList));
+            if (!empty($deptList)) {
+                $query->whereIn('department', $deptList);
+            }
         }
 
         // Filter by RAM (Supports multiple selected sizes e.g. ['4', '8'] or string '4,8')
@@ -689,94 +774,130 @@ class AppInstallationController extends Controller
             }
         }
 
-        // Filter by Storage Type (SSD vs HDD)
+        // Filter by Storage Type (SSD vs HDD) (Multi-select)
         if ($request->filled('disk_type')) {
-            $dt = $request->input('disk_type');
-            if ($dt === 'nvme') {
-                $query->where('disk', 'like', '%NVMe%');
-            } elseif ($dt === 'sata_ssd') {
-                $query->where('disk', 'like', '%SSD%')->where('disk', 'not like', '%NVMe%');
-            } elseif ($dt === 'ssd') {
-                $query->where('disk', 'like', '%SSD%');
-            } elseif ($dt === 'hdd') {
-                $query->where('disk', 'like', '%HDD%')->where('disk', 'not like', '%SSD%');
-            } elseif ($dt === 'other') {
-                $query->where('disk', 'not like', '%SSD%')->where('disk', 'not like', '%HDD%');
+            $dtInput = $request->input('disk_type');
+            $dtList = is_array($dtInput) ? $dtInput : explode(',', (string)$dtInput);
+            $dtList = array_filter(array_map('trim', $dtList));
+
+            if (!empty($dtList)) {
+                $query->where(function ($q) use ($dtList) {
+                    foreach ($dtList as $idx => $dt) {
+                        $method = ($idx === 0) ? 'where' : 'orWhere';
+                        $q->$method(function ($sub) use ($dt) {
+                            if ($dt === 'nvme') {
+                                $sub->where('disk', 'like', '%NVMe%');
+                            } elseif ($dt === 'sata_ssd') {
+                                $sub->where('disk', 'like', '%SSD%')->where('disk', 'not like', '%NVMe%');
+                            } elseif ($dt === 'ssd') {
+                                $sub->where('disk', 'like', '%SSD%');
+                            } elseif ($dt === 'hdd') {
+                                $sub->where('disk', 'like', '%HDD%')->where('disk', 'not like', '%SSD%');
+                            } elseif ($dt === 'other') {
+                                $sub->where('disk', 'not like', '%SSD%')->where('disk', 'not like', '%HDD%');
+                            }
+                        });
+                    }
+                });
             }
         }
 
-        // Filter by OS
+        // Filter by OS (Multi-select)
         if ($request->filled('os')) {
-            $osFilter = $request->input('os');
-            if ($osFilter === 'win11') {
-                $query->where(function ($q) {
-                    $q->where('os', 'like', '%Windows 11%')->orWhere('os_version', 'like', '%Windows 11%');
+            $osInput = $request->input('os');
+            $osList = is_array($osInput) ? $osInput : explode(',', (string)$osInput);
+            $osList = array_filter(array_map('trim', $osList));
+
+            if (!empty($osList)) {
+                $query->where(function ($q) use ($osList) {
+                    foreach ($osList as $idx => $osFilter) {
+                        $method = ($idx === 0) ? 'where' : 'orWhere';
+                        $q->$method(function ($sub) use ($osFilter) {
+                            if ($osFilter === 'win11') {
+                                $sub->where(function ($s) {
+                                    $s->where('os', 'like', '%Windows 11%')->orWhere('os_version', 'like', '%Windows 11%');
+                                });
+                            } elseif ($osFilter === 'win11_pro') {
+                                $sub->where(function ($s) {
+                                    $s->where(function ($sub2) {
+                                        $sub2->where('os', 'like', '%Windows 11%')->orWhere('os_version', 'like', '%Windows 11%');
+                                    })->where(function ($sub2) {
+                                        $sub2->where('os', 'like', '%Pro%')->orWhere('os_version', 'like', '%Pro%');
+                                    });
+                                });
+                            } elseif ($osFilter === 'win11_home') {
+                                $sub->where(function ($s) {
+                                    $s->where(function ($sub2) {
+                                        $sub2->where('os', 'like', '%Windows 11%')->orWhere('os_version', 'like', '%Windows 11%');
+                                    })->where(function ($sub2) {
+                                        $sub2->where('os', 'like', '%Home%')->orWhere('os_version', 'like', '%Home%');
+                                    });
+                                });
+                            } elseif ($osFilter === 'win10') {
+                                $sub->where(function ($s) {
+                                    $s->where('os', 'like', '%Windows 10%')->orWhere('os_version', 'like', '%Windows 10%');
+                                });
+                            } elseif ($osFilter === 'win10_pro') {
+                                $sub->where(function ($s) {
+                                    $s->where(function ($sub2) {
+                                        $sub2->where('os', 'like', '%Windows 10%')->orWhere('os_version', 'like', '%Windows 10%');
+                                    })->where(function ($sub2) {
+                                        $sub2->where('os', 'like', '%Pro%')->orWhere('os_version', 'like', '%Pro%');
+                                    });
+                                });
+                            } elseif ($osFilter === 'win10_other') {
+                                $sub->where(function ($s) {
+                                    $s->where(function ($sub2) {
+                                        $sub2->where('os', 'like', '%Windows 10%')->orWhere('os_version', 'like', '%Windows 10%');
+                                    })->where(function ($sub2) {
+                                        $sub2->where('os', 'not like', '%Pro%')->where('os_version', 'not like', '%Pro%');
+                                    });
+                                });
+                            } elseif ($osFilter === 'server') {
+                                $sub->where(function ($s) {
+                                    $s->where('os', 'like', '%Server%')->orWhere('os_version', 'like', '%Server%');
+                                });
+                            } elseif ($osFilter === 'other') {
+                                $sub->where('os', 'not like', '%Windows 10%')
+                                      ->where('os', 'not like', '%Windows 11%')
+                                      ->where('os_version', 'not like', '%Windows 10%')
+                                      ->where('os_version', 'not like', '%Windows 11%');
+                            }
+                        });
+                    }
                 });
-            } elseif ($osFilter === 'win11_pro') {
-                $query->where(function ($q) {
-                    $q->where(function ($sub) {
-                        $sub->where('os', 'like', '%Windows 11%')->orWhere('os_version', 'like', '%Windows 11%');
-                    })->where(function ($sub) {
-                        $sub->where('os', 'like', '%Pro%')->orWhere('os_version', 'like', '%Pro%');
-                    });
-                });
-            } elseif ($osFilter === 'win11_home') {
-                $query->where(function ($q) {
-                    $q->where(function ($sub) {
-                        $sub->where('os', 'like', '%Windows 11%')->orWhere('os_version', 'like', '%Windows 11%');
-                    })->where(function ($sub) {
-                        $sub->where('os', 'like', '%Home%')->orWhere('os_version', 'like', '%Home%');
-                    });
-                });
-            } elseif ($osFilter === 'win10') {
-                $query->where(function ($q) {
-                    $q->where('os', 'like', '%Windows 10%')->orWhere('os_version', 'like', '%Windows 10%');
-                });
-            } elseif ($osFilter === 'win10_pro') {
-                $query->where(function ($q) {
-                    $q->where(function ($sub) {
-                        $sub->where('os', 'like', '%Windows 10%')->orWhere('os_version', 'like', '%Windows 10%');
-                    })->where(function ($sub) {
-                        $sub->where('os', 'like', '%Pro%')->orWhere('os_version', 'like', '%Pro%');
-                    });
-                });
-            } elseif ($osFilter === 'win10_other') {
-                $query->where(function ($q) {
-                    $q->where(function ($sub) {
-                        $sub->where('os', 'like', '%Windows 10%')->orWhere('os_version', 'like', '%Windows 10%');
-                    })->where(function ($sub) {
-                        $sub->where('os', 'not like', '%Pro%')->where('os_version', 'not like', '%Pro%');
-                    });
-                });
-            } elseif ($osFilter === 'server') {
-                $query->where(function ($q) {
-                    $q->where('os', 'like', '%Server%')->orWhere('os_version', 'like', '%Server%');
-                });
-            } elseif ($osFilter === 'other') {
-                $query->where('os', 'not like', '%Windows 10%')
-                      ->where('os', 'not like', '%Windows 11%')
-                      ->where('os_version', 'not like', '%Windows 10%')
-                      ->where('os_version', 'not like', '%Windows 11%');
             }
         }
 
-        // Filter by Office
+        // Filter by Office (Multi-select)
         if ($request->filled('office')) {
-            $off = $request->input('office');
-            if ($off === 'installed') {
-                $query->whereNotNull('office_version')
-                      ->where('office_version', '!=', '')
-                      ->where('office_version', 'not like', '%Not Installed%')
-                      ->where('office_version', 'not like', '%ไม่ได้ติดตั้ง%');
-            } elseif ($off === 'not_installed') {
-                $query->where(function ($q) {
-                    $q->whereNull('office_version')
-                      ->orWhere('office_version', '')
-                      ->orWhere('office_version', 'like', '%Not Installed%')
-                      ->orWhere('office_version', 'like', '%ไม่ได้ติดตั้ง%');
+            $offInput = $request->input('office');
+            $offList = is_array($offInput) ? $offInput : explode(',', (string)$offInput);
+            $offList = array_filter(array_map('trim', $offList));
+
+            if (!empty($offList)) {
+                $query->where(function ($q) use ($offList) {
+                    foreach ($offList as $idx => $off) {
+                        $method = ($idx === 0) ? 'where' : 'orWhere';
+                        $q->$method(function ($sub) use ($off) {
+                            if ($off === 'installed') {
+                                $sub->whereNotNull('office_version')
+                                      ->where('office_version', '!=', '')
+                                      ->where('office_version', 'not like', '%Not Installed%')
+                                      ->where('office_version', 'not like', '%ไม่ได้ติดตั้ง%');
+                            } elseif ($off === 'not_installed') {
+                                $sub->where(function ($sq) {
+                                    $sq->whereNull('office_version')
+                                      ->orWhere('office_version', '')
+                                      ->orWhere('office_version', 'like', '%Not Installed%')
+                                      ->orWhere('office_version', 'like', '%ไม่ได้ติดตั้ง%');
+                                });
+                            } else {
+                                $sub->where('office_version', 'like', "%{$off}%");
+                            }
+                        });
+                    }
                 });
-            } else {
-                $query->where('office_version', 'like', "%{$off}%");
             }
         }
 
@@ -807,16 +928,52 @@ class AppInstallationController extends Controller
 
         $onlineThreshold = $this->getOnlineThresholdMinutes();
 
-        // Filter by Online status
-        if ($request->input('status') === 'online') {
-            $query->where('is_online', true)->where('last_active_at', '>=', now()->subMinutes($onlineThreshold));
-        } elseif ($request->input('status') === 'offline') {
-            $query->where(function ($q) use ($onlineThreshold) {
-                $q->where('is_online', false)
-                  ->orWhereNull('is_online')
-                  ->orWhere('last_active_at', '<', now()->subMinutes($onlineThreshold))
-                  ->orWhereNull('last_active_at');
-            });
+        // Filter by Online status (Multi-select)
+        if ($request->filled('status')) {
+            $stInput = $request->input('status');
+            $stList = is_array($stInput) ? $stInput : explode(',', (string)$stInput);
+            $stList = array_filter(array_map('trim', $stList));
+            $hasOnline = in_array('online', $stList);
+            $hasOffline = in_array('offline', $stList);
+            if ($hasOnline && !$hasOffline) {
+                $query->where('is_online', true)->where('last_active_at', '>=', now()->subMinutes($onlineThreshold));
+            } elseif ($hasOffline && !$hasOnline) {
+                $query->where(function ($q) use ($onlineThreshold) {
+                    $q->where('is_online', false)
+                      ->orWhereNull('is_online')
+                      ->orWhere('last_active_at', '<', now()->subMinutes($onlineThreshold))
+                      ->orWhereNull('last_active_at');
+                });
+            }
+        }
+
+        // Filter by Remote / AnyDesk (Multi-select)
+        if ($request->filled('remote')) {
+            $remInput = $request->input('remote');
+            $remList = is_array($remInput) ? $remInput : explode(',', (string)$remInput);
+            $remList = array_filter(array_map('trim', $remList));
+            if (!empty($remList)) {
+                $query->where(function ($q) use ($remList) {
+                    foreach ($remList as $idx => $r) {
+                        $method = ($idx === 0) ? 'where' : 'orWhere';
+                        $q->$method(function ($sub) use ($r) {
+                            if ($r === 'vnc_ready') {
+                                $sub->where('remote_ready', true);
+                            } elseif ($r === 'vnc_not_ready') {
+                                $sub->where(function ($sq) {
+                                    $sq->where('remote_ready', false)->orWhereNull('remote_ready');
+                                });
+                            } elseif ($r === 'anydesk') {
+                                $sub->where('anydesk_installed', true);
+                            } elseif ($r === 'no_anydesk') {
+                                $sub->where(function ($sq) {
+                                    $sq->where('anydesk_installed', false)->orWhereNull('anydesk_installed');
+                                });
+                            }
+                        });
+                    }
+                });
+            }
         }
 
         // Hardware Summary Statistics

@@ -627,6 +627,39 @@
             accent-color: var(--primary);
         }
 
+        .multi-search-box {
+            padding: 0.35rem 0.5rem;
+            position: relative;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+        }
+        .multi-search-box .material-symbols-outlined {
+            position: absolute;
+            left: 0.75rem;
+            font-size: 15px !important;
+            color: var(--text-muted);
+            pointer-events: none;
+        }
+        .multi-search-input {
+            width: 100%;
+            height: 28px;
+            padding: 0 0.5rem 0 1.6rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.76rem;
+            background: #F8FAFC;
+        }
+        .multi-search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: #FFFFFF;
+        }
+        .multi-items-scroll {
+            max-height: 220px;
+            overflow-y: auto;
+        }
+
         /* Table Card */
         .table-card {
             background: var(--surface);
@@ -1632,6 +1665,10 @@
         @endif
 
         @php
+            $rawDept = request('department', []);
+            $selectedDepts = is_array($rawDept) ? $rawDept : ($rawDept ? explode(',', (string)$rawDept) : []);
+            $deptCount = count($selectedDepts);
+
             $rawPerf = request('perf', []);
             $selectedPerfs = is_array($rawPerf) ? $rawPerf : ($rawPerf ? explode(',', (string)$rawPerf) : []);
             $perfCount = count($selectedPerfs);
@@ -1644,8 +1681,27 @@
             $selectedRamTypes = is_array($rawRamType) ? $rawRamType : ($rawRamType ? explode(',', (string)$rawRamType) : []);
             $ramTypeCount = count($selectedRamTypes);
 
-            $hasStorageFilter = (bool) request('disk_type');
-            $hasWindowsFilter = (bool) request('os');
+            $rawDisk = request('disk_type', []);
+            $selectedDisks = is_array($rawDisk) ? $rawDisk : ($rawDisk ? explode(',', (string)$rawDisk) : []);
+            $diskCount = count($selectedDisks);
+            $hasStorageFilter = $diskCount > 0;
+
+            $rawOs = request('os', []);
+            $selectedOs = is_array($rawOs) ? $rawOs : ($rawOs ? explode(',', (string)$rawOs) : []);
+            $osCount = count($selectedOs);
+            $hasWindowsFilter = $osCount > 0;
+
+            $rawOffice = request('office', []);
+            $selectedOffices = is_array($rawOffice) ? $rawOffice : ($rawOffice ? explode(',', (string)$rawOffice) : []);
+            $officeCount = count($selectedOffices);
+
+            $rawStatus = request('status', []);
+            $selectedStatuses = is_array($rawStatus) ? $rawStatus : ($rawStatus ? explode(',', (string)$rawStatus) : []);
+            $statusCount = count($selectedStatuses);
+
+            $rawRemote = request('remote', []);
+            $selectedRemotes = is_array($rawRemote) ? $rawRemote : ($rawRemote ? explode(',', (string)$rawRemote) : []);
+            $remoteCount = count($selectedRemotes);
         @endphp
 
         <!-- Summary KPI Cards -->
@@ -1657,7 +1713,7 @@
                 <div class="stat-info">
                     <p style="display: flex; align-items: center; justify-content: space-between;">
                         <span>เครื่องที่ลงทะเบียนสเปก</span>
-                        @if(request()->hasAny(['search', 'department', 'perf', 'ram', 'ram_type', 'disk_type', 'os', 'office', 'status']))
+                        @if(request()->hasAny(['search', 'department', 'perf', 'ram', 'ram_type', 'disk_type', 'os', 'office', 'status', 'remote']))
                             <span style="font-size: 0.72rem; color: #0284C7; font-weight: 600; display: inline-flex; align-items: center; gap: 2px;">
                                 <span class="material-symbols-outlined" style="font-size: 13px;">restart_alt</span> แสดงทั้งหมด
                             </span>
@@ -1967,7 +2023,7 @@
                     @foreach($storageTiers as $t)
                         @php
                             $pct = $stats['total_devices'] > 0 ? round(($t['cnt'] / $stats['total_devices']) * 100, 1) : 0;
-                            $isSelected = request('disk_type') === $t['key'];
+                            $isSelected = in_array($t['key'], $selectedDisks);
                         @endphp
                         <div class="perf-subcard {{ $isSelected ? 'is-selected' : '' }}" 
                              style="--tier-theme: {{ $t['theme'] }}; --tier-bg: {{ $t['bg'] }};"
@@ -2231,7 +2287,7 @@
                     @foreach($winTiers as $t)
                         @php
                             $pct = $stats['total_devices'] > 0 ? round(($t['cnt'] / $stats['total_devices']) * 100, 1) : 0;
-                            $isSelected = request('os') === $t['key'];
+                            $isSelected = in_array($t['key'], $selectedOs);
                         @endphp
                         <div class="perf-subcard {{ $isSelected ? 'is-selected' : '' }}" 
                              style="--tier-theme: {{ $t['theme'] }}; --tier-bg: {{ $t['bg'] }};"
@@ -2286,22 +2342,44 @@
                            placeholder="ค้นหา: เครื่อง, IP, CPU, แผนก...">
                 </div>
 
-                <!-- Department Filter -->
-                <select name="department" class="filter-select">
-                    <option value="">ทุกแผนก/หน่วยงาน</option>
-                    @foreach($departments as $dept)
-                        <option value="{{ $dept }}" {{ request('department') == $dept ? 'selected' : '' }}>
-                            {{ $dept }}
-                        </option>
-                    @endforeach
-                </select>
+                <!-- Department Filter (Multi-select Checkboxes) -->
+                <div class="filter-dropdown-multiselect" id="deptDropdown">
+                    <button type="button" class="filter-dropdown-btn {{ $deptCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'deptDropdown')">
+                        <span id="deptDropdownLabel">
+                            @if($deptCount === 0)
+                                แผนก/หน่วยงาน
+                            @elseif($deptCount === 1)
+                                {{ $selectedDepts[0] }}
+                            @else
+                                แผนก ({{ $deptCount }})
+                            @endif
+                        </span>
+                        <span class="material-symbols-outlined dropdown-arrow">expand_more</span>
+                    </button>
+                    <div class="filter-dropdown-menu" id="deptDropdownMenu" onclick="event.stopPropagation();">
+                        <div class="filter-dropdown-header">
+                            <span>ติ๊กเลือกแผนก/หน่วยงาน</span>
+                            <button type="button" class="btn-clear-multi" onclick="clearMulti('deptDropdown', 'แผนก/หน่วยงาน')">ล้าง</button>
+                        </div>
+                        <div class="multi-search-box">
+                            <span class="material-symbols-outlined">search</span>
+                            <input type="text" class="multi-search-input" placeholder="พิมพ์ค้นหาแผนก..." oninput="filterDropdownOptions('deptDropdown', this.value)">
+                        </div>
+                        <div class="multi-items-scroll">
+                            @foreach($departments as $dept)
+                                <label class="multi-item" data-text="{{ mb_strtolower($dept) }}">
+                                    <input type="checkbox" name="department[]" value="{{ $dept }}" onchange="updateMultiLabel('deptDropdown', 'แผนก/หน่วยงาน')" {{ in_array($dept, $selectedDepts) ? 'checked' : '' }}>
+                                    <span>{{ $dept }}</span>
+                                </label>
+                            @endforeach
+                        </div>
+                        <div class="filter-dropdown-footer">
+                            <button type="submit" class="btn-multi-apply">ตกลง</button>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Performance Tier Filter (Multi-select Checkboxes) -->
-                @php
-                    $rawPerf = request('perf', []);
-                    $selectedPerfs = is_array($rawPerf) ? $rawPerf : ($rawPerf ? explode(',', (string)$rawPerf) : []);
-                    $perfCount = count($selectedPerfs);
-                @endphp
                 <div class="filter-dropdown-multiselect" id="perfDropdown">
                     <button type="button" class="filter-dropdown-btn {{ $perfCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'perfDropdown')">
                         <span id="perfDropdownLabel">
@@ -2350,11 +2428,6 @@
                 </div>
 
                 <!-- RAM Filter (Multi-select Checkboxes) -->
-                @php
-                    $rawRam = request('ram', []);
-                    $selectedRams = is_array($rawRam) ? $rawRam : ($rawRam ? explode(',', (string)$rawRam) : []);
-                    $ramCount = count($selectedRams);
-                @endphp
                 <div class="filter-dropdown-multiselect" id="ramDropdown">
                     <button type="button" class="filter-dropdown-btn {{ $ramCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'ramDropdown')">
                         <span id="ramDropdownLabel">
@@ -2404,11 +2477,6 @@
                 </div>
 
                 <!-- RAM Type Filter (Multi-select Checkboxes) -->
-                @php
-                    $rawRamType = request('ram_type', []);
-                    $selectedRamTypes = is_array($rawRamType) ? $rawRamType : ($rawRamType ? explode(',', (string)$rawRamType) : []);
-                    $ramTypeCount = count($selectedRamTypes);
-                @endphp
                 <div class="filter-dropdown-multiselect" id="ramTypeDropdown">
                     <button type="button" class="filter-dropdown-btn {{ $ramTypeCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'ramTypeDropdown')">
                         <span id="ramTypeDropdownLabel">
@@ -2449,53 +2517,257 @@
                     </div>
                 </div>
 
-                <!-- Disk Type Filter -->
-                <select name="disk_type" class="filter-select">
-                    <option value="">ประเภทดิสก์ทั้งหมด</option>
-                    <option value="nvme" {{ request('disk_type') == 'nvme' ? 'selected' : '' }}>M.2 NVMe SSD</option>
-                    <option value="sata_ssd" {{ request('disk_type') == 'sata_ssd' ? 'selected' : '' }}>SATA SSD</option>
-                    <option value="ssd" {{ request('disk_type') == 'ssd' ? 'selected' : '' }}>SSD ทั้งหมด</option>
-                    <option value="hdd" {{ request('disk_type') == 'hdd' ? 'selected' : '' }}>HDD จานหมุน</option>
-                    <option value="other" {{ request('disk_type') == 'other' ? 'selected' : '' }}>SCSI / อื่นๆ</option>
-                </select>
+                <!-- Storage / Disk Type Filter (Multi-select Checkboxes) -->
+                <div class="filter-dropdown-multiselect" id="diskDropdown">
+                    <button type="button" class="filter-dropdown-btn {{ $diskCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'diskDropdown')">
+                        <span id="diskDropdownLabel">
+                            @if($diskCount === 0)
+                                ประเภท Storage
+                            @elseif($diskCount === 1)
+                                @php
+                                    $diskLabels = ['nvme' => 'M.2 NVMe SSD', 'sata_ssd' => 'SATA SSD', 'ssd' => 'SSD ทั้งหมด', 'hdd' => 'HDD จานหมุน', 'other' => 'SCSI / อื่นๆ'];
+                                @endphp
+                                {{ $diskLabels[$selectedDisks[0]] ?? $selectedDisks[0] }}
+                            @else
+                                Storage ({{ $diskCount }})
+                            @endif
+                        </span>
+                        <span class="material-symbols-outlined dropdown-arrow">expand_more</span>
+                    </button>
+                    <div class="filter-dropdown-menu" id="diskDropdownMenu" onclick="event.stopPropagation();">
+                        <div class="filter-dropdown-header">
+                            <span>ติ๊กเลือกชนิด Storage</span>
+                            <button type="button" class="btn-clear-multi" onclick="clearMulti('diskDropdown', 'ประเภท Storage')">ล้าง</button>
+                        </div>
+                        <label class="multi-item">
+                            <input type="checkbox" name="disk_type[]" value="nvme" onchange="updateMultiLabel('diskDropdown', 'ประเภท Storage')" {{ in_array('nvme', $selectedDisks) ? 'checked' : '' }}>
+                            <span>⚡ M.2 NVMe SSD</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="disk_type[]" value="sata_ssd" onchange="updateMultiLabel('diskDropdown', 'ประเภท Storage')" {{ in_array('sata_ssd', $selectedDisks) ? 'checked' : '' }}>
+                            <span>💾 2.5" SATA SSD</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="disk_type[]" value="ssd" onchange="updateMultiLabel('diskDropdown', 'ประเภท Storage')" {{ in_array('ssd', $selectedDisks) ? 'checked' : '' }}>
+                            <span>🚀 SSD ทั้งหมด</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="disk_type[]" value="hdd" onchange="updateMultiLabel('diskDropdown', 'ประเภท Storage')" {{ in_array('hdd', $selectedDisks) ? 'checked' : '' }}>
+                            <span>💿 HDD จานหมุน</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="disk_type[]" value="other" onchange="updateMultiLabel('diskDropdown', 'ประเภท Storage')" {{ in_array('other', $selectedDisks) ? 'checked' : '' }}>
+                            <span>❓ SCSI / อื่นๆ</span>
+                        </label>
+                        <div class="filter-dropdown-footer">
+                            <button type="submit" class="btn-multi-apply">ตกลง</button>
+                        </div>
+                    </div>
+                </div>
 
-                <!-- OS Filter -->
-                <select name="os" class="filter-select">
-                    <option value="">ระบบปฏิบัติการทั้งหมด</option>
-                    <option value="win11" {{ request('os') == 'win11' ? 'selected' : '' }}>Windows 11 (ทั้งหมด)</option>
-                    <option value="win11_pro" {{ request('os') == 'win11_pro' ? 'selected' : '' }}>Windows 11 Pro</option>
-                    <option value="win11_home" {{ request('os') == 'win11_home' ? 'selected' : '' }}>Windows 11 Home</option>
-                    <option value="win10" {{ request('os') == 'win10' ? 'selected' : '' }}>Windows 10 (ทั้งหมด)</option>
-                    <option value="win10_pro" {{ request('os') == 'win10_pro' ? 'selected' : '' }}>Windows 10 Pro</option>
-                    <option value="win10_other" {{ request('os') == 'win10_other' ? 'selected' : '' }}>Windows 10 อื่นๆ</option>
-                    <option value="server" {{ request('os') == 'server' ? 'selected' : '' }}>Windows Server</option>
-                    <option value="other" {{ request('os') == 'other' ? 'selected' : '' }}>รุ่นอื่นๆ</option>
-                </select>
+                <!-- Windows OS Filter (Multi-select Checkboxes) -->
+                <div class="filter-dropdown-multiselect" id="osDropdown">
+                    <button type="button" class="filter-dropdown-btn {{ $osCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'osDropdown')">
+                        <span id="osDropdownLabel">
+                            @if($osCount === 0)
+                                ระบบปฏิบัติการ
+                            @elseif($osCount === 1)
+                                @php
+                                    $osLabels = ['win11' => 'Windows 11', 'win11_pro' => 'Win 11 Pro', 'win11_home' => 'Win 11 Home', 'win10' => 'Windows 10', 'win10_pro' => 'Win 10 Pro', 'win10_other' => 'Win 10 อื่นๆ', 'server' => 'Win Server', 'other' => 'รุ่นอื่นๆ'];
+                                @endphp
+                                {{ $osLabels[$selectedOs[0]] ?? $selectedOs[0] }}
+                            @else
+                                OS ({{ $osCount }})
+                            @endif
+                        </span>
+                        <span class="material-symbols-outlined dropdown-arrow">expand_more</span>
+                    </button>
+                    <div class="filter-dropdown-menu" id="osDropdownMenu" onclick="event.stopPropagation();">
+                        <div class="filter-dropdown-header">
+                            <span>ติ๊กเลือกระบบปฏิบัติการ</span>
+                            <button type="button" class="btn-clear-multi" onclick="clearMulti('osDropdown', 'ระบบปฏิบัติการ')">ล้าง</button>
+                        </div>
+                        <label class="multi-item">
+                            <input type="checkbox" name="os[]" value="win11" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('win11', $selectedOs) ? 'checked' : '' }}>
+                            <span>🟦 Windows 11 (ทั้งหมด)</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="os[]" value="win11_pro" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('win11_pro', $selectedOs) ? 'checked' : '' }}>
+                            <span>💼 Windows 11 Pro</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="os[]" value="win11_home" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('win11_home', $selectedOs) ? 'checked' : '' }}>
+                            <span>🏠 Windows 11 Home</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="os[]" value="win10" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('win10', $selectedOs) ? 'checked' : '' }}>
+                            <span>🪟 Windows 10 (ทั้งหมด)</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="os[]" value="win10_pro" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('win10_pro', $selectedOs) ? 'checked' : '' }}>
+                            <span>💼 Windows 10 Pro</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="os[]" value="win10_other" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('win10_other', $selectedOs) ? 'checked' : '' }}>
+                            <span>⚙️ Windows 10 อื่นๆ</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="os[]" value="server" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('server', $selectedOs) ? 'checked' : '' }}>
+                            <span>🖥️ Windows Server</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="os[]" value="other" onchange="updateMultiLabel('osDropdown', 'ระบบปฏิบัติการ')" {{ in_array('other', $selectedOs) ? 'checked' : '' }}>
+                            <span>❓ รุ่นอื่นๆ</span>
+                        </label>
+                        <div class="filter-dropdown-footer">
+                            <button type="submit" class="btn-multi-apply">ตกลง</button>
+                        </div>
+                    </div>
+                </div>
 
-                <!-- Office Filter -->
-                <select name="office" class="filter-select">
-                    <option value="">โปรแกรม Office ทั้งหมด</option>
-                    <option value="installed" {{ request('office') == 'installed' ? 'selected' : '' }}>มี Office</option>
-                    <option value="not_installed" {{ request('office') == 'not_installed' ? 'selected' : '' }}>ไม่มี Office</option>
-                    <option value="2024" {{ request('office') == '2024' ? 'selected' : '' }}>Office 2024</option>
-                    <option value="2021" {{ request('office') == '2021' ? 'selected' : '' }}>Office 2021</option>
-                    <option value="2019" {{ request('office') == '2019' ? 'selected' : '' }}>Office 2019</option>
-                    <option value="2016" {{ request('office') == '2016' ? 'selected' : '' }}>Office 2016</option>
-                </select>
+                <!-- Office Filter (Multi-select Checkboxes) -->
+                <div class="filter-dropdown-multiselect" id="officeDropdown">
+                    <button type="button" class="filter-dropdown-btn {{ $officeCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'officeDropdown')">
+                        <span id="officeDropdownLabel">
+                            @if($officeCount === 0)
+                                โปรแกรม Office
+                            @elseif($officeCount === 1)
+                                @php
+                                    $officeLabels = ['installed' => 'มี Office', 'not_installed' => 'ไม่มี Office', '2024' => 'Office 2024', '2021' => 'Office 2021', '2019' => 'Office 2019', '2016' => 'Office 2016', '2013' => 'Office 2013', '2010' => 'Office 2010'];
+                                @endphp
+                                {{ $officeLabels[$selectedOffices[0]] ?? $selectedOffices[0] }}
+                            @else
+                                Office ({{ $officeCount }})
+                            @endif
+                        </span>
+                        <span class="material-symbols-outlined dropdown-arrow">expand_more</span>
+                    </button>
+                    <div class="filter-dropdown-menu" id="officeDropdownMenu" onclick="event.stopPropagation();">
+                        <div class="filter-dropdown-header">
+                            <span>ติ๊กเลือกโปรแกรม Office</span>
+                            <button type="button" class="btn-clear-multi" onclick="clearMulti('officeDropdown', 'โปรแกรม Office')">ล้าง</button>
+                        </div>
+                        <label class="multi-item">
+                            <input type="checkbox" name="office[]" value="installed" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('installed', $selectedOffices) ? 'checked' : '' }}>
+                            <span>✅ มี Office ติดตั้ง</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="office[]" value="not_installed" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('not_installed', $selectedOffices) ? 'checked' : '' }}>
+                            <span>❌ ไม่มี Office</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="office[]" value="2024" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('2024', $selectedOffices) ? 'checked' : '' }}>
+                            <span>📄 Office 2024</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="office[]" value="2021" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('2021', $selectedOffices) ? 'checked' : '' }}>
+                            <span>📄 Office 2021</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="office[]" value="2019" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('2019', $selectedOffices) ? 'checked' : '' }}>
+                            <span>📄 Office 2019</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="office[]" value="2016" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('2016', $selectedOffices) ? 'checked' : '' }}>
+                            <span>📄 Office 2016</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="office[]" value="2013" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('2013', $selectedOffices) ? 'checked' : '' }}>
+                            <span>📄 Office 2013</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="office[]" value="2010" onchange="updateMultiLabel('officeDropdown', 'โปรแกรม Office')" {{ in_array('2010', $selectedOffices) ? 'checked' : '' }}>
+                            <span>📄 Office 2010</span>
+                        </label>
+                        <div class="filter-dropdown-footer">
+                            <button type="submit" class="btn-multi-apply">ตกลง</button>
+                        </div>
+                    </div>
+                </div>
 
-                <!-- Online Status -->
-                <select name="status" class="filter-select">
-                    <option value="">สถานะทั้งหมด</option>
-                    <option value="online" {{ request('status') == 'online' ? 'selected' : '' }}>ออนไลน์</option>
-                    <option value="offline" {{ request('status') == 'offline' ? 'selected' : '' }}>ออฟไลน์</option>
-                </select>
+                <!-- Online Status (Multi-select Checkboxes) -->
+                <div class="filter-dropdown-multiselect" id="statusDropdown">
+                    <button type="button" class="filter-dropdown-btn {{ $statusCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'statusDropdown')">
+                        <span id="statusDropdownLabel">
+                            @if($statusCount === 0)
+                                สถานะออนไลน์
+                            @elseif($statusCount === 1)
+                                {{ $selectedStatuses[0] === 'online' ? '🟢 ออนไลน์' : '⚪ ออฟไลน์' }}
+                            @else
+                                สถานะ ({{ $statusCount }})
+                            @endif
+                        </span>
+                        <span class="material-symbols-outlined dropdown-arrow">expand_more</span>
+                    </button>
+                    <div class="filter-dropdown-menu" id="statusDropdownMenu" onclick="event.stopPropagation();">
+                        <div class="filter-dropdown-header">
+                            <span>ติ๊กเลือกสถานะเชื่อมต่อ</span>
+                            <button type="button" class="btn-clear-multi" onclick="clearMulti('statusDropdown', 'สถานะออนไลน์')">ล้าง</button>
+                        </div>
+                        <label class="multi-item">
+                            <input type="checkbox" name="status[]" value="online" onchange="updateMultiLabel('statusDropdown', 'สถานะออนไลน์')" {{ in_array('online', $selectedStatuses) ? 'checked' : '' }}>
+                            <span>🟢 ออนไลน์ (เชื่อมต่ออยู่)</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="status[]" value="offline" onchange="updateMultiLabel('statusDropdown', 'สถานะออนไลน์')" {{ in_array('offline', $selectedStatuses) ? 'checked' : '' }}>
+                            <span>⚪ ออฟไลน์ (เกิน 15 น.)</span>
+                        </label>
+                        <div class="filter-dropdown-footer">
+                            <button type="submit" class="btn-multi-apply">ตกลง</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Remote / AnyDesk Filter (Multi-select Checkboxes) -->
+                <div class="filter-dropdown-multiselect" id="remoteDropdown">
+                    <button type="button" class="filter-dropdown-btn {{ $remoteCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'remoteDropdown')">
+                        <span id="remoteDropdownLabel">
+                            @if($remoteCount === 0)
+                                รีโมท & AnyDesk
+                            @elseif($remoteCount === 1)
+                                @php
+                                    $remLabels = ['vnc_ready' => 'VNC พร้อม', 'vnc_not_ready' => 'VNC ไม่พร้อม', 'anydesk' => 'มี AnyDesk', 'no_anydesk' => 'ไม่มี AnyDesk'];
+                                @endphp
+                                {{ $remLabels[$selectedRemotes[0]] ?? $selectedRemotes[0] }}
+                            @else
+                                รีโมท ({{ $remoteCount }})
+                            @endif
+                        </span>
+                        <span class="material-symbols-outlined dropdown-arrow">expand_more</span>
+                    </button>
+                    <div class="filter-dropdown-menu" id="remoteDropdownMenu" onclick="event.stopPropagation();">
+                        <div class="filter-dropdown-header">
+                            <span>ติ๊กเลือกรีโมท & โปรแกรม</span>
+                            <button type="button" class="btn-clear-multi" onclick="clearMulti('remoteDropdown', 'รีโมท & AnyDesk')">ล้าง</button>
+                        </div>
+                        <label class="multi-item">
+                            <input type="checkbox" name="remote[]" value="vnc_ready" onchange="updateMultiLabel('remoteDropdown', 'รีโมท & AnyDesk')" {{ in_array('vnc_ready', $selectedRemotes) ? 'checked' : '' }}>
+                            <span>🟢 VNC พร้อมรีโมท</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="remote[]" value="vnc_not_ready" onchange="updateMultiLabel('remoteDropdown', 'รีโมท & AnyDesk')" {{ in_array('vnc_not_ready', $selectedRemotes) ? 'checked' : '' }}>
+                            <span>⚪ VNC ยังไม่พร้อม</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="remote[]" value="anydesk" onchange="updateMultiLabel('remoteDropdown', 'รีโมท & AnyDesk')" {{ in_array('anydesk', $selectedRemotes) ? 'checked' : '' }}>
+                            <span>🔴 มี AnyDesk</span>
+                        </label>
+                        <label class="multi-item">
+                            <input type="checkbox" name="remote[]" value="no_anydesk" onchange="updateMultiLabel('remoteDropdown', 'รีโมท & AnyDesk')" {{ in_array('no_anydesk', $selectedRemotes) ? 'checked' : '' }}>
+                            <span>⚪ ไม่มี AnyDesk</span>
+                        </label>
+                        <div class="filter-dropdown-footer">
+                            <button type="submit" class="btn-multi-apply">ตกลง</button>
+                        </div>
+                    </div>
+                </div>
 
                 <button type="submit" class="btn-filter-submit" title="ค้นหาตามเงื่อนไข">
                     <span class="material-symbols-outlined" style="font-size: 17px;">filter_alt</span>
                     <span>กรอง</span>
                 </button>
 
-                @if(request()->hasAny(['search', 'department', 'perf', 'ram', 'ram_type', 'disk_type', 'os', 'office', 'status', 'sort', 'dir']))
+                @if(request()->hasAny(['search', 'department', 'perf', 'ram', 'ram_type', 'disk_type', 'os', 'office', 'status', 'remote', 'sort', 'dir']))
                     <a href="{{ route('admin.specs') }}" class="btn-filter-reset" title="ล้างการกรองและการเรียงลำดับทั้งหมด">
                         <span class="material-symbols-outlined" style="font-size: 16px;">restart_alt</span>
                         <span>ล้างค่า</span>
@@ -3120,12 +3392,22 @@
             const form = document.querySelector('.filter-form');
             if (!form) return;
 
-            const select = form.querySelector('select[name="disk_type"]');
-            if (select) {
-                if (diskKey === 'clear' || select.value === diskKey) {
-                    select.value = '';
+            if (diskKey === 'clear') {
+                form.querySelectorAll('input[name="disk_type[]"]').forEach(i => i.checked = false);
+                form.submit();
+                return;
+            }
+
+            const target = form.querySelector(`input[name="disk_type[]"][value="${diskKey}"]`);
+            const all = form.querySelectorAll('input[name="disk_type[]"]');
+            if (target) {
+                const wasChecked = target.checked;
+                const checkedCount = Array.from(all).filter(i => i.checked).length;
+                if (wasChecked && checkedCount === 1) {
+                    target.checked = false;
                 } else {
-                    select.value = diskKey;
+                    all.forEach(i => i.checked = false);
+                    target.checked = true;
                 }
                 form.submit();
             }
@@ -3179,12 +3461,22 @@
             const form = document.querySelector('.filter-form');
             if (!form) return;
 
-            const select = form.querySelector('select[name="os"]');
-            if (select) {
-                if (osKey === 'clear' || select.value === osKey) {
-                    select.value = '';
+            if (osKey === 'clear') {
+                form.querySelectorAll('input[name="os[]"]').forEach(i => i.checked = false);
+                form.submit();
+                return;
+            }
+
+            const target = form.querySelector(`input[name="os[]"][value="${osKey}"]`);
+            const all = form.querySelectorAll('input[name="os[]"]');
+            if (target) {
+                const wasChecked = target.checked;
+                const checkedCount = Array.from(all).filter(i => i.checked).length;
+                if (wasChecked && checkedCount === 1) {
+                    target.checked = false;
                 } else {
-                    select.value = osKey;
+                    all.forEach(i => i.checked = false);
+                    target.checked = true;
                 }
                 form.submit();
             }
@@ -3364,6 +3656,20 @@
             if (!dropdown) return;
             dropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
             updateMultiLabel(dropdownId, defaultLabel);
+        }
+
+        function filterDropdownOptions(dropdownId, searchVal) {
+            const dropdown = document.getElementById(dropdownId);
+            if (!dropdown) return;
+            const term = (searchVal || '').toLowerCase().trim();
+            dropdown.querySelectorAll('.multi-items-scroll .multi-item').forEach(item => {
+                const text = (item.getAttribute('data-text') || item.textContent).toLowerCase();
+                if (!term || text.includes(term)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
         }
 
         // Close dropdowns on outside click

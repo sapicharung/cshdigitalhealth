@@ -394,39 +394,29 @@
             border: 1px solid var(--border);
             margin-bottom: 1.25rem;
             box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
-            overflow: hidden;
+            position: relative;
+            z-index: 40;
+            overflow: visible;
         }
 
         .filter-form {
             display: flex;
-            flex-wrap: nowrap;
+            flex-wrap: wrap;
             gap: 0.6rem;
             align-items: center;
             justify-content: space-between;
             width: 100%;
-            overflow-x: auto;
-            overflow-y: hidden;
-            padding-bottom: 2px;
-            scrollbar-width: thin;
-        }
-
-        .filter-form::-webkit-scrollbar {
-            height: 4px;
-        }
-        .filter-form::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        .filter-form::-webkit-scrollbar-thumb {
-            background: #E2E8F0;
-            border-radius: 4px;
+            position: relative;
+            overflow: visible;
         }
 
         .filter-inputs {
             display: flex;
-            flex-wrap: nowrap;
+            flex-wrap: wrap;
             gap: 0.45rem;
             align-items: center;
-            flex-shrink: 0;
+            position: relative;
+            overflow: visible;
         }
 
         .search-box {
@@ -532,6 +522,175 @@
         .btn-reset:hover {
             background: #E2E8F0;
             color: #334155;
+        }
+
+        /* Multi-Select Dropdown with Checkboxes */
+        .filter-dropdown-multiselect {
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .filter-dropdown-btn {
+            height: 35px;
+            padding: 0 0.65rem;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.82rem;
+            background: #F8FAFC;
+            cursor: pointer;
+            color: var(--text-dark);
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s;
+            white-space: nowrap;
+            user-select: none;
+            box-sizing: border-box;
+        }
+        .filter-dropdown-btn:hover {
+            background-color: #FFFFFF;
+            border-color: #CBD5E1;
+        }
+        .filter-dropdown-btn.active {
+            border-color: var(--primary);
+            background-color: #FFFFFF;
+            box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.15);
+        }
+        .filter-dropdown-btn.has-value {
+            background-color: #EFF6FF;
+            color: #1D4ED8;
+            border-color: #BFDBFE;
+            font-weight: 600;
+        }
+        .filter-dropdown-btn .dropdown-arrow {
+            font-size: 16px !important;
+            color: #94A3B8;
+            transition: transform 0.2s;
+        }
+        .filter-dropdown-btn.active .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+
+        .filter-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            z-index: 9999;
+            background: #FFFFFF;
+            border: 1px solid #CBD5E1;
+            border-radius: 8px;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.18), 0 8px 10px -6px rgba(0, 0, 0, 0.08);
+            min-width: 220px;
+            max-height: 320px;
+            overflow-y: auto;
+            padding: 0.4rem 0 0 0;
+            display: none;
+        }
+        .filter-dropdown-menu.show {
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
+        .filter-dropdown-footer {
+            padding: 0.45rem 0.75rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            background: #F8FAFC;
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+            margin-top: 4px;
+        }
+        .btn-multi-apply {
+            background: var(--primary);
+            color: #FFFFFF;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 12px;
+            font-size: 0.76rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-multi-apply:hover {
+            background: var(--primary-dark);
+        }
+
+        .filter-dropdown-header {
+            padding: 0.35rem 0.75rem 0.45rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.75rem;
+            color: #64748B;
+            font-weight: 600;
+        }
+
+        .btn-clear-multi {
+            background: none;
+            border: none;
+            color: var(--danger);
+            cursor: pointer;
+            font-size: 0.73rem;
+            padding: 0;
+            text-decoration: underline;
+        }
+
+        .multi-search-box {
+            padding: 0.35rem 0.5rem;
+            position: relative;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+        }
+        .multi-search-box .material-symbols-Outlined {
+            position: absolute;
+            left: 0.75rem;
+            font-size: 15px !important;
+            color: #94A3B8;
+            pointer-events: none;
+        }
+        .multi-search-input {
+            width: 100%;
+            height: 28px;
+            padding: 0 0.5rem 0 1.6rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 0.76rem;
+            background: #F8FAFC;
+            font-family: inherit;
+        }
+        .multi-search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: #FFFFFF;
+        }
+        .multi-items-scroll {
+            max-height: 220px;
+            overflow-y: auto;
+        }
+
+        .multi-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0.35rem 0.75rem;
+            font-size: 0.8rem;
+            color: var(--text-dark);
+            cursor: pointer;
+            transition: background-color 0.15s;
+            user-select: none;
+        }
+        .multi-item:hover {
+            background-color: #F1F5F9;
+        }
+        .multi-item input[type="checkbox"] {
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+            accent-color: var(--primary);
         }
 
         .action-buttons {
@@ -2380,6 +2539,28 @@
             @endif
         </section>
 
+        @php
+            $rawDept = request('department', []);
+            $selectedDepts = is_array($rawDept) ? $rawDept : ($rawDept ? explode(',', (string)$rawDept) : []);
+            $deptCount = count($selectedDepts);
+
+            $rawStatus = request('status', []);
+            $selectedStatuses = is_array($rawStatus) ? $rawStatus : ($rawStatus ? explode(',', (string)$rawStatus) : []);
+            $statusCount = count($selectedStatuses);
+
+            $rawVnc = request('vnc', []);
+            $selectedVncs = is_array($rawVnc) ? $rawVnc : ($rawVnc ? explode(',', (string)$rawVnc) : []);
+            $vncCount = count($selectedVncs);
+
+            $rawAnydesk = request('anydesk', []);
+            $selectedAnydesks = is_array($rawAnydesk) ? $rawAnydesk : ($rawAnydesk ? explode(',', (string)$rawAnydesk) : []);
+            $anydeskCount = count($selectedAnydesks);
+
+            $rawVersion = request('version', []);
+            $selectedVersions = is_array($rawVersion) ? $rawVersion : ($rawVersion ? explode(',', (string)$rawVersion) : []);
+            $versionCount = count($selectedVersions);
+        @endphp
+
         <!-- Search & Action Filters -->
         <section class="controls-card">
             <form action="{{ route('admin.installations') }}" method="GET" class="filter-form">
@@ -2388,38 +2569,222 @@
                 <div class="filter-inputs">
                     <div class="search-box">
                         <span class="material-symbols-Outlined">search</span>
-                        <input type="text" name="search" placeholder="ค้นหา IP, รหัสครุภัณฑ์ (เช่น COM-001), แผนก, ชื่อเครื่อง..." 
+                        <input type="text" name="search" placeholder="ค้นหา IP, รหัส COM, แผนก, ชื่อเครื่อง..." 
                                value="{{ request('search') }}">
                     </div>
 
-                    <select name="department" class="select-filter">
-                        <option value="">-- แผนกทั้งหมด --</option>
-                        @foreach($departments as $dept)
-                            <option value="{{ $dept }}" {{ request('department') == $dept ? 'selected' : '' }}>
-                                {{ $dept }}
-                            </option>
-                        @endforeach
-                    </select>
+                    <!-- Department Filter (Multi-select Checkboxes) -->
+                    <div class="filter-dropdown-multiselect" id="instDeptDropdown">
+                        <button type="button" class="filter-dropdown-btn {{ $deptCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'instDeptDropdown')">
+                            <span>
+                                @if($deptCount === 0)
+                                    แผนก/หน่วยงาน
+                                @elseif($deptCount === 1)
+                                    {{ $selectedDepts[0] }}
+                                @else
+                                    แผนก ({{ $deptCount }})
+                                @endif
+                            </span>
+                            <span class="material-symbols-Outlined dropdown-arrow">expand_more</span>
+                        </button>
+                        <div class="filter-dropdown-menu" id="instDeptDropdownMenu" onclick="event.stopPropagation();">
+                            <div class="filter-dropdown-header">
+                                <span>ติ๊กเลือกแผนก</span>
+                                <button type="button" class="btn-clear-multi" onclick="clearMulti('instDeptDropdown', 'แผนก/หน่วยงาน')">ล้าง</button>
+                            </div>
+                            <div class="multi-search-box">
+                                <span class="material-symbols-Outlined">search</span>
+                                <input type="text" class="multi-search-input" placeholder="พิมพ์ค้นหาแผนก..." oninput="filterDropdownOptions('instDeptDropdown', this.value)">
+                            </div>
+                            <div class="multi-items-scroll">
+                                @foreach($departments as $dept)
+                                    <label class="multi-item" data-text="{{ mb_strtolower($dept) }}">
+                                        <input type="checkbox" name="department[]" value="{{ $dept }}" onchange="updateMultiLabel('instDeptDropdown', 'แผนก/หน่วยงาน')" {{ in_array($dept, $selectedDepts) ? 'checked' : '' }}>
+                                        <span>{{ $dept }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+                            <div class="filter-dropdown-footer">
+                                <button type="submit" class="btn-multi-apply">ตกลง</button>
+                            </div>
+                        </div>
+                    </div>
 
-                    <select name="status" class="select-filter">
-                        <option value="">-- ทุกสถานะ / ช่วงเวลา --</option>
-                        <option value="online" {{ request('status') == 'online' ? 'selected' : '' }}>🟢 เฉพาะเครื่องออนไลน์ ({{ $stats['online_count'] ?? 0 }})</option>
-                        <option value="offline" {{ request('status') == 'offline' ? 'selected' : '' }}>⚪ เฉพาะเครื่องออฟไลน์ ({{ $stats['offline_count'] ?? 0 }})</option>
-                        <option value="missing_asset" {{ request('status') == 'missing_asset' ? 'selected' : '' }}>🏷️ ไม่พบรหัสครุภัณฑ์ ({{ $stats['missing_asset_code_count'] ?? 0 }})</option>
-                        @if(Auth::user()->isAdmin())
-                            <option value="risk_only" {{ request('status') == 'risk_only' ? 'selected' : '' }}>⚠️ ตรวจพบโปรแกรมเสี่ยง ({{ $stats['risk_count'] ?? 0 }})</option>
-                        @endif
-                        <option value="today" {{ request('status') == 'today' ? 'selected' : '' }}>เปิดใช้งานวันนี้</option>
-                        <option value="week" {{ request('status') == 'week' ? 'selected' : '' }}>7 วันล่าสุด</option>
-                        <option value="installed_only" {{ request('status') == 'installed_only' ? 'selected' : '' }}>ติดตั้งไอคอนแล้ว</option>
-                    </select>
+                    <!-- Status & Conditions Filter (Multi-select Checkboxes) -->
+                    <div class="filter-dropdown-multiselect" id="instStatusDropdown">
+                        <button type="button" class="filter-dropdown-btn {{ $statusCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'instStatusDropdown')">
+                            <span>
+                                @if($statusCount === 0)
+                                    สถานะ / เงื่อนไข
+                                @elseif($statusCount === 1)
+                                    @php
+                                        $stTitles = [
+                                            'online' => '🟢 ออนไลน์',
+                                            'offline' => '⚪ ออฟไลน์',
+                                            'missing_asset' => '🏷️ ไม่มีรหัส COM',
+                                            'risk_only' => '⚠️ พบโปรแกรมเสี่ยง',
+                                            'today' => '📅 เปิดใช้วันนี้',
+                                            'week' => '🕒 7 วันล่าสุด',
+                                            'installed_only' => '💻 ติดตั้งไอคอนแล้ว',
+                                        ];
+                                    @endphp
+                                    {{ $stTitles[$selectedStatuses[0]] ?? $selectedStatuses[0] }}
+                                @else
+                                    สถานะ ({{ $statusCount }})
+                                @endif
+                            </span>
+                            <span class="material-symbols-Outlined dropdown-arrow">expand_more</span>
+                        </button>
+                        <div class="filter-dropdown-menu" id="instStatusDropdownMenu" onclick="event.stopPropagation();">
+                            <div class="filter-dropdown-header">
+                                <span>ติ๊กเลือกสถานะ</span>
+                                <button type="button" class="btn-clear-multi" onclick="clearMulti('instStatusDropdown', 'สถานะ / เงื่อนไข')">ล้าง</button>
+                            </div>
+                            <label class="multi-item">
+                                <input type="checkbox" name="status[]" value="online" onchange="updateMultiLabel('instStatusDropdown', 'สถานะ / เงื่อนไข')" {{ in_array('online', $selectedStatuses) ? 'checked' : '' }}>
+                                <span>🟢 ออนไลน์ ({{ $stats['online_count'] ?? 0 }})</span>
+                            </label>
+                            <label class="multi-item">
+                                <input type="checkbox" name="status[]" value="offline" onchange="updateMultiLabel('instStatusDropdown', 'สถานะ / เงื่อนไข')" {{ in_array('offline', $selectedStatuses) ? 'checked' : '' }}>
+                                <span>⚪ ออฟไลน์ ({{ $stats['offline_count'] ?? 0 }})</span>
+                            </label>
+                            <label class="multi-item">
+                                <input type="checkbox" name="status[]" value="missing_asset" onchange="updateMultiLabel('instStatusDropdown', 'สถานะ / เงื่อนไข')" {{ in_array('missing_asset', $selectedStatuses) ? 'checked' : '' }}>
+                                <span>🏷️ ไม่พบรหัสครุภัณฑ์ ({{ $stats['missing_asset_code_count'] ?? 0 }})</span>
+                            </label>
+                            @if(Auth::user()->isAdmin())
+                                <label class="multi-item">
+                                    <input type="checkbox" name="status[]" value="risk_only" onchange="updateMultiLabel('instStatusDropdown', 'สถานะ / เงื่อนไข')" {{ in_array('risk_only', $selectedStatuses) ? 'checked' : '' }}>
+                                    <span>⚠️ ตรวจพบโปรแกรมเสี่ยง ({{ $stats['risk_count'] ?? 0 }})</span>
+                                </label>
+                            @endif
+                            <label class="multi-item">
+                                <input type="checkbox" name="status[]" value="today" onchange="updateMultiLabel('instStatusDropdown', 'สถานะ / เงื่อนไข')" {{ in_array('today', $selectedStatuses) ? 'checked' : '' }}>
+                                <span>📅 เปิดใช้งานวันนี้</span>
+                            </label>
+                            <label class="multi-item">
+                                <input type="checkbox" name="status[]" value="week" onchange="updateMultiLabel('instStatusDropdown', 'สถานะ / เงื่อนไข')" {{ in_array('week', $selectedStatuses) ? 'checked' : '' }}>
+                                <span>🕒 7 วันล่าสุด</span>
+                            </label>
+                            <label class="multi-item">
+                                <input type="checkbox" name="status[]" value="installed_only" onchange="updateMultiLabel('instStatusDropdown', 'สถานะ / เงื่อนไข')" {{ in_array('installed_only', $selectedStatuses) ? 'checked' : '' }}>
+                                <span>💻 ติดตั้งไอคอนแล้ว</span>
+                            </label>
+                            <div class="filter-dropdown-footer">
+                                <button type="submit" class="btn-multi-apply">ตกลง</button>
+                            </div>
+                        </div>
+                    </div>
 
-                    <button type="submit" class="btn-filter">
+                    <!-- Remote VNC Filter (Multi-select Checkboxes) -->
+                    <div class="filter-dropdown-multiselect" id="instVncDropdown">
+                        <button type="button" class="filter-dropdown-btn {{ $vncCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'instVncDropdown')">
+                            <span>
+                                @if($vncCount === 0)
+                                    รีโมท (VNC)
+                                @elseif($vncCount === 1)
+                                    {{ $selectedVncs[0] === 'ready' ? '🟢 VNC พร้อม' : '⚪ VNC ไม่พร้อม' }}
+                                @else
+                                    VNC ({{ $vncCount }})
+                                @endif
+                            </span>
+                            <span class="material-symbols-Outlined dropdown-arrow">expand_more</span>
+                        </button>
+                        <div class="filter-dropdown-menu" id="instVncDropdownMenu" onclick="event.stopPropagation();">
+                            <div class="filter-dropdown-header">
+                                <span>ติ๊กเลือกรีโมท VNC</span>
+                                <button type="button" class="btn-clear-multi" onclick="clearMulti('instVncDropdown', 'รีโมท (VNC)')">ล้าง</button>
+                            </div>
+                            <label class="multi-item">
+                                <input type="checkbox" name="vnc[]" value="ready" onchange="updateMultiLabel('instVncDropdown', 'รีโมท (VNC)')" {{ in_array('ready', $selectedVncs) ? 'checked' : '' }}>
+                                <span>🟢 พร้อมรีโมท (Port 5900 เปิด)</span>
+                            </label>
+                            <label class="multi-item">
+                                <input type="checkbox" name="vnc[]" value="not_ready" onchange="updateMultiLabel('instVncDropdown', 'รีโมท (VNC)')" {{ in_array('not_ready', $selectedVncs) ? 'checked' : '' }}>
+                                <span>⚪ ยังไม่พร้อม (ปิดเครื่อง/ไม่มี VNC)</span>
+                            </label>
+                            <div class="filter-dropdown-footer">
+                                <button type="submit" class="btn-multi-apply">ตกลง</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AnyDesk Filter (Multi-select Checkboxes) -->
+                    <div class="filter-dropdown-multiselect" id="instAdDropdown">
+                        <button type="button" class="filter-dropdown-btn {{ $anydeskCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'instAdDropdown')">
+                            <span>
+                                @if($anydeskCount === 0)
+                                    AnyDesk
+                                @elseif($anydeskCount === 1)
+                                    {{ $selectedAnydesks[0] === 'installed' ? '🔴 มี AnyDesk' : '⚪ ไม่มี AnyDesk' }}
+                                @else
+                                    AnyDesk ({{ $anydeskCount }})
+                                @endif
+                            </span>
+                            <span class="material-symbols-Outlined dropdown-arrow">expand_more</span>
+                        </button>
+                        <div class="filter-dropdown-menu" id="instAdDropdownMenu" onclick="event.stopPropagation();">
+                            <div class="filter-dropdown-header">
+                                <span>ติ๊กเลือก AnyDesk</span>
+                                <button type="button" class="btn-clear-multi" onclick="clearMulti('instAdDropdown', 'AnyDesk')">ล้าง</button>
+                            </div>
+                            <label class="multi-item">
+                                <input type="checkbox" name="anydesk[]" value="installed" onchange="updateMultiLabel('instAdDropdown', 'AnyDesk')" {{ in_array('installed', $selectedAnydesks) ? 'checked' : '' }}>
+                                <span>🔴 มี AnyDesk ในเครื่อง</span>
+                            </label>
+                            <label class="multi-item">
+                                <input type="checkbox" name="anydesk[]" value="not_installed" onchange="updateMultiLabel('instAdDropdown', 'AnyDesk')" {{ in_array('not_installed', $selectedAnydesks) ? 'checked' : '' }}>
+                                <span>⚪ ไม่มี AnyDesk</span>
+                            </label>
+                            <div class="filter-dropdown-footer">
+                                <button type="submit" class="btn-multi-apply">ตกลง</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Version Filter (Multi-select Checkboxes) -->
+                    <div class="filter-dropdown-multiselect" id="instVerDropdown">
+                        <button type="button" class="filter-dropdown-btn {{ $versionCount > 0 ? 'has-value' : '' }}" onclick="toggleMultiDropdown(event, 'instVerDropdown')">
+                            <span>
+                                @if($versionCount === 0)
+                                    เวอร์ชัน
+                                @elseif($versionCount === 1)
+                                    {{ $selectedVersions[0] === 'current' ? '🚀 v' . $serverVersion : ($selectedVersions[0] === 'outdated' ? '⚠️ รุ่นเก่า' : '⏳ รออัปเดต') }}
+                                @else
+                                    เวอร์ชัน ({{ $versionCount }})
+                                @endif
+                            </span>
+                            <span class="material-symbols-Outlined dropdown-arrow">expand_more</span>
+                        </button>
+                        <div class="filter-dropdown-menu" id="instVerDropdownMenu" onclick="event.stopPropagation();">
+                            <div class="filter-dropdown-header">
+                                <span>ติ๊กเลือกเวอร์ชัน</span>
+                                <button type="button" class="btn-clear-multi" onclick="clearMulti('instVerDropdown', 'เวอร์ชัน')">ล้าง</button>
+                            </div>
+                            <label class="multi-item">
+                                <input type="checkbox" name="version[]" value="current" onchange="updateMultiLabel('instVerDropdown', 'เวอร์ชัน')" {{ in_array('current', $selectedVersions) ? 'checked' : '' }}>
+                                <span>🚀 เวอร์ชันล่าสุด (v{{ $serverVersion }})</span>
+                            </label>
+                            <label class="multi-item">
+                                <input type="checkbox" name="version[]" value="outdated" onchange="updateMultiLabel('instVerDropdown', 'เวอร์ชัน')" {{ in_array('outdated', $selectedVersions) ? 'checked' : '' }}>
+                                <span>⚠️ รุ่นเดิม / ต้องอัปเดต</span>
+                            </label>
+                            <label class="multi-item">
+                                <input type="checkbox" name="version[]" value="pending" onchange="updateMultiLabel('instVerDropdown', 'เวอร์ชัน')" {{ in_array('pending', $selectedVersions) ? 'checked' : '' }}>
+                                <span>⏳ รอดำเนินการอัปเดต</span>
+                            </label>
+                            <div class="filter-dropdown-footer">
+                                <button type="submit" class="btn-multi-apply">ตกลง</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-filter" title="ค้นหาตามเงื่อนไข">
                         <span class="material-symbols-Outlined" style="font-size: 17px;">tune</span>
                         <span>กรองข้อมูล</span>
                     </button>
 
-                    @if(request()->hasAny(['search', 'department', 'status', 'sort', 'direction']))
+                    @if(request()->hasAny(['search', 'department', 'status', 'vnc', 'anydesk', 'version', 'sort', 'direction']))
                         <a href="{{ route('admin.installations') }}" class="btn-reset" title="ล้างการกรองและการเรียงลำดับทั้งหมด">
                             <span class="material-symbols-Outlined" style="font-size: 16px;">close</span>
                             <span>ล้างกรอง</span>
@@ -4404,6 +4769,84 @@
                 }
             });
         }
+
+        // Multi-Select Dropdowns for Installations
+        function toggleMultiDropdown(e, id) {
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+            const dropdown = document.getElementById(id);
+            if (!dropdown) return;
+            const menu = dropdown.querySelector('.filter-dropdown-menu');
+            const btn = dropdown.querySelector('.filter-dropdown-btn');
+            const isShown = menu.classList.contains('show');
+
+            // Close other dropdowns
+            document.querySelectorAll('.filter-dropdown-menu.show').forEach(m => m.classList.remove('show'));
+            document.querySelectorAll('.filter-dropdown-btn.active').forEach(b => b.classList.remove('active'));
+
+            if (!isShown) {
+                menu.classList.add('show');
+                btn.classList.add('active');
+            }
+        }
+
+        function updateMultiLabel(dropdownId, defaultLabel) {
+            const dropdown = document.getElementById(dropdownId);
+            if (!dropdown) return;
+            const checkboxes = dropdown.querySelectorAll('input[type="checkbox"]:checked');
+            const labelSpan = dropdown.querySelector('.filter-dropdown-btn span:first-child');
+            const btn = dropdown.querySelector('.filter-dropdown-btn');
+
+            if (checkboxes.length === 0) {
+                labelSpan.textContent = defaultLabel;
+                btn.classList.remove('has-value');
+            } else if (checkboxes.length === 1) {
+                const labelText = checkboxes[0].parentElement.querySelector('span').textContent.trim();
+                labelSpan.textContent = labelText;
+                btn.classList.add('has-value');
+            } else {
+                labelSpan.textContent = `${defaultLabel} (${checkboxes.length} รายการ)`;
+                btn.classList.add('has-value');
+            }
+        }
+
+        function clearMulti(dropdownId, defaultLabel) {
+            const dropdown = document.getElementById(dropdownId);
+            if (!dropdown) return;
+            dropdown.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+            updateMultiLabel(dropdownId, defaultLabel);
+        }
+
+        function filterDropdownOptions(dropdownId, searchVal) {
+            const dropdown = document.getElementById(dropdownId);
+            if (!dropdown) return;
+            const term = (searchVal || '').toLowerCase().trim();
+            dropdown.querySelectorAll('.multi-items-scroll .multi-item').forEach(item => {
+                const text = (item.getAttribute('data-text') || item.textContent).toLowerCase();
+                if (!term || text.includes(term)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+
+        // Close dropdowns on outside click or Escape
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.filter-dropdown-multiselect')) {
+                document.querySelectorAll('.filter-dropdown-menu.show').forEach(m => m.classList.remove('show'));
+                document.querySelectorAll('.filter-dropdown-btn.active').forEach(b => b.classList.remove('active'));
+            }
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                document.querySelectorAll('.filter-dropdown-menu.show').forEach(m => m.classList.remove('show'));
+                document.querySelectorAll('.filter-dropdown-btn.active').forEach(b => b.classList.remove('active'));
+            }
+        });
     </script>
 </body>
 </html>
