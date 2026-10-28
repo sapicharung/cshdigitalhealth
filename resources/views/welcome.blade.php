@@ -892,7 +892,7 @@
                             <small>Clinical & Patient Care Systems</small>
                         </div>
                     </div>
-                    <span class="category-count">5 ระบบ</span>
+                    <span class="category-count">6 ระบบ</span>
                 </div>
                 <div class="service-grid">
                     <a href="https://cshos.moph.go.th/doctor_schedule/" target="_blank" class="service-card card-blue" data-network="cloud" data-keywords="ตารางเวรแพทย์ ตารางตรวจ แพทย์ หมอ doctor schedule">
@@ -909,6 +909,11 @@
                         <span class="badge-network badge-cloud">Cloud</span>
                         <div class="icon-box ic-purple"><span class="material-symbols-outlined">home_repair_service</span></div>
                         <h4>ระบบแจ้งซ่อมไอที</h4>
+                    </a>
+                    <a href="https://cshos.moph.go.th/csherp/repairs/create?category=maintenance" target="_blank" class="service-card card-green" data-network="cloud" data-keywords="แจ้งซ่อมช่าง ซ่อมช่าง แจ้งซ่อม ซ่อมบำรุง ช่าง ซ่อมอาคาร ประปา ไฟฟ้า maintenance csherp repair">
+                        <span class="badge-network badge-cloud">Cloud</span>
+                        <div class="icon-box ic-green"><span class="material-symbols-outlined">handyman</span></div>
+                        <h4>แจ้งซ่อมช่าง</h4>
                     </a>
                     <a href="https://script.google.com/macros/s/AKfycbwSEdngNprw6H_zdAMj6O0qtCPLiV6xHkhmdDeGQjsi1Le2V_c7lBU9u8jq6jZ-uOl0gQ/exec" target="_blank" class="service-card card-rose" data-network="cloud" data-keywords="blood bank bloodbank คลังเลือด ธนาคารเลือด เลือด">
                         <span class="badge-network badge-cloud">Cloud</span>
